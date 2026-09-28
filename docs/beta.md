@@ -21,7 +21,7 @@ Three games—This-or-that, Would you rather, and Build a date—contain five ch
 | Mobile | Expo 57 / React Native 0.86 / TypeScript / Expo Router, shared Android and iOS screens |
 | API | NestJS modular monolith, REST, server-side authorization |
 | Database | PostgreSQL 17; relational `apps/api/src/schema.sql`; idempotent startup migration |
-| Media | Private Docker volume behind authenticated endpoint; images re-encoded/metadata stripped; FFmpeg MP4 video, maximum 30 seconds and 20 MB input |
+| Media | Private Docker volume behind authenticated endpoint; images re-encoded/metadata stripped; MP4/MOV/WebM input transcoded to MP4, maximum 30 seconds and 20 MB input; playlist inputs rejected and video decoder restricted to local protocols |
 | Authentication | Scrypt hashes, random sessions stored hashed server-side; native SecureStore |
 | Updates | Chat foreground polling every 3 seconds; social state every 12 seconds plus pull-to-refresh; 30-post cursor pages |
 | Jobs | In-process expiry sweep and optional push dispatcher |

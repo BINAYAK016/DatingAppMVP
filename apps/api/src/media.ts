@@ -20,13 +20,28 @@ export async function upload(actor: string, file: Express.Multer.File) {
   const isVideo = file.mimetype.startsWith("video/");
   let path = "";
   if (isVideo) {
+    // Force a self-contained container; never let a disguised playlist resolve URLs.
+    const container =
+      file.buffer.subarray(4, 8).toString() === "ftyp"
+        ? "mov"
+        : file.buffer.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]))
+          ? "matroska"
+          : null;
+    if (!container)
+      throw new BadRequestException("Choose an MP4, MOV or WebM video file.");
+    const inputOptions = [
+      "-protocol_whitelist", "file,pipe", "-f", container,
+      ...(container === "mov"
+        ? ["-enable_drefs", "0", "-use_absolute_path", "0"]
+        : []),
+    ];
     const raw = join(uploadDir, `${id}.input`);
     path = join(uploadDir, `${id}.mp4`);
     await writeFile(raw, file.buffer);
     try {
       const { stdout } = await exec(
         "ffprobe",
-        ["-v", "error", "-show_entries", "format=duration", "-of", "json", raw],
+        ["-v", "error", ...inputOptions, "-show_entries", "format=duration", "-of", "json", raw],
         { timeout: 15000 },
       );
       const duration = Number(JSON.parse(stdout).format.duration);
@@ -37,6 +52,7 @@ export async function upload(actor: string, file: Express.Multer.File) {
         [
           "-nostdin",
           "-y",
+          ...inputOptions,
           "-i",
           raw,
           "-t",

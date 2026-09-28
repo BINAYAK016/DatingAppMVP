@@ -4,7 +4,7 @@ This file records executed checks at beta delivery. See [test plan](test-plan.md
 
 ## Executed
 
-- `npm test --prefix apps/api`: **10/10 passing**, isolated PostgreSQL databases. Includes negative authorization tests and concurrent duplicate-message requests.
+- `npm test --prefix apps/api`: **11/11 passing**, isolated PostgreSQL databases. Includes negative authorization tests, concurrent duplicate-message requests, and rejection of playlists disguised as uploaded videos.
 - `npm run check`: API and mobile TypeScript pass.
 - `npm run lint --prefix apps/mobile`: pass with no errors/warnings.
 - `npx expo-doctor`: **21/21 passing**. API and mobile `npm audit`: **0 known vulnerabilities** at the time checked (not a guarantee of security).

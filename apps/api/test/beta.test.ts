@@ -223,6 +223,16 @@ test("feed cursor handles posts with identical timestamps without duplication", 
   assert.equal(new Set([...first, ...second].map((p) => p.id)).size, 35);
   await db.query("DELETE FROM posts WHERE id=ANY($1::uuid[])", [created]);
 });
+test("video upload rejects playlists disguised as video containers", async () => {
+  const form = new FormData();
+  form.append("file", new Blob(["#EXTM3U\n#EXTINF:2,\nhttp://127.0.0.1/private.ts\n"], { type: "video/mp4" }), "fake.mp4");
+  const response = await fetch(api + "/media", {
+    method: "POST", headers: { Authorization: "Bearer " + tokens[0] }, body: form,
+  });
+  assert.equal(response.status, 400);
+  assert.equal((await response.json()).message, "Choose an MP4, MOV or WebM video file.");
+});
+
 test("direct media authorization, view-once snaps and expiry", async () => {
   const mediaId = await image();
   const read = (who: number) =>
