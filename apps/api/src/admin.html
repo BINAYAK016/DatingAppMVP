@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <meta charset="utf-8" /><meta
+    name="viewport"
+    content="width=device-width"
+  /><title>Sangai • Beta moderation</title
+  ><style>
+    body {
+      font: 16px system-ui;
+      background: #f6f4ed;
+      color: #183c32;
+      max-width: 850px;
+      margin: 50px auto;
+      padding: 20px;
+    }
+    input,
+    button,
+    textarea {
+      font: inherit;
+      padding: 12px;
+      border: 1px solid #cad3c9;
+      border-radius: 10px;
+    }
+    button {
+      background: #183c32;
+      color: white;
+      cursor: pointer;
+    }
+    article {
+      background: white;
+      border: 1px solid #deded2;
+      border-radius: 18px;
+      padding: 24px;
+      margin: 20px 0;
+    }
+    p {
+      line-height: 1.5;
+    }
+    textarea {
+      width: 90%;
+    }
+    .row {
+      display: flex;
+      gap: 8px;
+      margin-top: 15px;
+      flex-wrap: wrap;
+    }
+  </style>
+  <h1>Sangai / moderation</h1>
+  <p>
+    Local beta case queue. Keep the admin key private. All actions are audited.
+  </p>
+  <input
+    type="password"
+    id="key"
+    placeholder="Admin key from .env"
+    autocomplete="off"
+  /><button id="load">Load reports</button>
+  <p id="status"></p>
+  <div id="cases"></div>
+  <script src="/admin.js"></script>
+</html>

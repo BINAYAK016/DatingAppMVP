@@ -1,0 +1,40 @@
+name: sangai-beta
+services:
+  db:
+    image: postgres:17.7-alpine
+    environment:
+      POSTGRES_USER: sangai
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-beta-only}
+      POSTGRES_DB: sangai
+    ports:
+      - "127.0.0.1:15432:5432"
+    volumes:
+      - beta_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sangai -d sangai"]
+      interval: 3s
+      retries: 20
+  api:
+    build: ./apps/api
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgres://sangai:${POSTGRES_PASSWORD:-local-beta-only}@db:5432/sangai
+      ENABLE_DEMO: ${ENABLE_DEMO:-true}
+      ENABLE_PUSH: ${ENABLE_PUSH:-false}
+      ADMIN_KEY: ${ADMIN_KEY:-local-beta-admin-change-me}
+      PORT: 4100
+      UPLOAD_DIR: /data/media
+    ports:
+      - "127.0.0.1:4100:4100"
+    volumes:
+      - beta_media:/data/media
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4100/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      retries: 10
+volumes:
+  beta_db:
+  beta_media:
