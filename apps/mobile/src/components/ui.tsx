@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -11,6 +11,8 @@ import {
   View,
   RefreshControl,
   ColorValue,
+  ImageStyle,
+  StyleProp,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -142,7 +144,6 @@ export function Avatar({
   person: Partial<Person>;
   size?: number;
 }) {
-  const { url, token } = useStore();
   return (
     <View
       style={{
@@ -156,11 +157,8 @@ export function Avatar({
       }}
     >
       {person.avatar_id ? (
-        <Image
-          source={{
-            uri: `${url}/v1/media/${person.avatar_id}`,
-            headers: { Authorization: `Bearer ${token}` },
-          }}
+        <PrivateImage
+          id={person.avatar_id}
           style={{ width: size, height: size }}
         />
       ) : (
@@ -193,8 +191,66 @@ export function Video({ id }: { id: string }) {
     />
   );
 }
-export function Media({ id, kind = "image" }: { id: string; kind?: string }) {
+function PrivateImage({
+  id,
+  style,
+}: {
+  id: string;
+  style: StyleProp<ImageStyle>;
+}) {
   const { url, token } = useStore();
+  const [loaded, setLoaded] = useState<{ key: string; uri: string } | null>(null);
+  const [failedKey, setFailedKey] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const key = `${url}:${id}:${token}:${attempt}`;
+  const failed = failedKey === key;
+  useEffect(() => {
+    const controller = new AbortController();
+    // Authenticate through the same fetch path as the API on every platform.
+    // Data stays in component memory; no bearer token is put in an image URL.
+    (async () => {
+      const response = await fetch(`${url}/v1/media/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new Error("Photo unavailable");
+      const mime = response.headers.get("content-type") || "";
+      if (!mime.startsWith("image/")) throw new Error("Invalid photo");
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      let binary = "";
+      for (let offset = 0; offset < bytes.length; offset += 8192)
+        binary += String.fromCharCode(...bytes.subarray(offset, offset + 8192));
+      if (!controller.signal.aborted)
+        setLoaded({ key, uri: `data:${mime};base64,${btoa(binary)}` });
+    })().catch(() => {
+      if (!controller.signal.aborted) setFailedKey(key);
+    });
+    return () => controller.abort();
+  }, [url, id, token, key, attempt]);
+  return loaded?.key === key && !failed ? (
+    <Image
+      source={{ uri: loaded.uri }}
+      style={style}
+      resizeMode="cover"
+      onError={() => setFailedKey(key)}
+      accessibilityLabel="Shared photo"
+    />
+  ) : (
+    <Pressable
+      style={[style, { alignItems: "center", justifyContent: "center" }]}
+      disabled={!failed}
+      onPress={() => setAttempt(attempt + 1)}
+      accessibilityLabel={failed ? "Photo unavailable. Retry" : "Loading photo"}
+    >
+      {failed ? (
+        <Text style={s.small}>Photo unavailable · Retry</Text>
+      ) : (
+        <ActivityIndicator color={C.green} />
+      )}
+    </Pressable>
+  );
+}
+export function Media({ id, kind = "image" }: { id: string; kind?: string }) {
   const [loadVideo, setLoadVideo] = useState(false);
   return kind === "video" ? (
     loadVideo ? (
@@ -216,14 +272,7 @@ export function Media({ id, kind = "image" }: { id: string; kind?: string }) {
       </View>
     )
   ) : (
-    <Image
-      resizeMode="cover"
-      source={{
-        uri: `${url}/v1/media/${id}`,
-        headers: { Authorization: `Bearer ${token}` },
-      }}
-      style={s.media}
-    />
+    <PrivateImage id={id} style={s.media} />
   );
 }
 export function Page({

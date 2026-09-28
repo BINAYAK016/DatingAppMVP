@@ -18,4 +18,16 @@ This file records executed checks at beta delivery. See [test plan](test-plan.md
 
 The initial standard multi-stage Docker build completed. A later rebuild encountered a Docker Desktop registry proxy timeout (`192.168.65.1:3128`). The local runtime was updated by layering freshly compiled API code, schema and admin files over its existing beta image, preserving the installed dependencies; the updated image and media tests passed. The normal Dockerfile remains the reproducible source definition. Fix the host proxy for uncached builds. No unrelated containers or images were removed.
 
-Native Android application build/install results are recorded below when complete. Native iOS journeys, actual camera hardware, permission-denial/device matrices and remote APNs/FCM delivery remain unverified.
+## Native Android
+
+The release-mode x86_64 APK built and installed on the API 36 emulator (Pixel 7, WHPX, Windows). The APK contains its JavaScript bundle and does not need Metro running. It uses local development signing, package `com.sangai.beta`, version `0.1.0`.
+
+Executed through Android's actual UI: demo sign-in, authenticated feed, discovery with all eight city choices, circle details/discussions, game invitation and five locked answers, chat send, match-only story opening, and secure-session restoration after force-stop/relaunch. The message was independently read back from the backend. A received synthetic MP4 snap decoded in the native player; the viewer was closed on returning from the background, and subsequent media access and snap reopening were denied by the API. No app crash appeared in AndroidRuntime/ReactNativeJS error logs during these journeys.
+
+Native photo-library testing exposed Expo SDK 57's rejection of the old URI descriptor FormData upload. The upload now passes an `expo-file-system` File, following the [versioned FileSystem documentation](https://docs.expo.dev/versions/v57.0.0/sdk/filesystem/). Android's system picker, upload, post persistence and deletion were retested successfully. A further visual check found direct authenticated Image sources blank on Android. Private photos now load through authenticated fetch into component-memory data URIs with loading/retry states; the uploaded image was visually confirmed in the final APK. The final source also exported all platform bundles successfully. APK signature verification passed (development certificate).
+
+Final APK SHA-256: `4c790a941b9bb48610fbbe3a1404a40c816d93cdaa5b5e5e85cb4315c4803a2f`.
+
+Build tooling: Java 21, SDK 36, NDK 27.1.12297006, CMake 3.22.1, Ninja 1.13.2 and Gradle 9.3.1. Java 25 failed Prefab native dependency configuration; SDK-bundled Ninja 1.10.2 failed Windows long paths. A task-local Java 21 and checksum-verified newer Ninja resolved those failures without editing generated native project files. Build dependencies and the AVD live on D: to limit C: usage. Windows expanded its C: pagefile during the memory-heavy initial build; allow free disk space and avoid running the emulator alongside a full native build on this 16 GB host. Emulator System UI/Messages briefly reported not responding during cold boots under resource pressure; they recovered before app checks. This was not an app crash, but emulator performance on this host is limited.
+
+Native iOS journeys, actual camera hardware, the full permission-denial/device matrix, offline/reconnect matrix and remote APNs/FCM delivery remain unverified. Emulator smoke coverage does not establish production or store readiness.

@@ -8,6 +8,7 @@ import React, {
 } from "react";
 import { AppState, Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
+import { File } from "expo-file-system";
 import { State } from "./types";
 const DEFAULT_URL =
   process.env.EXPO_PUBLIC_API_URL ||
@@ -185,12 +186,10 @@ export function Provider({ children }: { children: React.ReactNode }) {
     if (Platform.OS === "web") {
       const blob = await (await fetch(asset.uri)).blob();
       form.append("file", blob, video ? "moment.mp4" : "moment.jpg");
-    } else
-      form.append("file", {
-        uri: asset.uri,
-        name: video ? "moment.mp4" : "moment.jpg",
-        type: asset.mimeType || (video ? "video/mp4" : "image/jpeg"),
-      } as any);
+    } else {
+      // SDK 57 uses Expo's standards-based fetch; URI descriptor objects are not blobs.
+      form.append("file", new File(asset.uri));
+    }
     const response = await fetch(url + "/v1/media", {
       method: "POST",
       headers: { Authorization: "Bearer " + tokenRef.current },
