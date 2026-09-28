@@ -1,0 +1,30 @@
+name: Beta checks
+on: [push, pull_request]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17.7-alpine
+        env:
+          POSTGRES_USER: sangai
+          POSTGRES_PASSWORD: local-ci-only
+          POSTGRES_DB: sangai
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U sangai -d sangai"
+          --health-interval 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci --prefix apps/api
+      - run: npm test --prefix apps/api
+        env:
+          TEST_DATABASE_URL: postgres://sangai:local-ci-only@localhost:5432/sangai
+      - run: npm ci --prefix apps/mobile
+      - run: npm run typecheck --prefix apps/mobile
+      - run: npm run lint --prefix apps/mobile
+      - run: npx expo export --platform all
+        working-directory: apps/mobile

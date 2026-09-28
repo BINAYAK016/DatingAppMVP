@@ -1,0 +1,15 @@
+{
+  "name": "sangai-beta",
+  "private": true,
+  "scripts": {
+    "setup": "npm ci --prefix apps/api && npm ci --prefix apps/mobile",
+    "backend": "docker compose up --build -d",
+    "mobile": "npm start --prefix apps/mobile",
+    "android": "npm run android --prefix apps/mobile",
+    "check": "npm run typecheck --prefix apps/api && npm run typecheck --prefix apps/mobile",
+    "test": "npm test --prefix apps/api"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0"
+  }
+}
