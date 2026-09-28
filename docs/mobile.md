@@ -1,3 +1,5 @@
+> Historical discovery proposal (28 September 2026). The later user-authorized beta is implemented; see [current scope](beta.md), [README](../README.md), and [verification](verification.md). Proposed services and future features below are not claims of delivered functionality.
+
 # Android and iOS product design
 
 Status: proposed; no native builds or device tests performed. Both platforms release the same core capabilities. A feature that is not ready on one platform stays unreleased on both unless a deliberate, documented platform-specific design provides equivalent behavior.

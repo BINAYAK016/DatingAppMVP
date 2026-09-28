@@ -1,3 +1,5 @@
+> Historical discovery proposal (28 September 2026). The later user-authorized beta is implemented; see [current scope](beta.md), [README](../README.md), and [verification](verification.md). Proposed services and future features below are not claims of delivered functionality.
+
 # Evidence, assumptions and repository audit
 
 Research date: 28 September 2026. Sources are first-party descriptions, not independent proof of results or market share. No user interviews, installations of competitors, paid experiments or performance benchmarks were performed in this phase.

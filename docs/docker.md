@@ -1,3 +1,5 @@
+> Historical discovery proposal (28 September 2026). The later user-authorized beta is implemented; see [current scope](beta.md), [README](../README.md), and [verification](verification.md). Proposed services and future features below are not claims of delivered functionality.
+
 # Docker and deployment design
 
 Status: specification only. Dockerfiles, Compose, `.env.example`, `.dockerignore` and devcontainer files are intentionally deferred to the foundation milestone. The documentation commit does not provide a runnable app or claim Docker checks passed.

@@ -2,7 +2,7 @@
 
 ## Scope and truthfulness
 
-- This repository starts with discovery and architecture only. Do not start application implementation as an automatic continuation of the initial planning task.
+- Discovery is complete. The user explicitly authorized a cross-platform social beta with direct snaps, match-only stories, full-clique communities and dating games, without AI. Current scope and beta deviations are in `docs/beta.md`.
 - Treat `docs/` as proposed decisions until implemented and verified. Update implementation status when delivering each milestone.
 - Android and iOS are primary products. Do not replace the mobile app with a website, PWA, or WebView wrapper.
 - Preserve user work. Begin changes by inspecting `git status`, `git branch -a`, `git log --oneline -10`, and applicable nested instructions. An empty repository has no history; report that accurately.
@@ -15,7 +15,7 @@
 - Keep authorization, discovery eligibility, matching, safety and entitlements on the server. Share API contracts, not database models or server secrets, with clients.
 - Prefer module boundaries and measured optimization over microservices, Kubernetes, custom recommendation models, or separate search infrastructure.
 - Dockerize backend, worker, admin and local dependencies. Document the host/device native-toolchain exception. Maintain `.env.example`, `.dockerignore`, dev containers and reproducible setup when implementation starts.
-- Add functionality only when it serves connection quality, safety or a measured business hypothesis. Follow P0/P1/P2 scope in `docs/product.md`.
+- Add functionality only when it serves connection quality, safety or a measured business hypothesis. Later beta authorization supersedes the narrower P0/P1/P2 proposal in `docs/product.md`.
 
 ## Non-negotiable privacy and safety
 
@@ -30,7 +30,7 @@
 
 ## Verification and delivery
 
-- For docs-only work, check relative links, scope consistency, whitespace and secret exposure. Application tests do not exist yet; do not manufacture a passing test claim.
+- Check documentation links, scope consistency, whitespace and secret exposure. Record actual application test/build outcomes in `docs/verification.md`.
 - For implementation, test critical state transitions with PostgreSQL/Redis integration, authorization failures, block races, message retries, deletion and migration behavior.
 - Run the primary journey on Android and iOS, plus permission denial, reconnect and background/foreground scenarios. Record device/build evidence; do not label one-platform testing as parity.
 - Before a release, exercise backup restore, rollback, moderation response, notification privacy and app-store requirements.

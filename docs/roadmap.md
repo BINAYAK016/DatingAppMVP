@@ -1,3 +1,5 @@
+> Historical discovery proposal (28 September 2026). The later user-authorized beta is implemented; see [current scope](beta.md), [README](../README.md), and [verification](verification.md). Proposed services and future features below are not claims of delivered functionality.
+
 # Delivery roadmap, gates and risks
 
 Status: proposed, 28 September 2026. The confirmed delivery model is a small team using Codex to build, a senior developer to review, and a DevOps engineer to deploy. No headcount availability, budget or deadline was provided. Sequence work by verifiable outcomes, not an invented calendar commitment.

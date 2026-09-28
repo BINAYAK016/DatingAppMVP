@@ -1,3 +1,5 @@
+> Historical discovery proposal (28 September 2026). The later user-authorized beta is implemented; see [current scope](beta.md), [README](../README.md), and [verification](verification.md). Proposed services and future features below are not claims of delivered functionality.
+
 # Product and architecture review
 
 Prepared 28 September 2026. This is a proposed direction for review, not a built application or validated business. Repository inspection found an empty `main` with no existing source or commits. The detailed plan preserves that distinction throughout.

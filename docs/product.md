@@ -1,3 +1,5 @@
+> Historical discovery proposal (28 September 2026). The later user-authorized beta is implemented; see [current scope](beta.md), [README](../README.md), and [verification](verification.md). Proposed services and future features below are not claims of delivered functionality.
+
 # Product strategy and MVP
 
 Status: proposed plan, 28 September 2026. Confirmed: native-quality Android/iOS; eight target cities; small team with Codex-assisted development, senior developer review and DevOps deployment. Unvalidated: demand, pricing, demographics, conversion targets and the superiority of a social feed. Evidence and limits are in [research](research.md).

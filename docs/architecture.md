@@ -1,3 +1,5 @@
+> Historical discovery proposal (28 September 2026). The later user-authorized beta is implemented; see [current scope](beta.md), [README](../README.md), and [verification](verification.md). Proposed services and future features below are not claims of delivered functionality.
+
 # System architecture and technology decisions
 
 Status: proposed; no services implemented. See [mobile](mobile.md), [database](database.md), [security](security.md) and [Docker](docker.md) for detailed contracts.

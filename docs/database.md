@@ -1,3 +1,5 @@
+> Historical discovery proposal (28 September 2026). The later user-authorized beta is implemented; see [current scope](beta.md), [README](../README.md), and [verification](verification.md). Proposed services and future features below are not claims of delivered functionality.
+
 # Logical database design
 
 Status: proposed schema, not migrations. PostgreSQL is the authoritative store. UUID primary keys, UTC `timestamptz`, explicit foreign keys and controlled status values throughout. IDs are opaque, not authorization. Store dates of birth as private dates, not public timestamps. Use database integrity constraints plus application transactions; do not trust client checks.

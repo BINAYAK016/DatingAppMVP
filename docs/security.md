@@ -1,3 +1,5 @@
+> Historical discovery proposal (28 September 2026). The later user-authorized beta is implemented; see [current scope](beta.md), [README](../README.md), and [verification](verification.md). Proposed services and future features below are not claims of delivered functionality.
+
 # Security, privacy and safety operating model
 
 Status: design, not an implemented or audited control set. Public beta must have a named safety owner, escalation coverage and tested moderation tools. Codex-generated controls require senior security review; DevOps handles deployment controls but does not replace moderation staff.
