@@ -11,7 +11,7 @@ export default function Layout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: C.green,
+        tabBarActiveTintColor: C.primary,
         tabBarInactiveTintColor: "#929B93",
         tabBarStyle: {
           backgroundColor: C.bg,
@@ -26,39 +26,32 @@ export default function Layout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Together",
-          tabBarIcon: ({ color }) => <Icon name="leaf-outline" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="discover"
-        options={{
           title: "Discover",
+          tabBarIcon: ({ color }) => <Icon name="heart-outline" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="chat"
+        options={{
+          title: "Chat",
           tabBarIcon: ({ color }) => (
-            <Icon name="sparkles-outline" color={color} />
+            <Icon name="chatbubbles-outline" color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name="circles"
+        name="sangai"
         options={{
-          title: "Circles",
+          title: "Sangai",
           tabBarIcon: ({ color }) => (
-            <Icon name="people-outline" color={color} />
+            <Icon name="flower-outline" color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name="play"
+        name="profile"
         options={{
-          title: "Play",
-          tabBarIcon: ({ color }) => <Icon name="dice-outline" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="you"
-        options={{
-          title: "You",
+          title: "Profile",
           tabBarIcon: ({ color }) => (
             <Icon name="person-outline" color={color} />
           ),

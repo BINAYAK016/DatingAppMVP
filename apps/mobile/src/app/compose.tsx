@@ -180,7 +180,7 @@ export default function Compose() {
             onPress={() => void pick(false)}
           />
         </View>
-        <View style={{ flex: 1 }}>
+        {(kind === "snap" || kind === "story") && <View style={{ flex: 1 }}>
           <Button
             title="Camera"
             secondary
@@ -188,9 +188,9 @@ export default function Compose() {
             disabled={busy}
             onPress={() => void pick(true)}
           />
-        </View>
+        </View>}
       </View>
-      {kind !== "avatar" && (
+      {(kind === "snap" || kind === "story") && (
         <Button
           title="Record a video · up to 30 seconds"
           secondary
@@ -219,7 +219,7 @@ export default function Compose() {
       />
       {busy && (
         <View style={[s.row, { marginTop: 16, justifyContent: "center" }]}>
-          <ActivityIndicator color={C.green} />
+          <ActivityIndicator color={C.primary} />
           <Text style={s.small}>{stage}</Text>
         </View>
       )}

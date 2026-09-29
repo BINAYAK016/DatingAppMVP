@@ -15,8 +15,8 @@ function Shell() {
   useEffect(() => {
     if (Platform.OS === "web" || !token) return;
     const redirect = (response: Notifications.NotificationResponse) => {
-      if (response.notification.request.content.data?.url === "/inbox")
-        router.push("/inbox");
+      if (response.notification.request.content.data?.url === "/(tabs)/chat")
+        router.push("/(tabs)/chat");
     };
     const last = Notifications.getLastNotificationResponse();
     if (last) {
@@ -47,7 +47,7 @@ function Shell() {
             right: 20,
             padding: 16,
             borderRadius: 16,
-            backgroundColor: C.green,
+            backgroundColor: C.primary,
             zIndex: 100,
           }}
         >

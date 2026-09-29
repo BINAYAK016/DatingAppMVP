@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Text, View, Pressable } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { useStore } from "../../lib/store";
+import { useStore } from "../lib/store";
 import {
   Avatar,
   Banner,
@@ -12,7 +12,7 @@ import {
   Page,
   Section,
   s,
-} from "../../components/ui";
+} from "../components/ui";
 export default function Play() {
   const { target } = useLocalSearchParams<{ target?: string }>();
   const st = useStore();
@@ -24,7 +24,7 @@ export default function Play() {
   const selected = selection.from === target ? selection.value : target || "";
   return (
     <Page>
-      <Header title="A little playful." eyebrow="LESS SMALL TALK. MORE YOU." />
+      <Header back title="Dating games" eyebrow="BREAK THE ICE" />
       <Banner
         title={"Good chemistry\nstarts with curiosity."}
         body="Choose in secret. Reveal together. Discover the little things you have in common."
@@ -46,7 +46,7 @@ export default function Play() {
                 padding: 12,
                 borderRadius: 18,
                 borderWidth: 2,
-                borderColor: selected === p.id ? C.green : "transparent",
+                borderColor: selected === p.id ? C.primary : "transparent",
               }}
             >
               <Avatar person={p} size={48} />
@@ -66,7 +66,7 @@ export default function Play() {
           style={[
             s.card,
             {
-              backgroundColor: ["#E9EEDC", "#F5E5D9", "#E8E6F0"][i],
+              backgroundColor: ["#FBE4EB", "#FFE6D8", "#EEE8F8"][i],
               padding: 24,
             },
           ]}

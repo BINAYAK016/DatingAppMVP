@@ -66,7 +66,7 @@ export function PostCard({ post }: { post: Post }) {
         >
           <Text
             style={{
-              fontFamily: "serif",
+              fontWeight: "700",
               fontSize: 23,
               lineHeight: 32,
               color: C.ink,
@@ -97,7 +97,7 @@ export function PostCard({ post }: { post: Post }) {
         >
           <Icon
             name={post.liked ? "heart" : "heart-outline"}
-            color={post.liked ? "#AF6A55" : C.ink}
+            color={post.liked ? "#A84D69" : C.ink}
             size={22}
           />
           <Text style={s.small}>{post.likes || "Like"}</Text>

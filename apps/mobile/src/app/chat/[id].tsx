@@ -31,7 +31,8 @@ export default function Chat() {
     [error, setError] = useState(""),
     [body, setBody] = useState(""),
     [busy, setBusy] = useState(false),
-    [snap, setSnap] = useState<any>(null);
+    [snap, setSnap] = useState<any>(null),
+    [attachments, setAttachments] = useState(false);
   const pending = useRef<{ text: string; id: string } | null>(null);
   const load = useCallback(async () => {
     try {
@@ -140,7 +141,7 @@ export default function Chat() {
                   ]}
                 >
                   <Avatar person={st.data?.me || {}} size={42} />
-                  <Icon name="heart" size={16} color="#C59079" />
+                  <Icon name="heart" size={16} color="#BD758B" />
                   <Avatar person={chat.person} size={42} />
                 </View>
                 <Text
@@ -148,38 +149,6 @@ export default function Chat() {
                 >
                   You chose each other. Say something that feels like you.
                 </Text>
-                <View style={[s.wrap, { marginBottom: 20 }]}>
-                  <Button
-                    title="Snap"
-                    secondary
-                    icon="camera-outline"
-                    onPress={() =>
-                      router.push({
-                        pathname: "/compose",
-                        params: { kind: "snap", target: id },
-                      })
-                    }
-                  />
-                  <Button
-                    title="Play"
-                    secondary
-                    icon="dice-outline"
-                    onPress={() =>
-                      router.push({
-                        pathname: "/(tabs)/play",
-                        params: { target: id },
-                      })
-                    }
-                  />
-                  <Button
-                    title="Plan"
-                    secondary
-                    icon="calendar-outline"
-                    onPress={() =>
-                      router.push({ pathname: "/plan", params: { target: id } })
-                    }
-                  />
-                </View>
                 {chat.messages.map((m: any) => {
                   const mine = m.sender === st.data?.me.id;
                   return (
@@ -188,7 +157,7 @@ export default function Chat() {
                       style={{
                         alignSelf: mine ? "flex-end" : "flex-start",
                         maxWidth: "86%",
-                        backgroundColor: mine ? C.green : C.white,
+                        backgroundColor: mine ? C.primary : C.white,
                         padding: 15,
                         borderRadius: 19,
                         borderBottomRightRadius: mine ? 4 : 19,
@@ -209,7 +178,7 @@ export default function Chat() {
                       </Text>
                       <Text
                         style={{
-                          color: mine ? "#BFCEC2" : C.muted,
+                          color: mine ? "#FBE4EB" : C.muted,
                           fontSize: 9,
                           marginTop: 7,
                         }}
@@ -237,7 +206,7 @@ export default function Chat() {
                       }
                       void load();
                     }}
-                    style={[s.card, s.row, { backgroundColor: "#EEE8F5" }]}
+                    style={[s.card, s.row, { backgroundColor: "#EEE8F8" }]}
                   >
                     <Icon name="camera-outline" />
                     <View>
@@ -265,7 +234,7 @@ export default function Chat() {
                           params: { id: g.id, target: String(id) },
                         })
                       }
-                      style={[s.card, { backgroundColor: "#EDF0DB" }]}
+                      style={[s.card, { backgroundColor: "#FBE4EB" }]}
                     >
                       <Text style={s.h2}>
                         {def?.emoji} {def?.title}
@@ -337,13 +306,15 @@ export default function Chat() {
               backgroundColor: C.bg,
             }}
           >
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "flex-start",
-                gap: 10,
-              }}
-            >
+            {attachments && <View style={[s.wrap, { marginBottom: 14 }]}>
+              <Button title="Dating games" secondary icon="dice-outline" onPress={() => router.push({ pathname: "/games", params: { target: id } })} />
+              <Button title="Plan a Date" secondary icon="calendar-outline" onPress={() => router.push({ pathname: "/plan", params: { target: id } })} />
+              <Button title="View profile" secondary icon="person-outline" onPress={() => router.push(`/profile/${id}`)} />
+              <Button title="Safety" secondary icon="shield-checkmark-outline" onPress={() => router.push({ pathname: "/safety", params: { target: id, context: "chat" } })} />
+            </View>}
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Chat camera" style={s.iconButton} onPress={() => router.push({ pathname: "/compose", params: { kind: "snap", target: id } })}><Icon name="camera-outline" size={20} /></Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel="Conversation actions" accessibilityState={{ expanded: attachments }} style={s.iconButton} onPress={() => setAttachments(!attachments)}><Icon name={attachments ? "close" : "add"} size={20} /></Pressable>
               <View style={{ flex: 1 }}>
                 <Field
                   value={body}
@@ -356,7 +327,7 @@ export default function Chat() {
                 accessibilityLabel="Send message"
                 onPress={() => void send()}
                 style={{
-                  backgroundColor: C.green,
+                  backgroundColor: C.primary,
                   padding: 16,
                   borderRadius: 15,
                   opacity: busy ? 0.5 : 1,

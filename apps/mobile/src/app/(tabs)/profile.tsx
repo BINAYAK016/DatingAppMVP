@@ -31,7 +31,7 @@ export default function You() {
   };
   return (
     <Page refresh>
-      <Header title="Simply, you." eyebrow="YOUR SPACE. YOUR PACE." />
+      <Header title="Profile" eyebrow="YOUR SPACE. YOUR PACE." />
       <View style={[s.card, { alignItems: "center", paddingVertical: 28 }]}>
         <Avatar person={me} size={96} />
         <Text style={[s.title, { fontSize: 30, marginTop: 15 }]}>
@@ -50,7 +50,7 @@ export default function You() {
           <Button
             title="Photo"
             secondary
-            icon="camera-outline"
+            icon="images-outline"
             onPress={() =>
               router.push({ pathname: "/compose", params: { kind: "avatar" } })
             }
@@ -60,7 +60,6 @@ export default function You() {
       <View style={[s.card, s.row, { justifyContent: "space-around" }]}>
         {[
           [String(st.data.matches.length), "connections"],
-          [String(st.data.circles.length), "circles"],
           [
             String(st.data.feed.filter((p) => p.author.id === me.id).length),
             "moments",
@@ -72,7 +71,19 @@ export default function You() {
           </View>
         ))}
       </View>
-      <Section title="Your comfort comes first" />
+      <View style={s.card}>
+        <Text style={s.label}>ABOUT YOU</Text>
+        <Text style={[s.body, { marginTop: 10 }]}>{me.bio || "Tell your matches a little about yourself."}</Text>
+        <Text style={[s.body, { marginTop: 12 }]}>{me.intent}</Text>
+        <Text style={[s.body, { marginTop: 12 }]}>{me.interests.join(" · ")}</Text>
+        {!!me.prompt && <Text style={[s.body, { marginTop: 12 }]}>{me.prompt}</Text>}
+      </View>
+      <View style={[s.card, { backgroundColor: C.blush }]}>
+        <Text style={s.h2}>A little more with Plus</Text>
+        <Text style={[s.body, { marginVertical: 12 }]}>Explore our plans and proposed pricing. Your beta access stays free.</Text>
+        <Button title="Explore Sangai plans" onPress={() => router.push("/subscriptions")} />
+      </View>
+      <Section title="Privacy & settings" />
       <View style={s.card}>
         <View style={s.row}>
           <View style={{ flex: 1 }}>
@@ -84,7 +95,7 @@ export default function You() {
           <Switch
             accessibilityLabel="Pause discovery"
             value={me.paused}
-            trackColor={{ true: C.green }}
+            trackColor={{ true: C.primary }}
             onValueChange={(paused) => void settings({ paused })}
           />
         </View>
@@ -99,7 +110,7 @@ export default function You() {
           <Switch
             accessibilityLabel="Notifications"
             value={me.notifications}
-            trackColor={{ true: C.green }}
+            trackColor={{ true: C.primary }}
             onValueChange={(notifications) => void settings({ notifications })}
           />
         </View>

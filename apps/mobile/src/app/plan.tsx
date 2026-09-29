@@ -6,11 +6,9 @@ import { Button, Field, Header, Icon, Page, s } from "../components/ui";
 export default function Plan() {
   const {
     target,
-    circle,
     title: initial,
   } = useLocalSearchParams<{
     target?: string;
-    circle?: string;
     title?: string;
   }>();
   const st = useStore();
@@ -23,10 +21,8 @@ export default function Plan() {
     <Page>
       <Header
         back
-        title={circle ? "Bring your circle together." : "Make a little plan."}
-        eyebrow={
-          circle ? "A PRIVATE CIRCLE EVENT" : "SOMETHING TO LOOK FORWARD TO"
-        }
+        title="Plan a Date"
+        eyebrow="AN INVITATION TOGETHER"
       />
       <Field
         label="The idea"
@@ -62,13 +58,7 @@ export default function Plan() {
         </Text>
       </View>
       <Button
-        title={
-          busy
-            ? "Sending…"
-            : circle
-              ? "Create circle event"
-              : "Suggest this date"
-        }
+        title={busy ? "Sending…" : "Send date invitation"}
         disabled={busy || !title || !venue || !date || !time}
         onPress={async () => {
           setBusy(true);
@@ -87,14 +77,10 @@ export default function Plan() {
             )
               throw new Error("Choose a valid future date.");
             await st.request(
-              circle ? `/circles/${circle}/events` : `/plans/${target}`,
+              `/plans/${target}`,
               { title, venue, scheduledAt: scheduled.toISOString() },
             );
-            st.toast(
-              circle
-                ? "Your event is ready."
-                : "Date idea sent. Your match can accept or decline.",
-            );
+            st.toast("Date idea sent. Your match can accept or decline.");
             router.back();
           } catch (e: any) {
             st.toast(e.message);
@@ -104,9 +90,7 @@ export default function Plan() {
         }}
       />
       <Text style={[s.small, { marginTop: 17 }]}>
-        {circle
-          ? "Only current members of this mutually matched circle can see and RSVP."
-          : "A suggestion becomes a shared plan only when your match accepts."}
+        A suggestion becomes a shared plan only when your match accepts.
       </Text>
     </Page>
   );

@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Image,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -22,15 +21,16 @@ import { useVideoPlayer, VideoView } from "expo-video";
 import { useStore } from "../lib/store";
 import { Person } from "../lib/types";
 export const C = {
-  bg: "#F7F6F0",
-  ink: "#203E36",
-  muted: "#7B857F",
-  line: "#E5E8DD",
-  green: "#284D40",
-  lime: "#D9E8A5",
-  peach: "#F3D4C1",
+  bg: "#FFFAFB",
+  ink: "#302A32",
+  muted: "#786D78",
+  line: "#EEDFE5",
+  primary: "#A84D69",
+  blush: "#FBE4EB",
+  peach: "#FFE6D8",
+  lavender: "#EEE8F8",
   white: "#FFFFFF",
-  red: "#A54C42",
+  red: "#A7374B",
 };
 export function Icon({
   name,
@@ -90,7 +90,7 @@ export function Chip({
       onPress={onPress}
       style={[
         s.chip,
-        selected && { backgroundColor: C.green, borderColor: C.green },
+        selected && { backgroundColor: C.primary, borderColor: C.primary },
       ]}
     >
       <Text style={[s.chipText, selected && { color: C.white }]}>{label}</Text>
@@ -245,7 +245,7 @@ function PrivateImage({
       {failed ? (
         <Text style={s.small}>Photo unavailable · Retry</Text>
       ) : (
-        <ActivityIndicator color={C.green} />
+        <ActivityIndicator color={C.primary} />
       )}
     </Pressable>
   );
@@ -293,7 +293,7 @@ export function Page({
             <RefreshControl
               refreshing={false}
               onRefresh={() => void st.refresh()}
-              tintColor={C.green}
+              tintColor={C.primary}
             />
           ) : undefined
         }
@@ -337,12 +337,12 @@ export function Header({
         (!back && (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Open connections"
-            onPress={() => router.push("/inbox")}
+            accessibilityLabel="Open activity"
+            onPress={() => router.push("/activity")}
             style={s.iconButton}
           >
-            <Icon name="chatbubble-ellipses-outline" />
-            {!!data?.requests.length && <View style={s.dot} />}
+            <Icon name="notifications-outline" />
+            {!!data?.notifications.some(n => !n.read && n.kind !== "request") && <View style={s.dot} />}
           </Pressable>
         ))}
     </View>
@@ -379,7 +379,7 @@ export function Loading() {
         backgroundColor: C.bg,
       }}
     >
-      <ActivityIndicator color={C.green} />
+      <ActivityIndicator color={C.primary} />
       <Text style={[s.body, { marginTop: 12 }]}>A little closer…</Text>
     </View>
   );
@@ -395,7 +395,7 @@ export function Banner({
 }) {
   return (
     <LinearGradient
-      colors={["#294E40", "#173D32"]}
+      colors={[C.blush, C.lavender]}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={s.banner}
@@ -406,7 +406,7 @@ export function Banner({
         <Text style={s.bannerTitle}>{title}</Text>
         <Text style={s.bannerBody}>{body}</Text>
       </View>
-      <Text style={{ fontSize: 48, color: C.lime, zIndex: 1 }}>{emoji}</Text>
+      <Text style={{ fontSize: 48, color: C.primary, zIndex: 1 }}>{emoji}</Text>
     </LinearGradient>
   );
 }
@@ -442,7 +442,7 @@ export const s = StyleSheet.create({
     marginBottom: 7,
   },
   title: {
-    fontFamily: Platform.OS === "ios" ? "Georgia" : "serif",
+    fontWeight: "700",
     fontSize: 37,
     lineHeight: 44,
     color: C.ink,
@@ -463,7 +463,7 @@ export const s = StyleSheet.create({
     marginBottom: 14,
   },
   button: {
-    backgroundColor: C.green,
+    backgroundColor: C.primary,
     borderRadius: 15,
     paddingHorizontal: 19,
     paddingVertical: 15,
@@ -522,26 +522,26 @@ export const s = StyleSheet.create({
   },
   bannerLabel: {
     fontSize: 8,
-    color: C.lime,
+    color: C.primary,
     letterSpacing: 1.9,
     fontWeight: "600",
   },
   bannerTitle: {
-    fontFamily: Platform.OS === "ios" ? "Georgia" : "serif",
+    fontWeight: "700",
     fontSize: 30,
     lineHeight: 35,
-    color: C.white,
+    color: C.ink,
     marginTop: 13,
     marginBottom: 12,
   },
-  bannerBody: { fontSize: 12, lineHeight: 19, color: "#D1DED5", maxWidth: 240 },
+  bannerBody: { fontSize: 12, lineHeight: 19, color: C.muted, maxWidth: 240 },
   orbit: {
     position: "absolute",
     width: 180,
     height: 180,
     borderRadius: 90,
     borderWidth: 1,
-    borderColor: "#577363",
+    borderColor: "#E5C9D6",
     right: -30,
     bottom: -70,
   },
@@ -549,22 +549,22 @@ export const s = StyleSheet.create({
     width: "100%",
     height: 300,
     borderRadius: 18,
-    backgroundColor: "#E8ECE4",
+    backgroundColor: C.blush,
     marginVertical: 12,
   },
   divider: { height: 1, backgroundColor: C.line, marginVertical: 15 },
-  link: { fontSize: 12, color: C.green, fontWeight: "600" },
+  link: { fontSize: 12, color: C.primary, fontWeight: "600" },
   danger: { color: C.red },
   heroInitial: {
-    fontFamily: Platform.OS === "ios" ? "Georgia" : "serif",
+    fontWeight: "700",
     fontSize: 140,
     color: "#FFFFFF99",
   },
   tag: {
     fontSize: 9,
     letterSpacing: 1,
-    color: C.green,
-    backgroundColor: C.lime,
+    color: C.primary,
+    backgroundColor: C.blush,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 7,
@@ -573,7 +573,7 @@ export const s = StyleSheet.create({
   note: {
     padding: 14,
     borderRadius: 14,
-    backgroundColor: "#EDF0E4",
+    backgroundColor: C.lavender,
     marginVertical: 12,
   },
 });

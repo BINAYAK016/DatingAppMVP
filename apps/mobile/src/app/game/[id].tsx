@@ -50,7 +50,7 @@ export default function Game() {
         def && (
           <>
             {game.complete ? (
-              <View style={[s.card, { backgroundColor: C.lime, padding: 28 }]}>
+              <View style={[s.card, { backgroundColor: C.blush, padding: 28 }]}>
                 <Text style={[s.title, { fontSize: 48 }]}>{score} / 5</Text>
                 <Text style={s.h2}>Little things in common.</Text>
                 <Text style={[s.body, { marginTop: 12 }]}>
@@ -87,8 +87,8 @@ export default function Game() {
                         borderRadius: 13,
                         marginBottom: 9,
                         borderWidth: 1,
-                        borderColor: selected ? C.green : C.line,
-                        backgroundColor: selected ? "#EDF1E3" : C.bg,
+                        borderColor: selected ? C.primary : C.line,
+                        backgroundColor: selected ? "#FBE4EB" : C.bg,
                       }}
                     >
                       <Text style={[s.body, { color: C.ink }]}>{option}</Text>

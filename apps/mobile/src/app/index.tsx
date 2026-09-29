@@ -56,14 +56,14 @@ export default function Welcome() {
   return (
     <Page>
       <View style={{ paddingTop: 25, paddingBottom: 28 }}>
-        <Text style={{ fontSize: 28, fontFamily: "serif", color: C.green }}>
-          sangai<Text style={{ color: "#A0B45C" }}> ✳</Text>
+        <Text style={{ fontSize: 28, fontWeight: "700", color: C.primary }}>
+          sangai<Text style={{ color: "#A84D69" }}> ✳</Text>
         </Text>
         <Text style={[s.eyebrow, { marginTop: 10 }]}>TOGETHER STARTS HERE</Text>
       </View>
       <Banner
         title={"Good people.\nCloser connections."}
-        body="A little spark. A shared story. Your own circle of people who choose you back."
+        body="Meet people. Build connections. Find your together."
         emoji="✺"
       />
       <View style={{ height: 25 }} />
@@ -165,7 +165,7 @@ export default function Welcome() {
               onPress={() => setAccepted(!accepted)}
               style={[s.row, { marginBottom: 18 }]}
             >
-              <Text style={{ fontSize: 22, color: C.green }}>
+              <Text style={{ fontSize: 22, color: C.primary }}>
                 {accepted ? "☑" : "☐"}
               </Text>
               <Text style={[s.small, { flex: 1 }]}>
