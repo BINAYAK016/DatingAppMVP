@@ -36,6 +36,11 @@ import {
   register,
 } from "./auth";
 import * as social from "./social";
+import * as discovery from "./discovery";
+import * as games from "./games";
+import * as identity from "./identity";
+import * as moments from "./moments";
+import { exportAccount } from "./account-export";
 import * as interactions from "./interactions";
 import { authorizedMedia, cleanup, upload } from "./media";
 import { seed } from "./seed";
@@ -52,7 +57,7 @@ class ApiController {
     res
       .type("html")
       .send(
-        '<!doctype html><title>Sangai beta policies</title><main style="max-width:700px;margin:60px auto;font:18px system-ui"><h1>Sangai private beta</h1><p>Adults 18+ only. Use test accounts and non-sensitive content in this local beta. Do not upload explicit, illegal, harassing, impersonating or exploitative material. Report abuse from any profile or chat.</p><h2>Privacy</h2><p>Discovery shows your selected profile fields. Posts and stories are only for current mutual matches. Groups require all members to be matched. Data is stored on the configured backend. This beta has no AI, advertising, biometric verification or analytics trackers. It uses server-readable messages, not end-to-end encryption. Snaps expire but screenshots cannot be prevented.</p><h2>Your controls</h2><p>Pause discovery, block people, export your data or delete your account from You. Deletion removes live account data and media. Backups, if made by the local operator, need separate deletion. Reports and minimal moderation records may remain for review.</p><h2>Contact and operation</h2><p>This is an emulator/private testing build, not a publicly moderated service. Contact the person running your beta server. A staffed safety contact, legal review, hardened authentication and published production policies are required before public release.</p></main>',
+        '<!doctype html><title>Sangai beta policies</title><main style="max-width:700px;margin:60px auto;font:18px system-ui"><h1>Sangai private beta</h1><p>Adults 18+ only. Use test accounts and non-sensitive content in this local beta. Do not upload explicit, illegal, harassing, impersonating or exploitative material. Report abuse from any profile or chat.</p><h2>Privacy</h2><p>Discovery shows your selected profile fields. Posts and stories are only for current mutual matches. Data is stored on the configured backend. This beta has no AI, advertising, biometric verification or analytics trackers. It uses server-readable messages, not end-to-end encryption. Snaps expire but screenshots cannot be prevented.</p><h2>Your controls</h2><p>Pause discovery, block people, export your data or delete your account from Profile. Deletion removes live account data and media. Backups, if made by the local operator, need separate deletion. Reports and minimal moderation records may remain for review.</p><h2>Contact and operation</h2><p>This is an emulator/private testing build, not a publicly moderated service. Contact the person running your beta server. A staffed safety contact, legal review, hardened authentication and published production policies are required before public release.</p></main>',
       );
   }
   @Get("admin") adminPage(@Res() res: Response) {
@@ -79,6 +84,40 @@ class ApiController {
       .object({ email: z.email().max(254), password: z.string().max(128) })
       .parse(b);
     return login(d.email, d.password);
+  }
+  @Get("v1/auth/config") authConfig() {
+    return identity.authConfig();
+  }
+  @Post("v1/auth/google") google(@Body() b: any) {
+    return identity.googleSignIn(z.string().min(1).max(10000).parse(b.idToken));
+  }
+  @Post("v1/auth/forgot") forgot(@Body() b: any) {
+    return identity.forgot(z.email().max(254).parse(b.email));
+  }
+  @Post("v1/auth/reset") reset(@Body() b: any) {
+    const p = z
+      .object({
+        email: z.email().max(254),
+        code: text(100),
+        password: z.string().min(10).max(128),
+      })
+      .parse(b);
+    return identity.reset(p.email, p.code, p.password);
+  }
+  @Post("v1/verification/send") sendVerification(@Req() r: AuthRequest) {
+    return identity.sendVerification(r.actor);
+  }
+  @Post("v1/verification/confirm") verify(
+    @Req() r: AuthRequest,
+    @Body() b: any,
+  ) {
+    return identity.verifyEmail(r.actor, text(100).parse(b.code));
+  }
+  @Patch("v1/onboarding") onboarding(
+    @Req() r: AuthRequest,
+    @Body() b: unknown,
+  ) {
+    return identity.onboarding(r.actor, b);
   }
   @Post("v1/logout") async logout(@Req() r: AuthRequest) {
     await pool.query("DELETE FROM sessions WHERE token_hash=$1", [
@@ -124,45 +163,116 @@ class ApiController {
       .object({
         paused: z.boolean().optional(),
         notifications: z.boolean().optional(),
+        posts_visible: z.boolean().optional(),
+        stories_visible: z.boolean().optional(),
+        messages_enabled: z.boolean().optional(),
+        interactions_enabled: z.boolean().optional(),
+        data_saver: z.boolean().optional(),
       })
       .parse(b);
     await pool.query(
-      "UPDATE users SET paused=COALESCE($2,paused),notifications=COALESCE($3,notifications) WHERE id=$1",
-      [r.actor, d.paused ?? null, d.notifications ?? null],
+      "UPDATE users SET paused=COALESCE($2,paused),notifications=COALESCE($3,notifications),posts_visible=COALESCE($4,posts_visible),stories_visible=COALESCE($5,stories_visible),messages_enabled=COALESCE($6,messages_enabled),interactions_enabled=COALESCE($7,interactions_enabled),data_saver=COALESCE($8,data_saver) WHERE id=$1",
+      [
+        r.actor,
+        d.paused ?? null,
+        d.notifications ?? null,
+        d.posts_visible ?? null,
+        d.stories_visible ?? null,
+        d.messages_enabled ?? null,
+        d.interactions_enabled ?? null,
+        d.data_saver ?? null,
+      ],
     );
     return { ok: true };
   }
   @Post("v1/profile/photo") photo(@Req() r: AuthRequest, @Body() b: any) {
     return tx(async (db) => {
       const id = uuid.parse(b.mediaId);
-      await social.ownMedia(db, r.actor, id);
+      await social.ownMedia(db, r.actor, id, "profile");
       const m = await one(db, "SELECT kind FROM media WHERE id=$1", [id]);
       if (m.kind !== "image")
         throw new BadRequestException("Profile photos must be images.");
+      const gallery = await one(
+        db,
+        "SELECT count(*)::int AS n FROM profile_media WHERE user_id=$1 AND media_id<>$2",
+        [r.actor, id],
+      );
+      if (gallery.n >= 6)
+        throw new BadRequestException(
+          "Remove a gallery item before adding another main photo.",
+        );
       await db.query("UPDATE users SET avatar_id=$2 WHERE id=$1", [
         r.actor,
         id,
       ]);
+      await db.query(
+        "INSERT INTO profile_media(user_id,media_id,position) VALUES($1,$2,0) ON CONFLICT DO NOTHING",
+        [r.actor, id],
+      );
       return { ok: true };
     });
   }
-  @Post("v1/connect/:target") connect(
+  @Post("v1/profile/media") addProfileMedia(
     @Req() r: AuthRequest,
-    @Param("target") t: string,
     @Body() b: any,
   ) {
-    return social.connect(r.actor, uuid.parse(t), text(300).parse(b.note));
+    return tx(async (db) => {
+      const id = uuid.parse(b.mediaId);
+      await social.ownMedia(db, r.actor, id, "profile");
+      const count = await one(
+        db,
+        "SELECT count(*)::int AS n FROM profile_media WHERE user_id=$1",
+        [r.actor],
+      );
+      if (count.n >= 6)
+        throw new BadRequestException(
+          "Keep up to six profile photos or videos. Remove one first.",
+        );
+      await db.query(
+        "INSERT INTO profile_media(user_id,media_id,position) VALUES($1,$2,$3) ON CONFLICT DO NOTHING",
+        [r.actor, id, count.n],
+      );
+      return { ok: true };
+    });
   }
-  @Post("v1/requests/:target") answer(
+  @Delete("v1/profile/media/:id") deleteProfileMedia(
+    @Req() r: AuthRequest,
+    @Param("id") id: string,
+  ) {
+    return tx(async (db) => {
+      const mediaId = uuid.parse(id);
+      const u = await one(db, "SELECT avatar_id FROM users WHERE id=$1", [
+        r.actor,
+      ]);
+      if (u.avatar_id === mediaId)
+        throw new BadRequestException(
+          "Choose another main photo before removing this one.",
+        );
+      await db.query(
+        "DELETE FROM profile_media WHERE user_id=$1 AND media_id=$2",
+        [r.actor, mediaId],
+      );
+      return { ok: true };
+    });
+  }
+  @Get("v1/profiles/:target") visibleProfile(
     @Req() r: AuthRequest,
     @Param("target") t: string,
-    @Body() b: any,
   ) {
-    return social.answerRequest(
-      r.actor,
-      uuid.parse(t),
-      z.boolean().parse(b.accept),
-    );
+    return discovery.visibleProfile(r.actor, uuid.parse(t));
+  }
+  @Post("v1/discovery/:target") swipe(
+    @Req() r: AuthRequest,
+    @Param("target") t: string,
+    @Body() b: unknown,
+  ) {
+    return discovery.swipe(r.actor, uuid.parse(t), b);
+  }
+  @Post("v1/discovery-undo/:id") undo(
+    @Req() r: AuthRequest,
+    @Param("id") id: string,
+  ) {
+    return discovery.undo(r.actor, uuid.parse(id));
   }
   @Post("v1/unmatch/:target") unmatch(
     @Req() r: AuthRequest,
@@ -206,6 +316,34 @@ class ApiController {
     ]);
     return { ok: true };
   }
+  @Get("v1/posts/:id") postDetail(
+    @Req() r: AuthRequest,
+    @Param("id") id: string,
+  ) {
+    return tx((db) => moments.postDetail(db, r.actor, uuid.parse(id)));
+  }
+  @Get("v1/saved-posts") saved(@Req() r: AuthRequest) {
+    return moments.saved(r.actor);
+  }
+  @Post("v1/posts/:id/save") save(
+    @Req() r: AuthRequest,
+    @Param("id") id: string,
+    @Body() b: any,
+  ) {
+    return moments.save(r.actor, uuid.parse(id), z.boolean().parse(b.enabled));
+  }
+  @Post("v1/posts/:id/share") share(
+    @Req() r: AuthRequest,
+    @Param("id") id: string,
+    @Body() b: any,
+  ) {
+    return moments.share(
+      r.actor,
+      uuid.parse(id),
+      uuid.parse(b.target),
+      uuid.parse(b.clientId),
+    );
+  }
   @Post("v1/posts/:id/react") react(
     @Req() r: AuthRequest,
     @Param("id") id: string,
@@ -217,13 +355,12 @@ class ApiController {
     @Param("id") id: string,
     @Body() b: any,
   ) {
-    return social.comment(r.actor, uuid.parse(id), text(500).parse(b.body));
-  }
-  @Post("v1/follow/:target") follow(
-    @Req() r: AuthRequest,
-    @Param("target") t: string,
-  ) {
-    return social.follow(r.actor, uuid.parse(t));
+    return social.comment(
+      r.actor,
+      uuid.parse(id),
+      text(500).parse(b.body),
+      b.parentId ? uuid.parse(b.parentId) : undefined,
+    );
   }
   @Post("v1/stories") story(@Req() r: AuthRequest, @Body() b: unknown) {
     return social.createStory(r.actor, b);
@@ -241,8 +378,12 @@ class ApiController {
   @Get("v1/chat/:target") chat(
     @Req() r: AuthRequest,
     @Param("target") t: string,
+    @Query("before") before?: string,
+    @Query("beforeId") beforeId?: string,
   ) {
-    return interactions.conversation(r.actor, uuid.parse(t));
+    if (before) z.iso.datetime({ offset: true }).parse(before);
+    if (beforeId) uuid.parse(beforeId);
+    return interactions.conversation(r.actor, uuid.parse(t), before, beforeId);
   }
   @Post("v1/chat/:target") message(
     @Req() r: AuthRequest,
@@ -270,23 +411,46 @@ class ApiController {
   ) {
     return interactions.closeSnap(r.actor, uuid.parse(id));
   }
+  @Post("v1/game-ready/:target") ready(
+    @Req() r: AuthRequest,
+    @Param("target") t: string,
+    @Body() b: any,
+  ) {
+    return games.setReady(r.actor, uuid.parse(t), z.boolean().parse(b.enabled));
+  }
+  @Get("v1/game-ready/:target") getReady(
+    @Req() r: AuthRequest,
+    @Param("target") t: string,
+  ) {
+    return tx((db) => games.readiness(db, r.actor, uuid.parse(t)));
+  }
+  @Post("v1/game/:id/respond") gameResponse(
+    @Req() r: AuthRequest,
+    @Param("id") id: string,
+    @Body() b: any,
+  ) {
+    return games.respond(r.actor, uuid.parse(id), text(20).parse(b.response));
+  }
+  @Post("v1/game/:id/guess") gameGuess(
+    @Req() r: AuthRequest,
+    @Param("id") id: string,
+    @Body() b: any,
+  ) {
+    return games.guess(r.actor, uuid.parse(id), b.guess);
+  }
   @Post("v1/games/:target") game(
     @Req() r: AuthRequest,
     @Param("target") t: string,
     @Body() b: any,
   ) {
-    return interactions.startGame(
-      r.actor,
-      uuid.parse(t),
-      text(40).parse(b.kind),
-    );
+    return games.invite(r.actor, uuid.parse(t), text(40).parse(b.kind));
   }
   @Post("v1/game/:id/answer") gameAnswer(
     @Req() r: AuthRequest,
     @Param("id") id: string,
     @Body() b: any,
   ) {
-    return interactions.gameAnswer(r.actor, uuid.parse(id), b.answers);
+    return games.answer(r.actor, uuid.parse(id), b.answers);
   }
   @Post("v1/plans/:target") plan(
     @Req() r: AuthRequest,
@@ -305,41 +469,6 @@ class ApiController {
       uuid.parse(id),
       text(20).parse(b.state),
     );
-  }
-  @Post("v1/circles") circle(@Req() r: AuthRequest, @Body() b: unknown) {
-    return social.createCircle(r.actor, b);
-  }
-  @Get("v1/circles/:id") getCircle(
-    @Req() r: AuthRequest,
-    @Param("id") id: string,
-  ) {
-    return social.getCircle(r.actor, uuid.parse(id));
-  }
-  @Post("v1/circles/:id/posts") circlePost(
-    @Req() r: AuthRequest,
-    @Param("id") id: string,
-    @Body() b: any,
-  ) {
-    return social.circlePost(r.actor, uuid.parse(id), text(2000).parse(b.body));
-  }
-  @Post("v1/circles/:id/leave") leave(
-    @Req() r: AuthRequest,
-    @Param("id") id: string,
-  ) {
-    return social.leaveCircle(r.actor, uuid.parse(id));
-  }
-  @Post("v1/circles/:id/events") event(
-    @Req() r: AuthRequest,
-    @Param("id") id: string,
-    @Body() b: unknown,
-  ) {
-    return social.createEvent(r.actor, uuid.parse(id), b);
-  }
-  @Post("v1/events/:id/rsvp") rsvp(
-    @Req() r: AuthRequest,
-    @Param("id") id: string,
-  ) {
-    return social.rsvp(r.actor, uuid.parse(id));
   }
   @Post("v1/reports") report(@Req() r: AuthRequest, @Body() b: any) {
     const d = z
@@ -373,32 +502,8 @@ class ApiController {
     ]);
     return { ok: true };
   }
-  @Get("v1/export") async exportData(@Req() r: AuthRequest) {
-    return tx(async (db) => {
-      const user = await one(
-        db,
-        "SELECT name,email,birth_date,city,bio,intent,interests,prompt,gender,preferences,created_at FROM users WHERE id=$1",
-        [r.actor],
-      );
-      return {
-        user,
-        posts: await rows(
-          db,
-          "SELECT id,body,created_at FROM posts WHERE author=$1",
-          [r.actor],
-        ),
-        messages: await rows(
-          db,
-          "SELECT body,created_at FROM messages WHERE sender=$1",
-          [r.actor],
-        ),
-        reports: await rows(
-          db,
-          "SELECT reason,state FROM reports WHERE reporter=$1",
-          [r.actor],
-        ),
-      };
-    });
+  @Get("v1/export") exportData(@Req() r: AuthRequest) {
+    return exportAccount(r.actor);
   }
   @Delete("v1/account") async deleteAccount(
     @Req() r: AuthRequest,
@@ -561,6 +666,36 @@ export async function bootstrap() {
       }
       if (req.path.startsWith("/v1/auth")) return next();
       req.actor = await authenticate(req.headers.authorization);
+      const setupRoutes = [
+        "/v1/state",
+        "/v1/logout",
+        "/v1/onboarding",
+        "/v1/verification/send",
+        "/v1/verification/confirm",
+        "/v1/account",
+        "/v1/export",
+        "/v1/media",
+        "/v1/profile/photo",
+      ];
+      if (
+        !setupRoutes.includes(req.path) &&
+        !/^\/v1\/media\/[a-f0-9-]+$/.test(req.path)
+      )
+        await identity.requireReadyAccount(req.actor);
+      if (
+        req.method === "POST" &&
+        ["/v1/media", "/v1/profile/photo"].includes(req.path)
+      ) {
+        const adult = await one(
+          pool,
+          "SELECT 1 FROM users WHERE id=$1 AND (demo OR (adult_declared_at IS NOT NULL AND email_verified_at IS NOT NULL))",
+          [req.actor],
+        );
+        if (!adult)
+          throw new BadRequestException(
+            "Verify your email and complete the adult declaration before adding photos.",
+          );
+      }
       next();
     } catch (e) {
       res.status(e instanceof HttpException ? e.getStatus() : 500).json({

@@ -19,10 +19,23 @@ export const profileInput = z.object({
   interests: z.array(text(32)).max(12),
   prompt: z.string().max(300),
   gender: text(40),
+  languages: z.array(text(40)).max(8).default([]),
+  hobbies: z.array(text(40)).max(8).default([]),
+  profession: z.string().max(100).default(""),
+  education: z.string().max(100).default(""),
+  lifestyle: z
+    .object({
+      smoking: z.string().max(40).optional(),
+      drinking: z.string().max(40).optional(),
+      pets: z.string().max(40).optional(),
+      fitness: z.string().max(40).optional(),
+    })
+    .default({}),
   preferences: z
     .object({
       cities: z.array(z.enum(cities)).max(8),
       genders: z.array(text(40)).max(8),
+      intents: z.array(text(100)).max(5).default([]),
       minAge: z.number().int().min(18).max(99),
       maxAge: z.number().int().min(18).max(99),
     })
@@ -35,13 +48,14 @@ export const registerInput = z
       .max(254)
       .transform((v) => v.toLowerCase()),
     password: z.string().min(10).max(128),
-    name: text(60),
-    city: z.enum(cities),
-    birthDate: z.iso.date(),
+    name: text(60).optional(),
+    city: z.enum(cities).optional(),
+    birthDate: z.iso.date().optional(),
     acceptedPolicies: z.literal(true),
   })
   .refine(
     (v) => {
+      if (!v.birthDate) return true;
       const d = new Date(v.birthDate);
       const cutoff = new Date();
       cutoff.setUTCFullYear(cutoff.getUTCFullYear() - 18);
@@ -104,16 +118,10 @@ export const gameCatalog = [
     ],
   },
   {
-    id: "date-builder",
-    title: "Build our date",
-    subtitle: "Choose in secret. Reveal a plan together.",
-    emoji: "☕",
-    questions: [
-      { q: "Start with…", options: ["Coffee", "Momos"] },
-      { q: "Then…", options: ["A lakeside stroll", "An art gallery"] },
-      { q: "The atmosphere?", options: ["Quiet & cozy", "Lively & playful"] },
-      { q: "The time?", options: ["Sunny afternoon", "Golden hour"] },
-      { q: "Finish with…", options: ["Dessert", "One more walk"] },
-    ],
+    id: "two-truths",
+    title: "Two Truths & a Lie",
+    subtitle: "Three little stories. Can you spot the invented one?",
+    emoji: "🫣",
+    questions: [],
   },
 ] as const;

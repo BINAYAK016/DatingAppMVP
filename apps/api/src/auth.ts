@@ -65,7 +65,14 @@ export async function register(body: unknown) {
     const id = randomUUID();
     await db.query(
       "INSERT INTO users(id,email,password_hash,name,birth_date,city) VALUES($1,$2,$3,$4,$5,$6)",
-      [id, d.email, hashPassword(d.password), d.name, d.birthDate, d.city],
+      [
+        id,
+        d.email,
+        hashPassword(d.password),
+        d.name || "",
+        d.birthDate || null,
+        d.city || "",
+      ],
     );
     return session(db, id);
   });

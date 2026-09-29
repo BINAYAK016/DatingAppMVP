@@ -15,8 +15,10 @@
     "@nestjs/core": "12.1.1",
     "@nestjs/platform-express": "12.1.1",
     "express": "^5.1.0",
+    "google-auth-library": "^11.1.0",
     "helmet": "^8.1.0",
     "multer": "^2.0.2",
+    "nodemailer": "^10.0.12",
     "pg": "8.23.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
@@ -27,6 +29,7 @@
     "@types/express": "^5.0.5",
     "@types/multer": "^2.0.0",
     "@types/node": "^24.10.0",
+    "@types/nodemailer": "^8.0.2",
     "@types/pg": "^8.15.6",
     "tsx": "^4.20.6",
     "typescript": "~5.9.3"

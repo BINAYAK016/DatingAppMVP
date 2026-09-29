@@ -1,5 +1,11 @@
 name: sangai-beta
 services:
+  mailpit:
+    image: axllent/mailpit:v1.27.4
+    ports:
+      - "127.0.0.1:8025:8025"
+    environment:
+      MP_MAX_MESSAGES: 200
   db:
     image: postgres:17.7-alpine
     environment:
@@ -24,15 +30,30 @@ services:
       ADMIN_KEY: ${ADMIN_KEY:-local-beta-admin-change-me}
       PORT: 4100
       UPLOAD_DIR: /data/media
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-Sangai <beta@sangai.invalid>}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
     ports:
       - "127.0.0.1:4100:4100"
     volumes:
       - beta_media:/data/media
     depends_on:
+      mailpit:
+        condition: service_started
       db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:4100/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:4100/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
       interval: 10s
       retries: 10
 volumes:

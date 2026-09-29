@@ -1,5 +1,6 @@
 import { Pool, PoolClient } from "pg";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { ForbiddenException, NotFoundException } from "@nestjs/common";
 
@@ -25,7 +26,45 @@ export async function one(
   return (await rows(db, text, values))[0];
 }
 export async function migrate() {
-  await pool.query(readFileSync(join(__dirname, "../src/schema.sql"), "utf8"));
+  const db = await pool.connect();
+  try {
+    await db.query("BEGIN");
+    await db.query("SELECT pg_advisory_xact_lock(20260930)");
+    await db.query(
+      "CREATE TABLE IF NOT EXISTS schema_migrations(name text PRIMARY KEY, checksum text NOT NULL, applied_at timestamptz NOT NULL DEFAULT now())",
+    );
+    const root = join(__dirname, "../src");
+    const files = [
+      "schema.sql",
+      ...readdirSync(join(root, "migrations"))
+        .filter((f) => /^\d+_.+\.sql$/.test(f))
+        .sort()
+        .map((f) => "migrations/" + f),
+    ];
+    for (const name of files) {
+      const sql = readFileSync(join(root, name), "utf8").replace(/\r\n/g, "\n");
+      const checksum = createHash("sha256").update(sql).digest("hex");
+      const applied = await one(
+        db,
+        "SELECT checksum FROM schema_migrations WHERE name=$1",
+        [name],
+      );
+      if (applied && applied.checksum !== checksum)
+        throw new Error(`Migration checksum mismatch: ${name}`);
+      if (applied) continue;
+      await db.query(sql);
+      await db.query(
+        "INSERT INTO schema_migrations(name,checksum) VALUES($1,$2)",
+        [name, checksum],
+      );
+    }
+    await db.query("COMMIT");
+  } catch (error) {
+    await db.query("ROLLBACK");
+    throw error;
+  } finally {
+    db.release();
+  }
 }
 // All social mutations take one transaction-scoped lock in this local beta. This
 // deliberately favors auditable privacy/race correctness over write throughput.
@@ -51,7 +90,7 @@ export async function matched(db: DB, a: string, b: string): Promise<boolean> {
     db,
     `SELECT 1 FROM connections c JOIN users u ON u.id=$1 JOIN users v ON v.id=$2
  WHERE c.a=LEAST($1::uuid,$2::uuid) AND c.b=GREATEST($1::uuid,$2::uuid) AND c.state='matched'
- AND NOT u.suspended AND NOT v.suspended AND NOT EXISTS (SELECT 1 FROM blocks WHERE (actor=$1 AND target=$2) OR (actor=$2 AND target=$1))`,
+ AND NOT u.suspended AND NOT v.suspended AND u.demo=v.demo AND (u.demo OR (u.email_verified_at IS NOT NULL AND u.onboarded_at IS NOT NULL)) AND (v.demo OR (v.email_verified_at IS NOT NULL AND v.onboarded_at IS NOT NULL)) AND NOT EXISTS (SELECT 1 FROM blocks WHERE (actor=$1 AND target=$2) OR (actor=$2 AND target=$1))`,
     [a, b],
   ));
 }
@@ -59,23 +98,7 @@ export async function requireMatch(db: DB, a: string, b: string) {
   if (a === b || !(await matched(db, a, b)))
     throw new ForbiddenException("An active mutual match is required.");
 }
-export async function requireCircle(db: DB, actor: string, circleId: string) {
-  const members = await rows(
-    db,
-    "SELECT user_id FROM circle_members WHERE circle_id=$1 ORDER BY user_id",
-    [circleId],
-  );
-  if (!members.some((m) => m.user_id === actor))
-    throw new NotFoundException("Community unavailable.");
-  for (let i = 0; i < members.length; i++)
-    for (let j = i + 1; j < members.length; j++)
-      if (!(await matched(db, members[i].user_id, members[j].user_id)))
-        throw new ForbiddenException(
-          "Community paused: every member must be mutually matched.",
-        );
-  return members.map((m) => m.user_id as string);
-}
-export const publicFields = `id,name,EXTRACT(YEAR FROM age(birth_date))::int AS age,city,bio,intent,interests,prompt,gender,avatar_id,color,demo`;
+export const publicFields = `id,name,EXTRACT(YEAR FROM age(birth_date))::int AS age,city,bio,intent,interests,prompt,gender,avatar_id,color,demo,languages,hobbies,profession,education,lifestyle`;
 export async function profile(db: DB, id: string) {
   return one(
     db,

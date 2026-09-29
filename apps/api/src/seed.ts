@@ -78,6 +78,9 @@ export async function seed() {
         ],
       );
     }
+    await db.query(
+      "UPDATE users SET email_verified_at=now(),adult_declared_at=now(),onboarded_at=now(),onboarding_step=5 WHERE demo",
+    );
     for (const [i, j] of [
       [0, 1],
       [0, 2],
@@ -120,27 +123,6 @@ export async function seed() {
         demoIds[0],
         "Hey! You had me at old bookshops. Found any good ones lately?",
         "seed-hello",
-      ],
-    );
-    const circle = randomUUID();
-    await db.query(
-      "INSERT INTO circles(id,owner,name,description) VALUES($1,$2,$3,$4)",
-      [
-        circle,
-        demoIds[0],
-        "The weekend people",
-        "Small adventures. Good conversations. Everyone here is a mutual match.",
-      ],
-    );
-    for (const id of demoIds.slice(0, 3))
-      await db.query("INSERT INTO circle_members VALUES($1,$2)", [circle, id]);
-    await db.query(
-      "INSERT INTO circle_posts(id,circle_id,author,body) VALUES($1,$2,$3,$4)",
-      [
-        randomUUID(),
-        circle,
-        demoIds[1],
-        "Anyone up for a coffee walk this weekend? ☕",
       ],
     );
   });

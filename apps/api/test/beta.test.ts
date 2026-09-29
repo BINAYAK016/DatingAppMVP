@@ -1,7 +1,7 @@
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, ChildProcess } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import { Pool } from "pg";
 import sharp from "sharp";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -148,7 +148,8 @@ test("authentication, adult registration and field minimization", async () => {
   assert.equal(login.status, 201);
   const state = (await call("/state")).data;
   assert.equal(state.matches.length, 2);
-  assert.equal(state.circles.length, 1);
+  assert.equal(state.circles, undefined);
+  assert.equal(state.requests, undefined);
   assert.equal(state.feed.length, 3);
   for (const p of [...state.matches, ...state.discover]) {
     assert.equal(p.email, undefined);
@@ -157,19 +158,215 @@ test("authentication, adult registration and field minimization", async () => {
     assert.equal(p.preferences, undefined);
   }
 });
+test("email verification, resumable adult onboarding, isolation and reset replay protection", async () => {
+  const registration = await call("/auth/register", undefined, {
+    email: "new-beta@example.test",
+    password: "original-password",
+    acceptedPolicies: true,
+  });
+  assert.equal(registration.status, 201);
+  tokens[5] = registration.data.token;
+  const me = (await call("/state", 5)).data.me;
+  assert.equal(me.onboarded_at, null);
+  assert.equal((await call("/feed", 5)).status, 403);
+  assert.equal((await call("/chat/" + ids[0], 5)).status, 403);
+  assert.equal((await call("/state", 5)).data.discover.length, 0);
+  assert.equal(
+    (await call("/onboarding", 5, { step: 0, data: {} }, "PATCH")).status,
+    403,
+  );
+  const addCode = async (purpose: string, code: string) =>
+    db.query(
+      "INSERT INTO auth_challenges(id,user_id,purpose,token_hash,expires_at) VALUES($1,$2,$3,$4,now()+interval '15 minutes')",
+      [
+        randomUUID(),
+        me.id,
+        purpose,
+        createHash("sha256").update(code).digest("hex"),
+      ],
+    );
+  const code = "fixture-verification-code";
+  await addCode("verify", code);
+  assert.equal(
+    (await call("/verification/confirm", 5, { code: "wrong" })).status,
+    400,
+  );
+  assert.equal(
+    (
+      await db.query("SELECT attempts FROM auth_challenges WHERE user_id=$1", [
+        me.id,
+      ])
+    ).rows[0].attempts,
+    1,
+  );
+  assert.equal((await call("/verification/confirm", 5, { code })).status, 201);
+  assert.equal((await call("/verification/confirm", 5, { code })).status, 400);
+  assert.equal(
+    (
+      await call(
+        "/onboarding",
+        5,
+        { step: 4, data: { prompt: "Skip" } },
+        "PATCH",
+      )
+    ).status,
+    400,
+  );
+  const basic = {
+    name: "Real Tester",
+    birthDate: "2015-01-01",
+    city: "Kathmandu",
+    gender: "Woman",
+    adult: true,
+  };
+  assert.equal(
+    (await call("/onboarding", 5, { step: 0, data: basic }, "PATCH")).status,
+    400,
+  );
+  basic.birthDate = "1997-03-10";
+  assert.equal(
+    (await call("/onboarding", 5, { step: 0, data: basic }, "PATCH")).status,
+    200,
+  );
+  assert.equal((await call("/state", 5)).data.me.onboarding_step, 1);
+  assert.equal((await call("/feed", 5)).status, 403);
+  const mediaId = await image(5);
+  assert.equal((await call("/profile/photo", 5, { mediaId })).status, 201);
+  assert.equal(
+    (
+      await fetch(api + "/media/" + mediaId, {
+        headers: { Authorization: "Bearer " + tokens[0] },
+      })
+    ).status,
+    404,
+  );
+  assert.equal(
+    (
+      await call(
+        "/onboarding",
+        5,
+        {
+          step: 1,
+          data: { bio: "A real beta profile with a little personality." },
+        },
+        "PATCH",
+      )
+    ).status,
+    200,
+  );
+  assert.equal(
+    (
+      await call(
+        "/onboarding",
+        5,
+        {
+          step: 2,
+          data: {
+            intent: "Casual dating",
+            interests: ["Art"],
+            languages: ["Nepali"],
+            hobbies: [],
+          },
+        },
+        "PATCH",
+      )
+    ).status,
+    200,
+  );
+  assert.equal(
+    (
+      await call(
+        "/onboarding",
+        5,
+        {
+          step: 3,
+          data: {
+            preferences: { cities: [], genders: [], minAge: 18, maxAge: 70 },
+            lifestyle: {},
+            profession: "",
+            education: "",
+          },
+        },
+        "PATCH",
+      )
+    ).status,
+    200,
+  );
+  assert.equal(
+    (
+      await call(
+        "/onboarding",
+        5,
+        {
+          step: 4,
+          data: { prompt: "My ideal weekend includes art and coffee." },
+        },
+        "PATCH",
+      )
+    ).status,
+    200,
+  );
+  assert.ok((await call("/state", 5)).data.me.onboarded_at);
+  assert.equal((await call("/feed", 5)).status, 200);
+  assert.equal(
+    (await call("/state", 5)).data.discover.length,
+    0,
+    "Fictional demo users must not enter real discovery",
+  );
+  await addCode("reset", "fixture-reset-code");
+  assert.equal(
+    (
+      await call("/auth/reset", undefined, {
+        email: "new-beta@example.test",
+        code: "fixture-reset-code",
+        password: "changed-password",
+      })
+    ).status,
+    201,
+  );
+  assert.equal((await call("/state", 5)).status, 401);
+  assert.equal(
+    (
+      await call("/auth/reset", undefined, {
+        email: "new-beta@example.test",
+        code: "fixture-reset-code",
+        password: "third-password",
+      })
+    ).status,
+    400,
+  );
+  assert.equal(
+    (
+      await call("/auth/login", undefined, {
+        email: "new-beta@example.test",
+        password: "original-password",
+      })
+    ).status,
+    401,
+  );
+  assert.equal(
+    (
+      await call("/auth/login", undefined, {
+        email: "new-beta@example.test",
+        password: "changed-password",
+      })
+    ).status,
+    201,
+  );
+});
 test("social content and reactions require current mutual matches", async () => {
   const a = (await call("/state")).data;
   const outsider = (await call("/state", 3)).data;
   assert.equal(outsider.feed.length, 0);
   assert.equal(outsider.stories.length, 0);
-  assert.equal(outsider.circles.length, 0);
+  assert.equal(outsider.circles, undefined);
   assert.equal((await call(`/posts/${a.feed[0].id}/react`, 3, {})).status, 404);
   assert.equal(
     (await call(`/posts/${a.feed[0].id}/comments`, 3, { body: "not allowed" }))
       .status,
     404,
   );
-  assert.equal((await call(`/follow/${ids[0]}`, 3, {})).status, 403);
+  assert.equal((await call(`/follow/${ids[0]}`, 3, {})).status, 404);
   const post = await call("/posts", 0, { body: "A real API test post" });
   assert.equal(post.status, 201);
   assert.equal(
@@ -189,8 +386,9 @@ test("discovery preferences cannot be bypassed by connecting to a known ID", asy
   );
   assert.equal(
     (
-      await call("/connect/" + ids[3], 0, {
-        note: "Attempt outside preferences",
+      await call("/discovery/" + ids[3], 0, {
+        action: "like",
+        clientId: randomUUID(),
       })
     ).status,
     404,
@@ -225,12 +423,23 @@ test("feed cursor handles posts with identical timestamps without duplication", 
 });
 test("video upload rejects playlists disguised as video containers", async () => {
   const form = new FormData();
-  form.append("file", new Blob(["#EXTM3U\n#EXTINF:2,\nhttp://127.0.0.1/private.ts\n"], { type: "video/mp4" }), "fake.mp4");
+  form.append(
+    "file",
+    new Blob(["#EXTM3U\n#EXTINF:2,\nhttp://127.0.0.1/private.ts\n"], {
+      type: "video/mp4",
+    }),
+    "fake.mp4",
+  );
   const response = await fetch(api + "/media", {
-    method: "POST", headers: { Authorization: "Bearer " + tokens[0] }, body: form,
+    method: "POST",
+    headers: { Authorization: "Bearer " + tokens[0] },
+    body: form,
   });
   assert.equal(response.status, 400);
-  assert.equal((await response.json()).message, "Choose an MP4, MOV or WebM video file.");
+  assert.equal(
+    (await response.json()).message,
+    "Choose an MP4, MOV or WebM video file.",
+  );
 });
 
 test("direct media authorization, view-once snaps and expiry", async () => {
@@ -270,72 +479,117 @@ test("direct media authorization, view-once snaps and expiry", async () => {
     (await call("/snaps/" + expired.data.id + "/open", 1, {})).status,
     404,
   );
-  const story = await call("/stories", 0, { body: "Ephemeral", mediaId });
+  assert.equal(
+    (await call("/stories", 0, { body: "No audience expansion", mediaId }))
+      .status,
+    403,
+  );
+  const storyMedia = await image();
+  const readStory = () =>
+    fetch(api + "/media/" + storyMedia, {
+      headers: { Authorization: "Bearer " + tokens[1] },
+    });
+  const story = await call("/stories", 0, {
+    body: "Ephemeral",
+    mediaId: storyMedia,
+  });
   assert.equal(story.status, 201);
-  assert.equal((await read(1)).status, 200);
+  assert.equal((await readStory()).status, 200);
   await db.query(
     "UPDATE stories SET expires_at=now()-interval '1 second' WHERE id=$1",
     [story.data.id],
   );
-  assert.equal((await read(1)).status, 404);
+  assert.equal((await readStory()).status, 404);
 });
-test("community creation requires the complete match graph, including non-host pairs", async () => {
+test("hidden Likes, idempotent mutual matching, passes, undo and retired routes", async () => {
+  assert.equal((await call("/circles", 0, {})).status, 404);
   assert.equal(
-    (
-      await call("/circles", 0, {
-        name: "Invalid",
-        description: "",
-        members: [ids[1], ids[3]],
-      })
-    ).status,
-    403,
+    (await call("/connect/" + ids[3], 0, { note: "legacy" })).status,
+    404,
   );
-  await call("/connect/" + ids[3], 0, { note: "Test hello" });
-  await call("/requests/" + ids[0], 3, { accept: true });
-  // Host is matched with both invitees, but invitees are not matched to each other.
   assert.equal(
-    (
-      await call("/circles", 0, {
-        name: "Host-only is insufficient",
-        description: "",
-        members: [ids[1], ids[3]],
-      })
-    ).status,
-    403,
+    (await call("/requests/" + ids[0], 3, { accept: true })).status,
+    404,
   );
-  const circle = await call("/circles", 0, {
-    name: "Valid circle",
-    description: "Private",
-    members: [ids[1], ids[2]],
-  });
-  assert.equal(circle.status, 201);
-  assert.equal((await call("/circles/" + circle.data.id, 4)).status, 404);
+  const pass = { action: "pass", clientId: randomUUID() };
+  assert.equal((await call("/discovery/" + ids[3], 0, pass)).status, 201);
+  assert.ok(
+    !(await call("/state")).data.discover.some((p: any) => p.id === ids[3]),
+  );
   assert.equal(
-    (
-      await call("/circles/" + circle.data.id + "/posts", 1, {
-        body: "Hello circle",
-      })
-    ).status,
+    (await call("/discovery-undo/" + pass.clientId, 0, {})).status,
     201,
   );
-  const event = await call("/circles/" + circle.data.id + "/events", 1, {
-    title: "Coffee walk",
-    venue: "Public café",
-    scheduledAt: new Date(Date.now() + 86400000).toISOString(),
-  });
-  assert.equal(event.status, 201);
+  assert.equal((await call("/discovery/" + ids[3], 0, pass)).status, 409);
+  const like = { action: "super", clientId: randomUUID() };
+  const sent = await call("/discovery/" + ids[3], 0, like);
+  assert.equal(sent.status, 201);
+  assert.equal(sent.data.matched, false);
+  const hidden = (await call("/state", 3)).data;
+  assert.equal(hidden.requests, undefined);
   assert.equal(
-    (await call("/events/" + event.data.id + "/rsvp", 2, {})).status,
-    201,
+    hidden.matches.some((p: any) => p.id === ids[0]),
+    false,
   );
   assert.equal(
-    (await call("/events/" + event.data.id + "/rsvp", 4, {})).status,
+    hidden.notifications.some((n: any) => n.actor === ids[0]),
+    false,
+  );
+  assert.ok(hidden.discover.some((p: any) => p.id === ids[0]));
+  const other = { action: "like", clientId: randomUUID() };
+  const pair = await Promise.all([
+    call("/discovery/" + ids[0], 3, other),
+    call("/discovery/" + ids[0], 3, other),
+  ]);
+  assert.ok(pair.every((r) => r.status === 201 && r.data.matched));
+  const count = await db.query(
+    "SELECT count(*)::int AS n FROM connections WHERE a=$1 AND b=$2 AND state='matched'",
+    [ids[0], ids[3]],
+  );
+  assert.equal(count.rows[0].n, 1);
+  assert.equal(
+    (await call("/discovery-undo/" + like.clientId, 0, {})).status,
+    400,
+  );
+  await call("/unmatch/" + ids[3], 0, {});
+  assert.equal(
+    (
+      await call("/discovery/" + ids[3], 0, {
+        action: "like",
+        clientId: randomUUID(),
+      })
+    ).status,
     404,
   );
 });
 test("game answers are hidden until both play; cannot rewrite after reveal", async () => {
+  assert.equal(
+    (await call("/games/" + ids[1], 0, { kind: "this-or-that" })).status,
+    409,
+  );
+  await call("/game-ready/" + ids[1], 0, { enabled: true });
+  assert.equal((await call("/game-ready/" + ids[0], 2)).data.partner, false);
+  await call("/game-ready/" + ids[0], 1, { enabled: true });
   const game = (await call("/games/" + ids[1], 0, { kind: "this-or-that" }))
     .data;
+  assert.equal(
+    (
+      await call("/game/" + game.id + "/answer", 0, {
+        answers: [0, 0, 0, 0, 0],
+      })
+    ).status,
+    400,
+  );
+  assert.equal(
+    (await call("/game/" + game.id + "/respond", 0, { response: "accept" }))
+      .status,
+    403,
+  );
+  assert.equal(
+    (await call("/game/" + game.id + "/respond", 1, { response: "accept" }))
+      .status,
+    201,
+  );
   const answer = await call("/game/" + game.id + "/answer", 0, {
     answers: [0, 1, 0, 1, 0],
   });
@@ -367,6 +621,56 @@ test("game answers are hidden until both play; cannot rewrite after reveal", asy
     400,
   );
 });
+test("live-game expiry and Two Truths keep secret lie indices hidden until both guesses", async () => {
+  const id = (await call("/games/" + ids[1], 0, { kind: "two-truths" })).data
+    .id;
+  await db.query(
+    "UPDATE game_readiness SET expires_at=now()-interval '1 second' WHERE actor=$1",
+    [ids[0]],
+  );
+  assert.equal(
+    (await call("/game/" + id + "/respond", 1, { response: "accept" })).status,
+    409,
+  );
+  await call("/game-ready/" + ids[1], 0, { enabled: true });
+  assert.equal(
+    (await call("/game/" + id + "/respond", 1, { response: "accept" })).status,
+    201,
+  );
+  await call("/game/" + id + "/answer", 0, {
+    answers: { statements: ["I hike", "I paint", "I fly"], lie: 2 },
+  });
+  let view = (await call("/chat/" + ids[0], 1)).data.games.find(
+    (g: any) => g.id === id,
+  );
+  assert.deepEqual(view.answers, {});
+  await call("/game/" + id + "/answer", 1, {
+    answers: { statements: ["I cook", "I read", "I ski"], lie: 1 },
+  });
+  view = (await call("/chat/" + ids[0], 1)).data.games.find(
+    (g: any) => g.id === id,
+  );
+  assert.equal(view.answers[ids[0]].lie, undefined);
+  assert.equal(view.answers[ids[0]].statements.length, 3);
+  await call("/game/" + id + "/guess", 0, { guess: 1 });
+  view = (await call("/chat/" + ids[0], 1)).data.games.find(
+    (g: any) => g.id === id,
+  );
+  assert.deepEqual(view.guesses, {});
+  const complete = await call("/game/" + id + "/guess", 1, { guess: 2 });
+  assert.equal(complete.data.complete, true);
+  assert.equal(complete.data.answers[ids[0]].lie, 2);
+  const exp = (await call("/games/" + ids[1], 0, { kind: "this-or-that" })).data
+    .id;
+  await db.query(
+    "UPDATE games SET expires_at=now()-interval '1 second' WHERE id=$1",
+    [exp],
+  );
+  assert.equal(
+    (await call("/game/" + exp + "/respond", 1, { response: "accept" })).status,
+    409,
+  );
+});
 test("chat retries are idempotent and only invited partner can accept a date", async () => {
   const payload = { body: "Exactly one message", clientId: randomUUID() };
   const [a, b] = await Promise.all([
@@ -390,24 +694,105 @@ test("chat retries are idempotent and only invited partner can accept a date", a
     201,
   );
 });
-test("block revokes media, chat and complete communities, including an unaffected third member", async () => {
-  const departed = (
-    await call("/circles", 0, {
-      name: "Former member check",
-      description: "",
-      members: [ids[1], ids[2]],
-    })
-  ).data;
-  await call("/circles/" + departed.id + "/posts", 1, {
-    body: "Former member content",
+test("chat media, reply visibility, private saves and shared posts recheck their audience", async () => {
+  const mediaId = await image(1);
+  const message = await call("/chat/" + ids[0], 1, {
+    body: "A regular photo",
+    mediaId,
+    clientId: randomUUID(),
   });
-  await call("/circles/" + departed.id + "/leave", 1, {});
-  const state = (await call("/state")).data;
-  const circle = state.circles.find(
-    (c: any) =>
-      c.members.some((p: any) => p.id === ids[2]) &&
-      c.members.some((p: any) => p.id === ids[1]),
+  assert.equal(message.status, 201);
+  const read = (who: number) =>
+    fetch(api + "/media/" + mediaId, {
+      headers: { Authorization: "Bearer " + tokens[who] },
+    });
+  assert.equal((await read(0)).status, 200);
+  assert.equal((await read(2)).status, 404);
+  assert.equal(
+    (await call("/posts", 1, { body: "Cannot widen chat media", mediaId }))
+      .status,
+    403,
   );
+  const post = (await call("/posts", 1, { body: "A shared original" })).data;
+  await call(`/posts/${post.id}/comments`, 0, { body: "First comment" });
+  const parent = (await call(`/posts/${post.id}`, 0)).data.comments[0].id;
+  assert.equal(
+    (
+      await call(`/posts/${post.id}/comments`, 2, {
+        body: "A reply",
+        parentId: parent,
+      })
+    ).status,
+    201,
+  );
+  assert.equal(
+    (await call(`/posts/${post.id}/save`, 0, { enabled: true })).status,
+    201,
+  );
+  assert.equal(
+    (await call("/saved-posts", 0)).data.some((p: any) => p.id === post.id),
+    true,
+  );
+  assert.equal(
+    (
+      await call(`/posts/${post.id}/share`, 0, {
+        target: ids[2],
+        clientId: randomUUID(),
+      })
+    ).status,
+    201,
+  );
+  assert.equal(
+    (
+      await call(`/posts/${post.id}/share`, 0, {
+        target: ids[4],
+        clientId: randomUUID(),
+      })
+    ).status,
+    403,
+  );
+  await call(
+    "/settings",
+    1,
+    {
+      posts_visible: false,
+      interactions_enabled: false,
+      messages_enabled: false,
+    },
+    "PATCH",
+  );
+  assert.equal((await call(`/posts/${post.id}`, 0)).status, 404);
+  assert.equal(
+    (await call("/saved-posts", 0)).data.some((p: any) => p.id === post.id),
+    false,
+  );
+  const shared = (await call("/chat/" + ids[0], 2)).data.timeline.find(
+    (m: any) => m.post_id === post.id,
+  );
+  assert.equal(shared.sharedPost, null);
+  assert.equal(
+    (
+      await call("/chat/" + ids[1], 0, {
+        body: "Paused",
+        clientId: randomUUID(),
+      })
+    ).status,
+    403,
+  );
+  await call(
+    "/settings",
+    1,
+    { posts_visible: true, interactions_enabled: true, messages_enabled: true },
+    "PATCH",
+  );
+  const chat = (await call("/chat/" + ids[1], 0)).data;
+  assert.ok(
+    chat.timeline.some(
+      (m: any) => m.id === message.data.id && m.media_id === mediaId,
+    ),
+  );
+});
+test("block revokes media, chat and games; unblock does not restore consent", async () => {
   const mediaId = await image(1);
   await call("/posts", 1, { body: "Private", mediaId });
   assert.equal(
@@ -418,11 +803,11 @@ test("block revokes media, chat and complete communities, including an unaffecte
     ).status,
     200,
   );
-  const pending = await call("/games/" + ids[1], 0, { kind: "date-builder" });
+  const pending = await call("/games/" + ids[1], 0, {
+    kind: "would-you-rather",
+  });
   assert.equal(pending.status, 201);
   await call("/block/" + ids[1], 0, {});
-  const former = (await call("/circles/" + departed.id, 0)).data;
-  assert.equal(former.posts.length, 0);
   assert.equal((await call("/chat/" + ids[1], 0)).status, 403);
   assert.equal(
     (await call("/chat/" + ids[0], 1, { body: "No", clientId: randomUUID() }))
@@ -437,11 +822,6 @@ test("block revokes media, chat and complete communities, including an unaffecte
     ).status,
     404,
   );
-  assert.equal((await call("/circles/" + circle.id, 2)).status, 403);
-  assert.equal(
-    (await call("/state", 2)).data.circles.some((c: any) => c.id === circle.id),
-    false,
-  );
   assert.equal(
     (
       await call("/game/" + pending.data.id + "/answer", 1, {
@@ -454,6 +834,10 @@ test("block revokes media, chat and complete communities, including an unaffecte
   assert.equal((await call("/chat/" + ids[1], 0)).status, 403);
 });
 test("report privacy, admin authorization and account deletion revoke sessions", async () => {
+  const exported = await call("/export", 0);
+  assert.equal(exported.status, 200);
+  assert.equal(exported.data.profile.password_hash, undefined);
+  assert.ok(Array.isArray(exported.data.discovery));
   const report = await call("/reports", 0, {
     target: ids[4],
     reason: "Test incident",

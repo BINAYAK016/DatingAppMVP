@@ -9,49 +9,80 @@ import { one, profile, requireMatch, rows, tx, DB } from "./db";
 import { gameCatalog, text, uuid } from "./validation";
 import { notify, ownMedia } from "./social";
 
-export function projectGame(g: any, actor: string) {
-  const answered = !!g.answers[actor];
-  const complete = !!g.answers[g.host] && !!g.answers[g.guest];
-  return {
-    ...g,
-    answers: complete
-      ? g.answers
-      : answered
-        ? { [actor]: g.answers[actor] }
-        : {},
-    answered,
-    complete,
-  };
-}
-export async function conversation(actor: string, target: string) {
+import { projectGame, readiness } from "./games";
+import { postDetail } from "./moments";
+export async function conversation(
+  actor: string,
+  target: string,
+  before?: string,
+  beforeId?: string,
+) {
   return tx(async (db) => {
     await requireMatch(db, actor, target);
-    const messages = await rows(
+    const items = await rows(
       db,
-      `SELECT * FROM (SELECT * FROM messages WHERE (sender=$1 AND recipient=$2) OR (sender=$2 AND recipient=$1) ORDER BY created_at DESC,id DESC LIMIT 100) t ORDER BY created_at,id`,
-      [actor, target],
+      `SELECT * FROM (
+      SELECT id,created_at,'message' AS type FROM messages WHERE (sender=$1 AND recipient=$2) OR (sender=$2 AND recipient=$1)
+      UNION ALL SELECT id,created_at,'snap' FROM snaps WHERE ((sender=$1 AND recipient=$2) OR (sender=$2 AND recipient=$1)) AND expires_at>now()
+      UNION ALL SELECT id,created_at,'game' FROM games WHERE (host=$1 AND guest=$2) OR (host=$2 AND guest=$1)
+      UNION ALL SELECT id,created_at,'plan' FROM plans WHERE (host=$1 AND guest=$2) OR (host=$2 AND guest=$1)
+    ) t WHERE ($3::timestamptz IS NULL OR (created_at,id)<($3::timestamptz,COALESCE($4::uuid,'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid))) ORDER BY created_at DESC,id DESC LIMIT 50`,
+      [actor, target, before || null, beforeId || null],
     );
-    const snaps = await rows(
-      db,
-      `SELECT id,sender,recipient,caption,opened_at,expires_at,created_at FROM snaps WHERE ((sender=$1 AND recipient=$2) OR (sender=$2 AND recipient=$1)) AND expires_at>now() ORDER BY created_at DESC`,
-      [actor, target],
+    const timeline = [];
+    for (const item of items) {
+      let value;
+      if (item.type === "message") {
+        value = await one(
+          db,
+          "SELECT m.*,media.kind FROM messages m LEFT JOIN media ON media.id=m.media_id WHERE m.id=$1",
+          [item.id],
+        );
+        if (value.post_id) {
+          try {
+            value.sharedPost = await postDetail(db, actor, value.post_id);
+          } catch (e) {
+            if (!(e instanceof NotFoundException)) throw e;
+            value.sharedPost = null;
+          }
+        }
+      } else if (item.type === "snap")
+        value = await one(
+          db,
+          "SELECT id,sender,recipient,caption,opened_at,expires_at,created_at FROM snaps WHERE id=$1",
+          [item.id],
+        );
+      else if (item.type === "game")
+        value = projectGame(
+          await one(
+            db,
+            "SELECT *,expires_at<=now() AS expired FROM games WHERE id=$1",
+            [item.id],
+          ),
+          actor,
+        );
+      else value = await one(db, "SELECT * FROM plans WHERE id=$1", [item.id]);
+      timeline.push({ ...value, type: item.type });
+    }
+    await db.query(
+      "UPDATE messages SET read_at=now() WHERE recipient=$1 AND sender=$2 AND read_at IS NULL AND id=ANY($3::uuid[])",
+      [
+        actor,
+        target,
+        items.filter((i) => i.type === "message").map((i) => i.id),
+      ],
     );
-    const games = await rows(
+    const gameRows = await rows(
       db,
-      `SELECT * FROM games WHERE (host=$1 AND guest=$2) OR (host=$2 AND guest=$1) ORDER BY created_at DESC LIMIT 20`,
-      [actor, target],
-    );
-    const plans = await rows(
-      db,
-      `SELECT * FROM plans WHERE (host=$1 AND guest=$2) OR (host=$2 AND guest=$1) ORDER BY created_at DESC LIMIT 20`,
+      "SELECT *,expires_at<=now() AS expired FROM games WHERE (host=$1 AND guest=$2) OR (host=$2 AND guest=$1) ORDER BY created_at DESC LIMIT 20",
       [actor, target],
     );
     return {
       person: await profile(db, target),
-      messages,
-      snaps,
-      games: games.map((g) => projectGame(g, actor)),
-      plans,
+      timeline: timeline.reverse(),
+      hasMore: items.length === 50,
+      games: gameRows.map((g) => projectGame(g, actor)),
+      readiness: await readiness(db, actor, target),
     };
   });
 }
@@ -60,13 +91,27 @@ export async function sendMessage(
   target: string,
   body: unknown,
 ) {
-  const p = z.object({ body: text(2000), clientId: text(100) }).parse(body);
+  const p = z
+    .object({
+      body: z.string().trim().max(2000),
+      mediaId: uuid.optional(),
+      clientId: text(100),
+    })
+    .refine((p) => p.body || p.mediaId, "Write a message or choose media.")
+    .parse(body);
   return tx(async (db) => {
     await requireMatch(db, actor, target);
+    if (
+      !(await one(db, "SELECT 1 FROM users WHERE id=$1 AND messages_enabled", [
+        target,
+      ]))
+    )
+      throw new ForbiddenException("This match has paused new messages.");
+    await ownMedia(db, actor, p.mediaId, "chat:" + target);
     const r = await one(
       db,
-      `INSERT INTO messages(id,sender,recipient,body,client_id) VALUES($1,$2,$3,$4,$5) ON CONFLICT(sender,recipient,client_id) DO NOTHING RETURNING *`,
-      [randomUUID(), actor, target, p.body, p.clientId],
+      `INSERT INTO messages(id,sender,recipient,body,client_id,media_id) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(sender,recipient,client_id) DO NOTHING RETURNING *`,
+      [randomUUID(), actor, target, p.body, p.clientId, p.mediaId || null],
     );
     if (r)
       await notify(db, target, actor, "message", "A match sent you a message.");
@@ -86,7 +131,13 @@ export async function sendSnap(actor: string, target: string, body: unknown) {
     .parse(body);
   return tx(async (db) => {
     await requireMatch(db, actor, target);
-    await ownMedia(db, actor, p.mediaId);
+    if (
+      !(await one(db, "SELECT 1 FROM users WHERE id=$1 AND messages_enabled", [
+        target,
+      ]))
+    )
+      throw new ForbiddenException("This match has paused new messages.");
+    await ownMedia(db, actor, p.mediaId, "snap:" + target);
     const id = randomUUID();
     await db.query(
       "INSERT INTO snaps(id,sender,recipient,media_id,caption) VALUES($1,$2,$3,$4,$5)",
@@ -131,46 +182,6 @@ export async function closeSnap(actor: string, id: string) {
   });
   return { ok: true };
 }
-export async function startGame(actor: string, target: string, kind: string) {
-  if (!gameCatalog.some((g) => g.id === kind))
-    throw new BadRequestException("Unknown game.");
-  return tx(async (db) => {
-    await requireMatch(db, actor, target);
-    const id = randomUUID();
-    await db.query(
-      "INSERT INTO games(id,host,guest,kind) VALUES($1,$2,$3,$4)",
-      [id, actor, target, kind],
-    );
-    await notify(db, target, actor, "game", "A match invited you to a game.");
-    return { id };
-  });
-}
-export async function gameAnswer(actor: string, id: string, answers: unknown) {
-  const values = z
-    .array(z.number().int().min(0).max(1))
-    .length(5)
-    .parse(answers);
-  return tx(async (db) => {
-    const g = await one(db, "SELECT * FROM games WHERE id=$1 FOR UPDATE", [id]);
-    if (!g || ![g.host, g.guest].includes(actor)) throw new NotFoundException();
-    await requireMatch(db, g.host, g.guest);
-    if (g.answers[actor])
-      throw new BadRequestException("Your answers are already locked in.");
-    g.answers[actor] = values;
-    await db.query("UPDATE games SET answers=$2 WHERE id=$1", [
-      id,
-      JSON.stringify(g.answers),
-    ]);
-    await notify(
-      db,
-      actor === g.host ? g.guest : g.host,
-      actor,
-      "game",
-      "Your match played their turn.",
-    );
-    return projectGame(g, actor);
-  });
-}
 export async function proposeDate(
   actor: string,
   target: string,
@@ -179,7 +190,7 @@ export async function proposeDate(
   const p = z
     .object({
       title: text(100),
-      venue: text(150),
+      venue: z.string().trim().max(150).default(""),
       scheduledAt: z.iso.datetime({ offset: true }),
     })
     .refine((p) => new Date(p.scheduledAt) > new Date(), {

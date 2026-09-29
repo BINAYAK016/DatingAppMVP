@@ -18,13 +18,7 @@ export async function dispatchPush() {
         [n.recipient, n.actor],
       );
       const allowed =
-        n.kind === "request"
-          ? !!(await one(
-              pool,
-              "SELECT 1 FROM connections WHERE sender=$1 AND (a=$2 OR b=$2) AND state='pending'",
-              [n.actor, n.recipient],
-            ))
-          : await matched(pool, n.actor, n.recipient);
+        n.kind !== "request" && (await matched(pool, n.actor, n.recipient));
       if (
         !n.push_token ||
         !n.notifications ||
@@ -51,7 +45,7 @@ export async function dispatchPush() {
             to: n.push_token,
             title: "Sangai",
             body: "You have a new update.",
-            data: { url: "/inbox" },
+            data: { url: "/(tabs)/chat" },
             sound: null,
           }),
           signal: AbortSignal.timeout(8000),
