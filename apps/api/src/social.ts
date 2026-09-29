@@ -72,11 +72,12 @@ export async function feed(
   actor: string,
   before?: string,
   beforeId?: string,
+  ownOnly = false,
 ) {
   const candidates = await rows(
     db,
-    `SELECT p.*,m.kind FROM posts p LEFT JOIN media m ON m.id=p.media_id JOIN users u ON u.id=p.author WHERE NOT u.suspended AND (p.author=$1 OR u.posts_visible) AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.actor=$1 AND b.target=p.author) OR (b.actor=p.author AND b.target=$1)) AND ($2::timestamptz IS NULL OR (p.created_at,p.id)<($2::timestamptz,COALESCE($3::uuid,'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid))) AND (p.author=$1 OR EXISTS (SELECT 1 FROM connections c WHERE c.a=LEAST($1::uuid,p.author) AND c.b=GREATEST($1::uuid,p.author) AND c.state='matched')) ORDER BY p.created_at DESC,p.id DESC LIMIT 30`,
-    [actor, before || null, beforeId || null],
+    `SELECT p.*,m.kind FROM posts p LEFT JOIN media m ON m.id=p.media_id JOIN users u ON u.id=p.author WHERE (NOT $4::boolean OR p.author=$1) AND NOT u.suspended AND (p.author=$1 OR u.posts_visible) AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.actor=$1 AND b.target=p.author) OR (b.actor=p.author AND b.target=$1)) AND ($2::timestamptz IS NULL OR (p.created_at,p.id)<($2::timestamptz,COALESCE($3::uuid,'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid))) AND (p.author=$1 OR EXISTS (SELECT 1 FROM connections c WHERE c.a=LEAST($1::uuid,p.author) AND c.b=GREATEST($1::uuid,p.author) AND c.state='matched')) ORDER BY p.created_at DESC,p.id DESC LIMIT 30`,
+    [actor, before || null, beforeId || null, ownOnly],
   );
   const out = [];
   for (const p of candidates)

@@ -792,6 +792,44 @@ test("chat media, reply visibility, private saves and shared posts recheck their
     ),
   );
 });
+test("own moments filter before pagination and cursors do not skip tied timestamps", async () => {
+  const own = Array.from({ length: 32 }, () => randomUUID());
+  const other = Array.from({ length: 35 }, () => randomUUID());
+  const all = [...own, ...other];
+  try {
+    await db.query(
+      "INSERT INTO posts(id,author,body,created_at) SELECT x,$2,'Pagination fixture','2099-01-01T00:00:00Z' FROM unnest($1::uuid[]) x",
+      [own, ids[0]],
+    );
+    await db.query(
+      "INSERT INTO posts(id,author,body,created_at) SELECT x,$2,'Other fixture','2099-01-02T00:00:00Z' FROM unnest($1::uuid[]) x",
+      [other, ids[1]],
+    );
+    const first = await call("/feed?scope=mine");
+    assert.equal(first.status, 200);
+    assert.equal(first.data.length, 30);
+    assert.ok(
+      first.data.every(
+        (p: any) => p.author.id === ids[0] && own.includes(p.id),
+      ),
+    );
+    const last = first.data.at(-1);
+    const second = await call(
+      `/feed?scope=mine&before=${encodeURIComponent(last.created_at)}&beforeId=${last.id}`,
+    );
+    const selected = [...first.data, ...second.data].filter((p: any) =>
+      own.includes(p.id),
+    );
+    assert.equal(selected.length, 32);
+    assert.equal(new Set(selected.map((p: any) => p.id)).size, 32);
+    const stranger = await call("/feed?scope=mine", 2);
+    assert.ok(stranger.data.every((p: any) => p.author.id === ids[2]));
+    assert.equal((await call("/feed?scope=someone-else")).status, 400);
+  } finally {
+    await db.query("DELETE FROM posts WHERE id=ANY($1::uuid[])", [all]);
+  }
+});
+
 test("block revokes media, chat and games; unblock does not restore consent", async () => {
   const mediaId = await image(1);
   await call("/posts", 1, { body: "Private", mediaId });

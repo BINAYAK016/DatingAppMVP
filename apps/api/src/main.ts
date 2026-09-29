@@ -150,10 +150,14 @@ class ApiController {
     @Req() r: AuthRequest,
     @Query("before") before?: string,
     @Query("beforeId") beforeId?: string,
+    @Query("scope") scope?: string,
   ) {
     if (before) z.iso.datetime({ offset: true }).parse(before);
     if (beforeId) uuid.parse(beforeId);
-    return tx((db) => social.feed(db, r.actor, before, beforeId));
+    if (scope) z.enum(["all", "mine"]).parse(scope);
+    return tx((db) =>
+      social.feed(db, r.actor, before, beforeId, scope === "mine"),
+    );
   }
   @Patch("v1/profile") profile(@Req() r: AuthRequest, @Body() b: unknown) {
     return social.updateProfile(r.actor, b);
