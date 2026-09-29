@@ -121,6 +121,7 @@ test("four core areas, Discover landing and Chat-owned stories", async ({
   await page.getByPlaceholder("A thought, a question, a hello…").fill(message);
   await page.getByLabel("Send message", { exact: true }).click();
   await expect(page.getByText(message, { exact: true })).toBeVisible();
+  await expect(page.getByText(message, { exact: true })).toBeInViewport();
 });
 
 test("Sangai post composer uses the library and persists a private post", async ({

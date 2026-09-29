@@ -1,5 +1,12 @@
 import React, { useRef, useState } from "react";
-import { Animated, PanResponder, Pressable, Text, View } from "react-native";
+import {
+  Animated,
+  PanResponder,
+  Platform,
+  Pressable,
+  Text,
+  View,
+} from "react-native";
 import { router } from "expo-router";
 import { randomUUID } from "expo-crypto";
 import { LinearGradient } from "expo-linear-gradient";
@@ -159,6 +166,7 @@ function SwipeCard({
 }) {
   const [position] = useState(() => new Animated.ValueXY());
   const [animating, setAnimating] = useState(false);
+  const dragged = useRef(false);
   const snapBack = () =>
     Animated.spring(position, {
       toValue: { x: 0, y: 0 },
@@ -183,10 +191,14 @@ function SwipeCard({
     // Own card touches before the nested Pressable/ScrollView can consume them.
     // Tap navigation is handled on release; accessibility activation stays below.
     onStartShouldSetPanResponderCapture: () => !busy && !animating,
+    onPanResponderGrant: () => {
+      dragged.current = false;
+    },
     onMoveShouldSetPanResponder: (_, g) =>
       !busy && !animating && (Math.abs(g.dx) > 16 || g.dy < -22),
     onPanResponderTerminationRequest: () => false,
     onPanResponderMove: (_, g) => {
+      if (Math.abs(g.dx) > 8 || Math.abs(g.dy) > 8) dragged.current = true;
       if (!busy) position.setValue({ x: g.dx, y: Math.min(g.dy, 40) });
     },
     onPanResponderRelease: (_, g) => {
@@ -196,7 +208,7 @@ function SwipeCard({
       else if (g.dx < -80) choose("pass");
       else if (Math.abs(g.dx) < 8 && Math.abs(g.dy) < 8) {
         snapBack();
-        router.push(`/profile/${p.id}`);
+        if (Platform.OS !== "web") router.push(`/profile/${p.id}`);
       } else snapBack();
     },
     onPanResponderTerminate: snapBack,
@@ -216,7 +228,11 @@ function SwipeCard({
           accessibilityRole="button"
           accessibilityLabel={`View ${p.name}'s profile`}
           disabled={busy}
-          onPress={() => router.push(`/profile/${p.id}`)}
+          onPress={() => {
+            // Browsers synthesize a click after mouseup even after a card drag.
+            if (Platform.OS !== "web" || !dragged.current)
+              router.push(`/profile/${p.id}`);
+          }}
           style={{
             borderRadius: 28,
             overflow: "hidden",
