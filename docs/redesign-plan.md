@@ -8,12 +8,14 @@ Status: proposed implementation sequence following the code audit of `96bd8f3`. 
 
 The first release contains three live games; four more follow. Readiness is temporary and visible only to the selected match. A session starts only when both are available and the invitation is accepted.
 
+Likes stay hidden until both people swipe positively, including in API responses and notifications. Real beta testers require verified email/Google email, a declared adult birth date and completed onboarding; identity verification is deferred.
+
 ## Decisions before finalizing contracts
 
 | Decision | Recommendation sent to the user | Status |
 | --- | --- | --- |
-| Incoming likes | Show who liked you free in Discover; chat still requires mutual choice | Awaiting answer |
-| Real-tester access | Verified email/Google email, declared 18+, completed profile; no identity-verification claim | Awaiting answer |
+| Incoming likes | User selected hidden likes; reveal only after mutual swipe | Confirmed |
+| Real-tester access | Verified email/Google email, declared 18+, completed profile; no identity-verification claim | Confirmed |
 | Payments | Free core and initial games, server abuse limits, pricing tests later | Awaiting answer |
 
 Questions already answered in the briefs are not reopened. More detailed pricing, growth, voice notes, read receipts and future adult-mode decisions can wait until those increments are relevant. Do not implement optional features merely because their table or screen could be added.
@@ -40,7 +42,7 @@ This sequence is milestone-based, not a deadline estimate. The senior developer 
 2. Before schema changes, create a local restricted PostgreSQL backup and media snapshot. Never commit account exports or media into Git. Do not use `docker compose down -v`.
 3. Introduce an ordered migration ledger with checksums and transactional execution. Baseline existing databases deliberately; `CREATE TABLE IF NOT EXISTS` alone does not handle a redesign.
 4. Expand additively: fields, identity links, profile media, discovery actions, invitation/session lifecycle and message types. Backfill without changing user IDs, match IDs or privacy scopes.
-5. Existing matched pairs stay matched. Pending written requests may become one directed Like; declined/ended/blocked pairs remain closed. Do not derive a reciprocal Like from a follow, comment, story view or circle membership.
+5. Existing matched pairs stay matched. Pending written requests may become one directed Like; remove their incoming identity projections/notifications under the hidden-like rule. Declined/ended/blocked pairs remain closed. Never infer a reciprocal Like from social activity or circle membership.
 6. Preserve private media ownership and distinguish profile, post, story and chat permissions. Reusing an asset must not accidentally make a snap public to other matches. Review saved/shared references after unmatch/block.
 7. Retire circle runtime access and old deep links safely. Keep circle rows in restricted backup during the rollback window; do not convert them into posts or chats with different audiences. Drop the five retired tables only in a later validated contract migration.
 8. Convert legacy game records explicitly: completed games are history; unfinished asynchronous games cannot become accepted live sessions silently. Keep old display data separate from new playable state.

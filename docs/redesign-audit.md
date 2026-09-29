@@ -18,12 +18,14 @@ The core promise is to help Nepali adults discover someone, choose each other, b
 - **Serious relationships, marriage and casual dating receive equal emphasis.** Do not rank intentions morally or imply that a casual intention permits unsolicited sexual content.
 - **Deliver the core journey with three live games first, then the remaining four.** Design all seven within one extensible engine.
 - **Availability is a temporary Ready to play status shared only with the selected match.** It does not expose a general online or last-seen badge.
+- **Likes remain hidden until a mutual swipe.** No incoming-likes list, actor-bearing notification or API payload may reveal a sender before matching. Super Likes respect the same boundary.
+- **Real beta testers need verified email or verified Google email, an 18+ declaration and a completed profile.** Identity verification is deferred; local fictional demo accounts stay separate. Email verification does not prove identity or age.
 - No AI in this beta. No explicit sexual game content. Future premium/adult mode is an architectural extension, not a current feature or monetization commitment.
 - Supported cities remain Kathmandu, Bhaktapur, Lalitpur, Pokhara, Sydney, Melbourne, Perth and Brisbane. Support for a city is not a commitment to launch or spend on acquisition in all eight simultaneously.
 
 ### Pending product decisions
 
-- Likes-inbox visibility, beta monetization boundaries and the mandatory verification gate have been sent as a second decision round. These remain unanswered before finalizing matching/onboarding contracts.
+- The beta monetization decision remains unanswered in round two. Incoming likes are hidden; the real-tester gate is verified email/Google email, declared adulthood and completed onboarding.
 - Fine details such as Super Like limits, unread/read-receipt policy, the follow filter, launch cohorts and premium pricing remain proposals. They are not silently approved features.
 
 ## 1. Current architecture
@@ -55,7 +57,7 @@ Paths below are relative to `apps/mobile/src/app`. Modal states are noted separa
 | `(tabs)/circles.tsx` | Circle list and creation entry | Remove. |
 | `(tabs)/play.tsx` | Match selection and three game choices | Merge catalog into the selected conversation's attachment menu. No fifth tab. |
 | `(tabs)/you.tsx` | Own profile summary, counts, settings, export/delete/logout | Rename Profile; show full identity and own posts; nest preferences and settings. Remove circle count. |
-| `inbox.tsx` | Incoming requests, match list, notifications | Promote conversations to Chat tab. Locate incoming likes in Discover once the likes decision is made; use a compact activity entry for notifications. |
+| `inbox.tsx` | Incoming requests, match list, notifications | Promote conversations to Chat tab. Remove incoming-request identity display because likes stay hidden; use a compact activity entry for authorized notifications. |
 | `profile/[id].tsx` | Another person's profile, written request, following, safety | One reusable full-profile presentation with viewer-specific actions. Discovery shows chosen profile fields; social posts require a match. |
 | `chat/[id].tsx` | Text chat, snaps, game cards, date cards, safety | Retain core; chronological mixed timeline, profile shortcut, bottom camera and secondary attachment menu. |
 | `compose.tsx` | One shared composer in post/story/snap/avatar modes | Reuse upload helpers; make post, story and chat-media entry contexts explicit. Camera only in Chat. Profile/Sangai use the library. |
@@ -127,6 +129,7 @@ Static game definitions stay in versioned code, with a common rules interface an
 ### State transitions that need explicit contracts
 
 - **Match:** two current, eligible directional likes create one canonical active match atomically. Racing likes and retries must not create duplicate notifications. Blocking wins over stale client actions.
+- **Hidden likes:** directional Like/Super Like records are private to their actor until mutual matching. Remove legacy incoming-request projections and sender-bearing notifications from the new API. Hiding only the screen is insufficient.
 - **Undo:** reverse only the actor's latest eligible discovery action before it has produced a match. A completed match uses the explicit unmatch flow. Never undo another person's decision or resurrect an ended pair.
 - **Live game:** available → invite → recipient acceptance → validate both leases → active rounds → reveal → complete. Decline, timeout, disconnect, backgrounding, block and suspension have explicit transitions. The server owns timers and secret answers. A foreground screen alone is not reliable availability.
 - **Date:** proposed → accepted/declined; either participant may cancel under the permitted state rules. Editing an accepted time/location must create a new proposal requiring acceptance.
@@ -144,12 +147,12 @@ Discover                 Chat                   Sangai               Profile
   Full profile             Conversations          Post composer        Own posts
   Like / Pass / Super      Conversation           Comments/replies     Edit sections
   Undo / filters             Camera / Snap        Saved posts          Preferences
-  Incoming likes*            Media library        Post options         Privacy/safety
+                             Media library        Post options         Privacy/safety
                              Games                Vertical video       Settings
                              Plan a Date
                              Profile / Safety
 
-*Visibility decision pending. No Circles or separate Play tab.
+Likes stay hidden until mutual matching. No Circles or separate Play tab.
 ```
 
 Proposed onboarding: (1) identity and adult birth date; (2) city and who to meet; (3) intention; (4) at least one chosen profile photo and a short personality prompt; (5) interests, preferences and review. Languages, work/education and lifestyle are optional editable additions. Save progress and resume. Existing accounts fill missing fields rather than recreating their identity.
