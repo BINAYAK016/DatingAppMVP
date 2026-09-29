@@ -187,6 +187,8 @@ function SwipeCard({
       void onDecide(action).finally(snapBack);
     });
   };
+  // PanResponder registers callbacks; it only invokes them during touch events.
+  // eslint-disable-next-line react-hooks/refs -- no gesture ref is read during render
   const responder = PanResponder.create({
     // Own card touches before the nested Pressable/ScrollView can consume them.
     // Tap navigation is handled on release; accessibility activation stays below.
