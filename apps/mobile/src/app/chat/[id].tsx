@@ -37,6 +37,8 @@ export default function Chat() {
   const [history, setHistory] = useState<any[]>([]);
   const [more, setMore] = useState(true);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const conversationScroll = useRef<ScrollView>(null);
+  const followNewest = useRef(true);
   const pending = useRef<{ text: string; id: string } | null>(null);
   const load = useCallback(async () => {
     try {
@@ -98,6 +100,7 @@ export default function Chat() {
       });
       pending.current = null;
       setBody("");
+      followNewest.current = true;
       await load();
     } catch (e: any) {
       st.toast(e.message + " Your draft is still here.");
@@ -114,10 +117,7 @@ export default function Chat() {
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <ScrollView
-          contentContainerStyle={[s.page, { paddingBottom: 15 }]}
-          keyboardShouldPersistTaps="handled"
-        >
+        <View style={{ paddingHorizontal: 22, paddingTop: 22 }}>
           <Header
             back
             title={chat?.person.name || "Your conversation."}
@@ -136,6 +136,24 @@ export default function Chat() {
               </Pressable>
             }
           />
+        </View>
+        <ScrollView
+          ref={conversationScroll}
+          onScroll={({ nativeEvent }) => {
+            followNewest.current =
+              nativeEvent.contentSize.height -
+                nativeEvent.layoutMeasurement.height -
+                nativeEvent.contentOffset.y <
+              100;
+          }}
+          scrollEventThrottle={100}
+          onContentSizeChange={() => {
+            if (followNewest.current)
+              conversationScroll.current?.scrollToEnd({ animated: false });
+          }}
+          contentContainerStyle={[s.page, { paddingBottom: 15 }]}
+          keyboardShouldPersistTaps="handled"
+        >
           {error ? (
             <Empty title="Conversation unavailable" body={error} />
           ) : (
@@ -162,6 +180,7 @@ export default function Chat() {
                     secondary
                     disabled={loadingHistory}
                     onPress={async () => {
+                      followNewest.current = false;
                       setLoadingHistory(true);
                       try {
                         const first = history[0] || chat.timeline[0];

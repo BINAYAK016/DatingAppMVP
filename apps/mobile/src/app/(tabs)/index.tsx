@@ -180,8 +180,12 @@ function SwipeCard({
     });
   };
   const responder = PanResponder.create({
+    // Own card touches before the nested Pressable/ScrollView can consume them.
+    // Tap navigation is handled on release; accessibility activation stays below.
+    onStartShouldSetPanResponderCapture: () => !busy && !animating,
     onMoveShouldSetPanResponder: (_, g) =>
       !busy && !animating && (Math.abs(g.dx) > 16 || g.dy < -22),
+    onPanResponderTerminationRequest: () => false,
     onPanResponderMove: (_, g) => {
       if (!busy) position.setValue({ x: g.dx, y: Math.min(g.dy, 40) });
     },
@@ -190,7 +194,10 @@ function SwipeCard({
       if (g.dy < -90 && Math.abs(g.dy) > Math.abs(g.dx)) choose("super");
       else if (g.dx > 80) choose("like");
       else if (g.dx < -80) choose("pass");
-      else snapBack();
+      else if (Math.abs(g.dx) < 8 && Math.abs(g.dy) < 8) {
+        snapBack();
+        router.push(`/profile/${p.id}`);
+      } else snapBack();
     },
     onPanResponderTerminate: snapBack,
   });
