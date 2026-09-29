@@ -2,7 +2,7 @@
 
 ## Scope and truthfulness
 
-- Discovery is complete. The user explicitly authorized a cross-platform social beta with direct snaps, match-only stories, full-clique communities and dating games, without AI. Current scope and beta deviations are in `docs/beta.md`.
+- The implemented cross-platform beta is described in `docs/beta.md`. The user's latest target is the SANGAI redesign in `docs/redesign-audit.md` and `docs/redesign-plan.md`: Discover, Chat, Sangai and Profile; remove circles; keep match-only social content; camera/Snap only in Chat; no AI. Follow confirmed decisions and resolve the recorded pending product choices before dependent implementation. Do not treat the earlier circle-based scope as the future product requirement.
 - Treat `docs/` as proposed decisions until implemented and verified. Update implementation status when delivering each milestone.
 - Android and iOS are primary products. Do not replace the mobile app with a website, PWA, or WebView wrapper.
 - Preserve user work. Begin changes by inspecting `git status`, `git branch -a`, `git log --oneline -10`, and applicable nested instructions. An empty repository has no history; report that accurately.

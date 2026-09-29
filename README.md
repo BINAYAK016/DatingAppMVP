@@ -4,6 +4,8 @@ A real React Native / Expo Android and iOS app for Nepali adults in Kathmandu, B
 
 This is a **local, private testing beta**, with a working NestJS API and PostgreSQL. It is not approved for a public dating-service launch. The [beta guide](docs/beta.md) records implementation choices and remaining release work. Earlier discovery documents are historical proposals.
 
+The next product direction is documented in the [SANGAI redesign audit](docs/redesign-audit.md) and [migration plan](docs/redesign-plan.md). These are planning documents; the feature list below describes the existing implementation, not completed redesign work.
+
 ## Included
 
 - Adult signup/login, profiles/photos, interests, intentions and reciprocal discovery filters.
