@@ -23,11 +23,26 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     predictiveBackGestureEnabled: true,
     adaptiveIcon: {
       foregroundImage: "./assets/sangai-icon.png",
-      backgroundColor: "#203E36",
+      backgroundColor: "#FBE4EB",
     },
   },
   web: { favicon: "./assets/sangai-icon.png" },
   plugins: [
+    ...(process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID
+      ? [
+          [
+            "@react-native-google-signin/google-signin",
+            {
+              iosUrlScheme:
+                "com.googleusercontent.apps." +
+                process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID.replace(
+                  ".apps.googleusercontent.com",
+                  "",
+                ),
+            },
+          ] as [string, Record<string, string>],
+        ]
+      : []),
     "expo-router",
     "expo-secure-store",
     "expo-video",

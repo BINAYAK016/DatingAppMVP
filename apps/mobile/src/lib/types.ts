@@ -9,11 +9,20 @@ export type Person = {
   prompt: string;
   gender: string;
   avatar_id?: string;
+  media?: { id: string; kind: string; position: number }[];
   color: string;
   demo: boolean;
   followed?: boolean;
+  preview?: string;
+  unread?: number;
+  languages: string[];
+  hobbies: string[];
+  profession: string;
+  education: string;
+  lifestyle: Record<string, string>;
 };
 export type Comment = {
+  parent_id?: string;
   id: string;
   author: Person;
   body: string;
@@ -29,6 +38,7 @@ export type Post = {
   comments: Comment[];
   likes: number;
   liked: boolean;
+  saved: boolean;
 };
 export type Story = {
   id: string;
@@ -37,13 +47,6 @@ export type Story = {
   media_id?: string;
   kind?: string;
   expires_at: string;
-};
-export type Circle = {
-  id: string;
-  name: string;
-  description: string;
-  owner: string;
-  members: Person[];
 };
 export type GameDefinition = {
   id: string;
@@ -55,21 +58,31 @@ export type GameDefinition = {
 export type State = {
   me: Person & {
     email: string;
+    email_verified_at: string | null;
+    adult_declared_at: string | null;
+    onboarded_at: string | null;
+    onboarding_step: number;
+    birth_date: string | null;
     paused: boolean;
     notifications: boolean;
+    posts_visible: boolean;
+    stories_visible: boolean;
+    messages_enabled: boolean;
+    interactions_enabled: boolean;
+    data_saver: boolean;
     preferences: {
       cities: string[];
       genders: string[];
+      intents?: string[];
       minAge: number;
       maxAge: number;
     };
   };
   matches: Person[];
   discover: Person[];
-  requests: { from: Person; note: string }[];
+  undoId: string | null;
   feed: Post[];
   stories: Story[];
-  circles: Circle[];
   notifications: {
     id: string;
     body: string;

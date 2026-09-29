@@ -19,6 +19,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useStore } from "../lib/store";
+import { useMediaVisible } from "../lib/useMediaVisible";
 import { Person } from "../lib/types";
 export const C = {
   bg: "#FFFAFB",
@@ -191,7 +192,7 @@ export function Video({ id }: { id: string }) {
     />
   );
 }
-function PrivateImage({
+export function PrivateImage({
   id,
   style,
 }: {
@@ -199,7 +200,9 @@ function PrivateImage({
   style: StyleProp<ImageStyle>;
 }) {
   const { url, token } = useStore();
-  const [loaded, setLoaded] = useState<{ key: string; uri: string } | null>(null);
+  const [loaded, setLoaded] = useState<{ key: string; uri: string } | null>(
+    null,
+  );
   const [failedKey, setFailedKey] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const key = `${url}:${id}:${token}:${attempt}`;
@@ -252,8 +255,9 @@ function PrivateImage({
 }
 export function Media({ id, kind = "image" }: { id: string; kind?: string }) {
   const [loadVideo, setLoadVideo] = useState(false);
+  const visible = useMediaVisible();
   return kind === "video" ? (
-    loadVideo ? (
+    loadVideo && visible ? (
       <Video id={id} />
     ) : (
       <View
@@ -342,7 +346,9 @@ export function Header({
             style={s.iconButton}
           >
             <Icon name="notifications-outline" />
-            {!!data?.notifications.some(n => !n.read && n.kind !== "request") && <View style={s.dot} />}
+            {!!data?.notifications.some(
+              (n) => !n.read && n.kind !== "request",
+            ) && <View style={s.dot} />}
           </Pressable>
         ))}
     </View>

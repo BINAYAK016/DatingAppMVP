@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { ActivityIndicator, Image, Text, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
+import { randomUUID } from "expo-crypto";
 import * as ImagePicker from "expo-image-picker";
 import { Button, C, Field, Header, Icon, Page, s } from "../components/ui";
 import { useStore } from "../lib/store";
@@ -48,6 +49,7 @@ export default function Compose() {
       st.toast(e.message);
     }
   };
+  const [clientId] = useState(() => randomUUID());
   const publish = async () => {
     setBusy(true);
     try {
@@ -57,9 +59,16 @@ export default function Compose() {
         mediaId = (await st.upload(asset)).id;
       }
       setStage("Sharing your moment…");
-      if (kind === "avatar") {
+      if (kind === "gallery") {
+        if (!mediaId) throw new Error("Choose a photo or video first.");
+        await st.request("/profile/media", { mediaId });
+      } else if (kind === "avatar") {
         if (!mediaId) throw new Error("Choose a photo first.");
         await st.request("/profile/photo", { mediaId });
+      } else if (kind === "message") {
+        if (!mediaId || !target)
+          throw new Error("Choose a photo or video for your match.");
+        await st.request(`/chat/${target}`, { body, mediaId, clientId });
       } else if (kind === "snap") {
         if (!mediaId || !target)
           throw new Error("Choose a photo or video for your snap.");
@@ -71,11 +80,13 @@ export default function Compose() {
         });
       await st.refresh();
       st.toast(
-        kind === "snap"
-          ? "Snap sent."
-          : kind === "avatar"
-            ? "Profile photo updated."
-            : "Your moment is shared.",
+        kind === "message"
+          ? "Message sent."
+          : kind === "snap"
+            ? "Snap sent."
+            : kind === "avatar"
+              ? "Profile photo updated."
+              : "Your moment is shared.",
       );
       router.back();
     } catch (e: any) {
@@ -90,33 +101,43 @@ export default function Compose() {
       <Header
         back
         title={
-          kind === "snap"
-            ? "A little just for you."
-            : kind === "story"
-              ? "Here for a moment."
-              : kind === "avatar"
-                ? "Your first impression."
-                : "Share your everyday."
+          kind === "gallery"
+            ? "Your profile gallery"
+            : kind === "message"
+              ? "Share in your chat"
+              : kind === "snap"
+                ? "A little just for you."
+                : kind === "story"
+                  ? "Here for a moment."
+                  : kind === "avatar"
+                    ? "Your first impression."
+                    : "Share your everyday."
         }
         eyebrow={
-          kind === "snap"
-            ? "PRIVATE SNAP"
-            : kind === "story"
-              ? "24-HOUR STORY"
-              : kind === "avatar"
-                ? "PROFILE PHOTO"
-                : "A NEW MOMENT"
+          kind === "message"
+            ? "PHOTO OR VIDEO MESSAGE"
+            : kind === "gallery"
+              ? "PROFILE GALLERY"
+              : kind === "snap"
+                ? "PRIVATE SNAP"
+                : kind === "story"
+                  ? "24-HOUR STORY"
+                  : kind === "avatar"
+                    ? "PROFILE PHOTO"
+                    : "A NEW MOMENT"
         }
       />
       <View style={s.note}>
         <Text style={s.body}>
-          {kind === "snap"
-            ? "Only this match can open it, once, for up to 30 seconds. Unopened snaps expire in 24 hours. Screenshots are still possible."
-            : kind === "story"
-              ? "Visible only to your current mutual matches. Disappears after 24 hours."
-              : kind === "avatar"
-                ? "This photo is visible on your discovery profile."
-                : "Your post, likes, and conversations stay inside your mutual-match community."}
+          {kind === "message"
+            ? "A regular photo or video message stays in this conversation. Choose the camera in Chat for a view-once snap."
+            : kind === "snap"
+              ? "Only this match can open it, once, for up to 30 seconds. Unopened snaps expire in 24 hours. Screenshots are still possible."
+              : kind === "story"
+                ? "Visible only to your current mutual matches. Disappears after 24 hours."
+                : kind === "avatar"
+                  ? "This photo is visible on your discovery profile."
+                  : "Your post, likes, and conversations stay inside your mutual-match community."}
         </Text>
       </View>
       {kind !== "avatar" && (
@@ -180,15 +201,17 @@ export default function Compose() {
             onPress={() => void pick(false)}
           />
         </View>
-        {(kind === "snap" || kind === "story") && <View style={{ flex: 1 }}>
-          <Button
-            title="Camera"
-            secondary
-            icon="camera-outline"
-            disabled={busy}
-            onPress={() => void pick(true)}
-          />
-        </View>}
+        {(kind === "snap" || kind === "story") && (
+          <View style={{ flex: 1 }}>
+            <Button
+              title="Camera"
+              secondary
+              icon="camera-outline"
+              disabled={busy}
+              onPress={() => void pick(true)}
+            />
+          </View>
+        )}
       </View>
       {(kind === "snap" || kind === "story") && (
         <Button
@@ -204,16 +227,20 @@ export default function Compose() {
         title={
           busy
             ? "One moment…"
-            : kind === "snap"
-              ? "Send snap"
-              : kind === "avatar"
-                ? "Use this photo"
-                : "Share with my matches"
+            : kind === "message"
+              ? "Send to this match"
+              : kind === "gallery"
+                ? "Add to profile"
+                : kind === "snap"
+                  ? "Send snap"
+                  : kind === "avatar"
+                    ? "Use this photo"
+                    : "Share with my matches"
         }
         disabled={
           busy ||
           (!body.trim() && !asset) ||
-          ((kind === "snap" || kind === "avatar") && !asset)
+          (["snap", "avatar", "gallery", "message"].includes(kind) && !asset)
         }
         onPress={() => void publish()}
       />

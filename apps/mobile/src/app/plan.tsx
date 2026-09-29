@@ -2,12 +2,9 @@ import React, { useState } from "react";
 import { Text, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useStore } from "../lib/store";
-import { Button, Field, Header, Icon, Page, s } from "../components/ui";
+import { Button, Chip, Field, Header, Icon, Page, s } from "../components/ui";
 export default function Plan() {
-  const {
-    target,
-    title: initial,
-  } = useLocalSearchParams<{
+  const { target, title: initial } = useLocalSearchParams<{
     target?: string;
     title?: string;
   }>();
@@ -19,11 +16,25 @@ export default function Plan() {
     [busy, setBusy] = useState(false);
   return (
     <Page>
-      <Header
-        back
-        title="Plan a Date"
-        eyebrow="AN INVITATION TOGETHER"
-      />
+      <Header back title="Plan a Date" eyebrow="AN INVITATION TOGETHER" />
+      <View style={[s.wrap, { marginBottom: 20 }]}>
+        {[
+          "Coffee",
+          "Dinner",
+          "Movie",
+          "Walk",
+          "Hiking",
+          "Activity",
+          "Something else",
+        ].map((kind) => (
+          <Chip
+            key={kind}
+            label={kind}
+            selected={title === kind}
+            onPress={() => setTitle(kind)}
+          />
+        ))}
+      </View>
       <Field
         label="The idea"
         value={title}
@@ -31,7 +42,7 @@ export default function Plan() {
         placeholder="Coffee and a slow walk"
       />
       <Field
-        label="Public place / venue"
+        label="Public place / venue · optional"
         value={venue}
         onChangeText={setVenue}
         placeholder="A favorite café or a public park"
@@ -47,6 +58,10 @@ export default function Plan() {
         value={time}
         onChangeText={setTime}
       />
+      <Text style={[s.small, { marginBottom: 16 }]}>
+        Times use {Intl.DateTimeFormat().resolvedOptions().timeZone}. Your match
+        sees the invitation in their local time.
+      </Text>
       <View style={s.note}>
         <View style={s.row}>
           <Icon name="shield-checkmark-outline" />
@@ -59,7 +74,7 @@ export default function Plan() {
       </View>
       <Button
         title={busy ? "Sending…" : "Send date invitation"}
-        disabled={busy || !title || !venue || !date || !time}
+        disabled={busy || !title || !date || !time || !target}
         onPress={async () => {
           setBusy(true);
           try {
@@ -71,15 +86,20 @@ export default function Plan() {
                 "Use YYYY-MM-DD for the date and HH:MM for time.",
               );
             const scheduled = new Date(`${date}T${time}:00`);
+            const [year, month, day] = date.split("-").map(Number);
             if (
               !Number.isFinite(scheduled.getTime()) ||
+              scheduled.getFullYear() !== year ||
+              scheduled.getMonth() !== month - 1 ||
+              scheduled.getDate() !== day ||
               scheduled <= new Date()
             )
               throw new Error("Choose a valid future date.");
-            await st.request(
-              `/plans/${target}`,
-              { title, venue, scheduledAt: scheduled.toISOString() },
-            );
+            await st.request(`/plans/${target}`, {
+              title,
+              venue,
+              scheduledAt: scheduled.toISOString(),
+            });
             st.toast("Date idea sent. Your match can accept or decline.");
             router.back();
           } catch (e: any) {

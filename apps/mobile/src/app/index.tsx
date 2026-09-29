@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, Pressable, Linking } from "react-native";
-import { Redirect } from "expo-router";
+import { Redirect, router } from "expo-router";
+import { GoogleAuth } from "../components/GoogleAuth";
 import { useStore } from "../lib/store";
-import { Person, CITIES } from "../lib/types";
+import { Person } from "../lib/types";
 import {
   Avatar,
   Banner,
   Button,
-  Chip,
   Field,
   Loading,
   Page,
@@ -20,9 +20,6 @@ export default function Welcome() {
   const [mode, setMode] = useState<"welcome" | "login" | "register">("welcome"),
     [email, setEmail] = useState(""),
     [password, setPassword] = useState(""),
-    [name, setName] = useState(""),
-    [birthDate, setBirthDate] = useState(""),
-    [city, setCity] = useState("Kathmandu"),
     [accepted, setAccepted] = useState(false),
     [accounts, setAccounts] = useState<Person[]>([]),
     [settings, setSettings] = useState(false),
@@ -42,9 +39,6 @@ export default function Welcome() {
           ? {
               email,
               password,
-              name,
-              birthDate,
-              city,
               acceptedPolicies: accepted,
             }
           : { email, password },
@@ -74,8 +68,9 @@ export default function Welcome() {
             Discover someone new. Share the everyday with your matches. Let the
             good conversations happen.
           </Text>
+          <GoogleAuth />
           <Button
-            title="Create your profile"
+            title="Continue with email"
             onPress={() => setMode("register")}
             icon="arrow-forward"
           />
@@ -122,32 +117,6 @@ export default function Welcome() {
           <Text style={[s.h2, { marginBottom: 18 }]}>
             {mode === "register" ? "Make yourself at home" : "Welcome back"}
           </Text>
-          {mode === "register" && (
-            <>
-              <Field
-                label="Your first name"
-                value={name}
-                onChangeText={setName}
-              />
-              <Field
-                label="Date of birth · YYYY-MM-DD · adults 18+"
-                value={birthDate}
-                onChangeText={setBirthDate}
-                placeholder="YYYY-MM-DD"
-              />
-              <Text style={[s.label, { marginBottom: 10 }]}>Your city</Text>
-              <View style={[s.wrap, { marginBottom: 20 }]}>
-                {CITIES.map((c) => (
-                  <Chip
-                    key={c}
-                    label={c}
-                    selected={c === city}
-                    onPress={() => setCity(c)}
-                  />
-                ))}
-              </View>
-            </>
-          )}
           <Field
             label="Email"
             value={email}
@@ -185,6 +154,14 @@ export default function Welcome() {
             disabled={st.loading}
             onPress={() => void submit()}
           />
+          {mode === "login" && (
+            <Pressable
+              style={{ paddingTop: 16 }}
+              onPress={() => router.push("/reset-password")}
+            >
+              <Text style={s.link}>Forgot password?</Text>
+            </Pressable>
+          )}
           <Pressable
             style={{ paddingTop: 16 }}
             onPress={() => setMode("welcome")}

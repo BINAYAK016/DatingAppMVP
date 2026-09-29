@@ -10,6 +10,7 @@
     "test": "npm test --prefix apps/api"
   },
   "devDependencies": {
-    "@playwright/test": "^1.63.0"
+    "@playwright/test": "^1.63.0",
+    "prettier": "^3.9.9"
   }
 }

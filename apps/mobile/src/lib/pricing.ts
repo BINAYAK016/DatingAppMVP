@@ -9,9 +9,10 @@ export const PRICE_REGIONS = {
 
 export function previewPrice(region: PriceRegion, period: BillingPeriod) {
   const p = PRICE_REGIONS[region];
-  const minor = period === "annual"
-    ? Math.round(p.monthlyMinor * 12 * 80 / 100)
-    : p.monthlyMinor;
+  const minor =
+    period === "annual"
+      ? Math.round((p.monthlyMinor * 12 * 80) / 100)
+      : p.monthlyMinor;
   return { currency: p.currency, minor, period };
 }
 
@@ -34,6 +35,12 @@ export const FREE_BENEFITS = [
 
 export const PLUS_BENEFITS = [
   { name: "Extra undos", detail: "More room to correct an accidental swipe." },
-  { name: "Optional lifestyle filters", detail: "Refine preferences using details people choose to share." },
-  { name: "Bonus game packs", detail: "Future conversation starters beyond the seven standard games." },
+  {
+    name: "Optional lifestyle filters",
+    detail: "Refine preferences using details people choose to share.",
+  },
+  {
+    name: "Bonus game packs",
+    detail: "Future conversation starters beyond the seven standard games.",
+  },
 ];

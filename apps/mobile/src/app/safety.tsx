@@ -82,7 +82,7 @@ export default function Safety() {
             <View style={[s.card, { marginTop: 15 }]}>
               <Text style={[s.body, { marginBottom: 15 }]}>
                 {confirm === "block"
-                  ? "Block this person? You will lose contact, shared social access, and any circle that contains you both will pause."
+                  ? "Block this person? You will lose contact and shared social access. Active games will close."
                   : "End this match? Your chat and shared social access will close. This beta does not automatically restore ended matches."}
               </Text>
               <Button

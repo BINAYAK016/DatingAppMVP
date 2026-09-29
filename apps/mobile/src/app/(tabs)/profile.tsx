@@ -14,7 +14,7 @@ import {
   Section,
   s,
 } from "../../components/ui";
-export default function You() {
+export default function Profile() {
   const st = useStore();
   const [deleting, setDeleting] = useState(false),
     [confirmation, setConfirmation] = useState(""),
@@ -57,33 +57,96 @@ export default function You() {
           />
         </View>
       </View>
-      <View style={[s.card, s.row, { justifyContent: "space-around" }]}>
-        {[
-          [String(st.data.matches.length), "connections"],
-          [
-            String(st.data.feed.filter((p) => p.author.id === me.id).length),
-            "moments",
-          ],
-        ].map(([value, label]) => (
-          <View key={label} style={{ alignItems: "center" }}>
-            <Text style={s.h2}>{value}</Text>
-            <Text style={s.small}>{label}</Text>
-          </View>
-        ))}
+      <View style={[s.card, s.row, { justifyContent: "space-between" }]}>
+        <View>
+          <Text style={s.h2}>{st.data.matches.length}</Text>
+          <Text style={s.small}>connections</Text>
+        </View>
+        <Button
+          title="My moments"
+          secondary
+          onPress={() => router.push("/my-posts")}
+        />
+      </View>
+      <View style={s.card}>
+        <Text style={s.h2}>The details that make you, you</Text>
+        <Text style={[s.body, { marginTop: 12 }]}>
+          {me.languages?.length
+            ? `Languages: ${me.languages.join(", ")}`
+            : "Languages not added"}
+        </Text>
+        {!!me.hobbies?.length && (
+          <Text style={s.body}>Hobbies: {me.hobbies.join(", ")}</Text>
+        )}
+        {!!me.profession && <Text style={s.body}>{me.profession}</Text>}
+        {!!me.education && <Text style={s.body}>{me.education}</Text>}
+        {Object.entries(me.lifestyle || {})
+          .filter(([, value]) => value)
+          .map(([key, value]) => (
+            <Text key={key} style={s.body}>
+              {key}: {value}
+            </Text>
+          ))}
+        <Text style={[s.small, { marginTop: 12 }]}>
+          {me.demo
+            ? "Fictional demo account"
+            : me.email_verified_at
+              ? "Email verified · identity not verified"
+              : "Email verification required"}
+        </Text>
       </View>
       <View style={s.card}>
         <Text style={s.label}>ABOUT YOU</Text>
-        <Text style={[s.body, { marginTop: 10 }]}>{me.bio || "Tell your matches a little about yourself."}</Text>
+        <Text style={[s.body, { marginTop: 10 }]}>
+          {me.bio || "Tell your matches a little about yourself."}
+        </Text>
         <Text style={[s.body, { marginTop: 12 }]}>{me.intent}</Text>
-        <Text style={[s.body, { marginTop: 12 }]}>{me.interests.join(" · ")}</Text>
-        {!!me.prompt && <Text style={[s.body, { marginTop: 12 }]}>{me.prompt}</Text>}
+        <Text style={[s.body, { marginTop: 12 }]}>
+          {me.interests.join(" · ")}
+        </Text>
+        {!!me.prompt && (
+          <Text style={[s.body, { marginTop: 12 }]}>{me.prompt}</Text>
+        )}
       </View>
       <View style={[s.card, { backgroundColor: C.blush }]}>
         <Text style={s.h2}>A little more with Plus</Text>
-        <Text style={[s.body, { marginVertical: 12 }]}>Explore our plans and proposed pricing. Your beta access stays free.</Text>
-        <Button title="Explore Sangai plans" onPress={() => router.push("/subscriptions")} />
+        <Text style={[s.body, { marginVertical: 12 }]}>
+          Explore our plans and proposed pricing. Your beta access stays free.
+        </Text>
+        <Button
+          title="Explore Sangai plans"
+          onPress={() => router.push("/subscriptions")}
+        />
       </View>
       <Section title="Privacy & settings" />
+      <View style={s.card}>
+        {(
+          [
+            ["posts_visible", "Share posts with matches"],
+            ["stories_visible", "Share stories with matches"],
+            ["messages_enabled", "Receive new messages and snaps"],
+            ["interactions_enabled", "Allow comments and reactions"],
+            ["data_saver", "Data saver · tap to play feed videos"],
+          ] as const
+        ).map(([key, label]) => (
+          <View key={key} style={[s.row, { marginVertical: 10 }]}>
+            <Text style={[s.body, { flex: 1 }]}>{label}</Text>
+            <Switch
+              accessibilityLabel={label}
+              value={me[key]}
+              trackColor={{ true: C.primary }}
+              onValueChange={(value) => void settings({ [key]: value })}
+            />
+          </View>
+        ))}
+      </View>
+      <View style={{ marginBottom: 20 }}>
+        <Button
+          title="Saved moments"
+          secondary
+          onPress={() => router.push("/saved-posts")}
+        />
+      </View>
       <View style={s.card}>
         <View style={s.row}>
           <View style={{ flex: 1 }}>

@@ -1,28 +1,37 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Text, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
+import { Person } from "../../lib/types";
 import { useStore } from "../../lib/store";
 import {
   Avatar,
   Button,
   Chip,
   Empty,
-  Field,
   Header,
+  Media,
   Page,
   s,
 } from "../../components/ui";
 export default function Profile() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const st = useStore();
-  const [note, setNote] = useState(""),
-    [busy, setBusy] = useState(false);
-  const p = [
-    ...(st.data?.discover || []),
-    ...(st.data?.matches || []),
-    ...(st.data?.requests.map((r) => r.from) || []),
-    ...(st.data ? [st.data.me] : []),
-  ].find((p) => p.id === id);
+  const [busy, setBusy] = useState(false);
+  const [p, setPerson] = useState<Person | null>(null);
+  const { request } = st;
+  useEffect(() => {
+    let alive = true;
+    request<Person>(`/profiles/${id}`)
+      .then((p) => {
+        if (alive) setPerson(p);
+      })
+      .catch(() => {
+        if (alive) setPerson(null);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [id, request]);
   if (!p)
     return (
       <Page>
@@ -51,6 +60,26 @@ export default function Profile() {
         <View style={{ height: 15 }} />
         <Chip label={p.intent} />
       </View>
+      {p.media
+        ?.filter((m) => m.id !== p.avatar_id)
+        .map((m) => (
+          <Media key={m.id} id={m.id} kind={m.kind} />
+        ))}
+      {!!p.languages?.length && (
+        <Text style={s.body}>Languages: {p.languages.join(", ")}</Text>
+      )}
+      {!!p.hobbies?.length && (
+        <Text style={s.body}>Hobbies: {p.hobbies.join(", ")}</Text>
+      )}
+      {!!p.profession && <Text style={s.body}>{p.profession}</Text>}
+      {!!p.education && <Text style={s.body}>{p.education}</Text>}
+      {Object.entries(p.lifestyle || {})
+        .filter(([, v]) => v)
+        .map(([k, v]) => (
+          <Text key={k} style={s.body}>
+            {k}: {v}
+          </Text>
+        ))}
       <Text style={[s.body, { marginBottom: 20 }]}>{p.bio}</Text>
       <View style={[s.wrap, { marginBottom: 20 }]}>
         {p.interests.map((i) => (
@@ -70,38 +99,17 @@ export default function Profile() {
             icon="chatbubble-outline"
             onPress={() => router.push(`/chat/${id}`)}
           />
-          <View style={{ height: 10 }} />
-          <Button
-            title={p.followed ? "Unfollow moments" : "Follow their moments"}
-            secondary
-            onPress={() =>
-              st
-                .request(`/follow/${id}`, {})
-                .then(st.refresh)
-                .catch((e) => st.toast(e.message))
-            }
-          />
         </>
       ) : (
         !own && (
           <>
-            <Field
-              label="Start with something real"
-              value={note}
-              onChangeText={setNote}
-              placeholder="Your perfect Sunday sounds like mine…"
-              multiline
-            />
             <Button
-              title={busy ? "Sending…" : "Send connection request"}
-              disabled={!note.trim() || busy}
+              title="Back to Discover"
+              disabled={busy}
               icon="heart-outline"
               onPress={async () => {
                 setBusy(true);
                 try {
-                  await st.request(`/connect/${id}`, { note });
-                  await st.refresh();
-                  st.toast("Your hello is on its way.");
                   router.back();
                 } catch (e: any) {
                   st.toast(e.message);
