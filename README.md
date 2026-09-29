@@ -4,19 +4,20 @@ A real React Native / Expo Android and iOS app for Nepali adults in Kathmandu, B
 
 This is a **local, private testing beta**, with a working NestJS API and PostgreSQL. It is not approved for a public dating-service launch. The [beta guide](docs/beta.md) records implementation choices and remaining release work. Earlier discovery documents are historical proposals.
 
-The next product direction is documented in the [SANGAI redesign audit](docs/redesign-audit.md) and [migration plan](docs/redesign-plan.md). These are planning documents; the feature list below describes the existing implementation, not completed redesign work.
+The redesign audit, confirmed decisions and implementation roadmap are in [the audit](docs/redesign-audit.md), [plan](docs/redesign-plan.md) and [current beta guide](docs/beta.md). The product now follows **Discover → Match → Chat → Sangai → Date**.
 
 ## Included
 
-- Adult signup/login, profiles/photos, interests, intentions and reciprocal discovery filters.
-- Connection requests, mutual matching and persistent private chat.
-- Match-only text/photo/video posts, likes, comments, following, paginated feed and short-video filter.
-- Match-only 24-hour stories; direct photo/video snaps with one opening, up to 30 seconds, and 24-hour unopened expiry.
-- Private circles where **every member must match every other member**, discussions, events and RSVP.
-- Three two-player dating games with hidden choices and joint reveal, plus date proposals.
-- In-app notifications, optional device-push adapter, reports, block/unmatch, moderator console, account export and deletion.
+- Four tabs: Discover, Chat, Sangai and Profile, with warm blush/peach/lavender branding.
+- Verified-email access, password reset, five saved profile steps and declared 18+ access. Google integration requires OAuth configuration.
+- Persisted Like/Pass/Super Like gestures and buttons; hidden incoming Likes, mutual matching, safe undo and reciprocal preferences.
+- Match-only stories, one Chat camera, snaps, ordinary photo/video messages and a paged mixed conversation timeline.
+- Virtualized private feed, visible-video autoplay, data saver, reactions, replies, saves and sharing without audience expansion.
+- Three consented live games: This or That, Would You Rather, Two Truths & a Lie. Four more follow in the agreed next increment.
+- Date invitations, editable profiles/gallery, privacy settings, moderation, block/report/unmatch, export and account deletion.
+- Free + Sangai Plus **pricing previews only**: NPR 299/month or 2,870.40/year; AUD 7.99/month or 76.70/year. No checkout or paid entitlement.
 
-Sample accounts are visibly fictional test fixtures. Posts, matches, messages, choices and moderation actions persist in the database.
+Circles, circle events/RSVP, the old request inbox and separate Play tab are retired. Sample accounts are visibly fictional and isolated from real-account discovery. See the [Android Studio run guide](docs/android-redesign.md) and [verification](docs/verification.md) for executed checks and remaining platform/provider validation.
 
 ## Backend
 
@@ -28,7 +29,7 @@ docker compose up --build -d
 docker compose ps
 ```
 
-Health: <http://localhost:4100/health>. Moderator console: <http://localhost:4100/admin>. The local operator key is configured in `.env`; never put it in the mobile app. Database and media use persistent volumes. Ports bind to loopback.
+Health: <http://localhost:4100/health>. Moderator console: <http://localhost:4100/admin>. The local operator key is configured in `.env`; never put it in the mobile app. Database and media use persistent volumes. Ports bind to loopback. Local verification/reset emails appear in **Mailpit at http://localhost:8025**; they are not delivered to external inboxes. Configure real SMTP and Google OAuth as described in the beta guide for invited external testers.
 
 ## Android Studio
 
@@ -46,7 +47,7 @@ Expo generates, builds, installs and starts Metro. To work inside the IDE, run `
 
 On Windows use a short checkout path. CMake 3.22.1 bundles Ninja 1.10.2, which can fail on React Native's generated paths even with Windows long paths enabled. This build uses **Ninja 1.13.2** from the [official releases](https://github.com/ninja-build/ninja/releases), replacing only `ninja.exe` inside the task's SDK `cmake/3.22.1/bin` (with the original saved). If you see “Filename longer than 260 characters”, use a current Ninja and an OS with long paths enabled, or shorten the checkout further.
 
-The emulator uses `http://10.0.2.2:4100` for the host API. The welcome screen has an editable server address; `EXPO_PUBLIC_API_URL` can override the build default. Keep Docker running. Choose **Aarav**, **Anaya** or **Samira** to explore the pre-matched triangle and circle. Sign out under **You** to switch accounts. **Rohan** and **Nisha** let you test new matching.
+The emulator uses `http://10.0.2.2:4100` for the host API. The welcome screen has an editable server address; `EXPO_PUBLIC_API_URL` can override the build default. Keep Docker running. Choose **Aarav**, **Anaya** or **Samira** to explore the existing demo matches. Sign out under **Profile** to switch accounts. **Rohan** and **Nisha** let you test new matching.
 
 To build a standalone APK with bundled JavaScript:
 

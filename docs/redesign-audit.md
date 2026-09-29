@@ -2,7 +2,7 @@
 
 Audit date: 29 September 2026. Inspected baseline: `96bd8f34ca1772be7fff29d60ed0ffb908d0c61d`, branch `feat/native-social-beta`. Local HEAD and the fetched remote branch match. The checkout was clean before this audit.
 
-**Status: design and migration planning. The redesigned application is not implemented yet.** This document describes the existing code separately from the target. The new user briefs supersede the previous circle-based product direction and green wireframes. The existing beta documentation still describes the running code.
+**Status: completed baseline audit; first redesign increment implemented and under native verification on 30 September 2026.** The baseline findings below describe commit `96bd8f3`, not the updated source. See `beta.md` and `verification.md` for current behavior and evidence. New briefs supersede the previous circle-based direction and green wireframes.
 
 ## Product direction and decisions
 
@@ -20,13 +20,14 @@ The core promise is to help Nepali adults discover someone, choose each other, b
 - **Availability is a temporary Ready to play status shared only with the selected match.** It does not expose a general online or last-seen badge.
 - **Likes remain hidden until a mutual swipe.** No incoming-likes list, actor-bearing notification or API payload may reveal a sender before matching. Super Likes respect the same boundary.
 - **Real beta testers need verified email or verified Google email, an 18+ declaration and a completed profile.** Identity verification is deferred; local fictional demo accounts stay separate. Email verification does not prove identity or age.
-- No AI in this beta. No explicit sexual game content. Future premium/adult mode is an architectural extension, not a current feature or monetization commitment.
+- **Add subscription/pricing pages, without a checkout API.** The user wants to choose pricing and plan benefits before their implementation. A preview must not charge money or grant a real paid entitlement.
+- No AI in this beta. No explicit sexual game content. An adult content mode and actual subscription billing remain future extensions; pricing-page design is now in scope.
 - Supported cities remain Kathmandu, Bhaktapur, Lalitpur, Pokhara, Sydney, Melbourne, Perth and Brisbane. Support for a city is not a commitment to launch or spend on acquisition in all eight simultaneously.
 
 ### Pending product decisions
 
-- The beta monetization decision remains unanswered in round two. Incoming likes are hidden; the real-tester gate is verified email/Google email, declared adulthood and completed onboarding.
-- Fine details such as Super Like limits, unread/read-receipt policy, the follow filter, launch cohorts and premium pricing remain proposals. They are not silently approved features.
+- Core product decisions are established. A third round asks for the subscription structure, Nepal/Australia preview prices and billing-period presentation. Payment pages are authorized; actual checkout is excluded.
+- Fine details such as Super Like limits, unread/read-receipt policy, the follow filter, launch cohorts and future paid quotas remain proposals. They are not silently approved features.
 
 ## 1. Current architecture
 
@@ -173,7 +174,7 @@ These are hypotheses based on this product and code audit, not validated market 
 | Availability | Partner-specific Ready to play; or opt-in badge to all matches | Live-only play is harder across timezones and can expose activity | User chose temporary partner-specific readiness. Keep explicit game acceptance and do not expose last-seen activity. |
 | Feed video | Autoplay all media; or only the visible item with data-saving controls | Bandwidth, memory and accidental audio; autoplay alone does not create connection value | One muted visible video, release off-screen players, no bulk downloads; data saver can require a tap. |
 | Compatibility | Percentage score; or factual overlaps | A number can imply an unsupported scientific claim | Show shared interests and declared intentions, not an invented percentage. Game similarities are conversation prompts. |
-| Follow graph | Separate follow action; or current matches with later mute controls | More state and explanation for little benefit in a private dating feed | Recommend no separate Follow layer; decision pending. |
+| Follow graph | Current mutual matches form the feed audience | Avoid a redundant second social graph | Follow surface and routes retired as part of the authorized simplification. |
 | Sharing | Public/external share; or authorized in-app reference | Original author may not expect an expanded audience | Keep content inside its original visibility rules. Do not add public redistribution. |
 | Launch footprint | All supported cities at once; or concentrated recruited cohorts | Sparse reciprocal matches make the whole social layer quiet | Cohort density needs validation. Keep all eight cities supported; decide acquisition sequencing in the growth round. |
 
@@ -225,7 +226,7 @@ See the companion migration plan for acceptance gates. Recommended order:
 4. Replace requests with directional like/pass/Super Like actions, safe undo and match confirmation.
 5. Finish Chat timeline, library media, one Chat camera, story/snap viewers and focused actions.
 6. Add consented live-game lifecycle and the first three game rulesets.
-7. Redesign Sangai's paginated media feed and authorized interactions; simplify Plan a Date.
+7. Redesign Sangai's paginated media feed and authorized interactions; simplify Plan a Date. Add Profile subscription previews after their plan/price decisions, with no real billing or paid entitlement activation.
 8. Remove retired backend paths/data contracts, validate migrations/rollback, test Android and iOS, and record actual results.
 9. Add the remaining four games only after the core is usable and the first engine is proven.
 
@@ -271,3 +272,12 @@ External checks relevant to the requested architecture:
 - Google ID tokens require backend signature, audience, issuer and expiry verification; provider subject is the stable account identity. A Google button alone is not login integration. [Google backend authentication](https://developers.google.com/identity/sign-in/android/backend-auth).
 - Apple's third-party-login rule generally requires an equivalent login option meeting its privacy criteria, subject to listed exceptions. For an iOS dating app adding Google, plan a Sign in with Apple assessment before store submission; email/password alone should not be assumed to satisfy it. [Apple guideline 4.8](https://developer.apple.com/app-store/review/guidelines/#login-services).
 - The installed mobile package uses Expo 57. Native implementation must consult the matching documentation and the repository's mobile instructions before changing APIs. [Expo versioned documentation](https://docs.expo.dev/versions/v57.0.0/).
+
+
+## Confirmed decision register — implemented increment
+
+All question rounds are complete: equal emphasis for serious relationships, marriage and casual dating; core journey plus three games first; private selected-match readiness; hidden Likes until mutual swipe; verified email/Google email plus declared 18+ and a complete profile; and Free + Plus preview pages only. Approved prices are NPR 299 monthly / 2,870.40 annually and AUD 7.99 monthly / 76.70 annually (20% off annual, rounded). No charge or paid entitlement is activated.
+
+The implemented first three are This or That, Would You Rather and Two Truths & a Lie. In the latter, both players write three statements, then guess each other's lie before the shared reveal. The remaining four designs above remain next. No explicit sexual content or AI is included.
+
+The migration/implementation status is in `redesign-plan.md`, the operational backup/restore procedure in `redesign-operations.md`, and actual check results in `verification.md`. The earlier evidence section remains the audit-only historical record.

@@ -1,6 +1,6 @@
 # SANGAI — incremental redesign plan
 
-Status: proposed implementation sequence following the code audit of `96bd8f3`. Product round one is confirmed; round two is pending. No redesign source or database changes are claimed by this document.
+Status: first redesigned beta implemented on `feat/sangai-redesign`, following the completed audit of `96bd8f3`. Product and pricing choices are confirmed. Android builds and smoke checks, source checks, migrations and six browser journeys have executed evidence. Native iOS, configured Google sign-in and the remaining native device matrix still require validation. See `verification.md` for precise limits.
 
 ## Confirmed requirements
 
@@ -10,13 +10,15 @@ The first release contains three live games; four more follow. Readiness is temp
 
 Likes stay hidden until both people swipe positively, including in API responses and notifications. Real beta testers require verified email/Google email, a declared adult birth date and completed onboarding; identity verification is deferred.
 
+The user approved Free + Sangai Plus, with planned extra undos, optional lifestyle filters and future bonus packs. Previews show NPR 299/month or NPR 2,870.40/year and AUD 7.99/month or AUD 76.70/year, with a 20% annual discount. There is no checkout or active paid entitlement.
+
 ## Decisions before finalizing contracts
 
 | Decision | Recommendation sent to the user | Status |
 | --- | --- | --- |
 | Incoming likes | User selected hidden likes; reveal only after mutual swipe | Confirmed |
 | Real-tester access | Verified email/Google email, declared 18+, completed profile; no identity-verification claim | Confirmed |
-| Payments | Free core and initial games, server abuse limits, pricing tests later | Awaiting answer |
+| Payments | Subscription/pricing previews only; no checkout API | Confirmed: Free + Plus; regional monthly/annual totals above |
 
 Questions already answered in the briefs are not reopened. More detailed pricing, growth, voice notes, read receipts and future adult-mode decisions can wait until those increments are relevant. Do not implement optional features merely because their table or screen could be added.
 
@@ -31,6 +33,7 @@ Questions already answered in the briefs are not reopened. More detailed pricing
 | 4. Conversation and media | Chat list with previews/unread state, mixed timeline, bottom camera, attachment menu, photo/video messages, snaps and story viewer | Text retry remains idempotent; media/notification access is revoked on block/unmatch. Only one video plays when appropriate. Keyboard, permission denial, backgrounding and history paging work on mobile. |
 | 5. First live games | Selected-match readiness, invitation cards, accept/decline/expiry, versioned session engine, three rulesets | No game begins without fresh availability and acceptance. Answers remain server-hidden until the rules allow reveal. Reconnect, timeout, cancel and block are tested with two clients. |
 | 6. Sangai and dates | Virtualized paginated feed, visible-video autoplay with data saver, comments/replies, private saves and authorized share references; simple Plan a Date | No public content or audience widening. No bulk video download. Saved/shared items recheck current access. A date is proposed, accepted/declined or cancelled, with UTC time plus clear local timezone. |
+| 6a. Subscription preview | Profile → plans, comparison, selected-plan summary and no-active-subscription state using user-approved prices | Clearly labeled preview. No card collection, checkout calls, successful-purchase simulation, real entitlement changes or paid-only identity reveal. |
 | 7. Retirement and delivery | Remove retired circle/event API code, types, fixtures, obsolete docs and tests; complete versioned data migration; refresh policies and notification routes | Upgrade and rollback rehearsed on a disposable database; no orphan routes or old-client privacy bypass. Tests/lint/build/Docker verification pass. Android native journey recorded; iOS evidence recorded separately. Logical commits pushed. |
 | 8. Remaining games | Four further game rulesets using the same invitation/session engine | Core journey is usable first. Each ruleset has tested reveal, disconnect and time-limit behavior; no second game engine or new tab. |
 
@@ -49,8 +52,10 @@ This sequence is milestone-based, not a deadline estimate. The senior developer 
 9. Verify row counts, identifiers, relationships and unauthorized reads in a restored test database. Expand account export/deletion for every new data category.
 10. Roll back additive releases using the previous image and compatible schema. A later destructive migration requires the tested backup/restore path and a maintenance boundary; do not pretend a down migration can reconstruct deleted private content.
 
-## Verification and next action
+## Current implementation status
 
-At this planning milestone, API/mobile type checks and mobile lint pass. The inspected branch matches origin. Both project Docker services are stopped; integration and native journeys have not been rerun during this audit.
+Milestones 0 and 1 are implemented. Milestones 2–6 and 6a have working source: verified email/reset/onboarding, hidden swipes, mixed chat/media, the first three live games, private feed interactions/date planning, and the approved subscription previews. Google needs real client configuration. Separate circle/event/Follow routes are removed, while their stored rows remain restricted for rollback. Profile editing and profile gallery use the same media authorization pipeline.
 
-After the pending choices are answered, update the decision register and the target requirements, then start milestone 1. Do not treat this document, the previous green wireframe or a successful type check as proof that the redesigned app has shipped.
+Fresh PostgreSQL integration and migration checks pass (16 tests), as do six browser journeys including two-client live-game consent, full email onboarding through Mailpit and swipe/undo/tap regression coverage. Native Android compilation, installation and a limited smoke journey pass; final native gesture/scroll retesting remains incomplete. Do not equate browser or bundle checks with native iOS parity. The four further games remain the approved next increment.
+
+Keep rollback/privacy checks and deployment review in milestone 7. Exact future undo quotas and paid-plan fulfillment remain unimplemented commercial decisions; they do not block this display-only preview. Global transaction locking, polling, private local media and a single API process are explicit small-beta tradeoffs, not claims of scalable live infrastructure.
