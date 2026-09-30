@@ -19,16 +19,19 @@ Sangai uses one Expo / React Native codebase for Android and iOS. This local APK
    ```powershell
    $env:ANDROID_AVD_HOME='D:\CodexBuild\SangaiBeta\Avds'
    $env:ANDROID_USER_HOME='D:\CodexBuild\SangaiBeta\AndroidUser'
+   $env:ANDROID_EMULATOR_HOME='D:\CodexBuild\SangaiBeta\AndroidUser'
    & 'D:\CodexBuild\SangaiBeta\AndroidSdk\emulator\emulator.exe' -avd SangaiBeta
    ```
 
-3. Drag the delivered `Sangai-redesign-beta-x86_64.apk` onto the running emulator, then open **Sangai Beta**. Alternatively:
+3. Drag the delivered `Sangai-ui-polish-beta-x86_64.apk` onto the running emulator, then open **Sangai Beta**. Alternatively:
 
    ```powershell
-   & 'D:\CodexBuild\SangaiBeta\AndroidSdk\platform-tools\adb.exe' install -r 'C:\Users\Dell\Documents\Codex\2026-09-28\u\outputs\Sangai-redesign-beta-x86_64.apk'
+   & 'D:\CodexBuild\SangaiBeta\AndroidSdk\platform-tools\adb.exe' install -r 'C:\Users\Dell\Documents\Codex\2026-09-28\u\outputs\Sangai-ui-polish-beta-x86_64.apk'
    ```
 
 Use a clearly labeled fictional demo account to explore immediately. To exercise signup, create an email/password account and read its local verification message at `http://localhost:8025`. This is a captured development email, not external delivery. Complete the adult declaration and all five profile steps. Real accounts do not discover fictional demo accounts.
+
+Tap **Explore demo accounts** on Welcome, Sign up or Log in, then choose **Try Aarav demo account**. If an old session is already open, use Profile → Profile settings → Sign out first. The [October UI audit](ui-redesign.md) describes the current layouts and verification.
 
 ## Build and run from Android Studio
 
@@ -47,13 +50,15 @@ For a self-contained emulator APK:
 $env:JAVA_HOME='D:\CodexBuild\SangaiBeta\Java21\jdk-21.0.12.1+1'
 $env:ANDROID_HOME='D:\CodexBuild\SangaiBeta\AndroidSdk'
 $env:ANDROID_SDK_ROOT=$env:ANDROID_HOME
+$env:ANDROID_USER_HOME='D:\CodexBuild\SangaiBeta\AndroidUser'
+$env:ANDROID_EMULATOR_HOME='D:\CodexBuild\SangaiBeta\AndroidUser'
 $env:GRADLE_USER_HOME='D:\CodexBuild\SangaiBeta\Gradle'
 $env:NODE_ENV='production'
 Set-Location 'D:\CodexBuild\SangaiBeta\Mobile\android'
 .\gradlew.bat :app:assembleRelease -PreactNativeArchitectures=x86_64 --max-workers=1 --no-daemon
 ```
 
-The APK is under `app\build\outputs\apk\release\app-release.apk`. Regenerate native projects with Expo when configuration or native dependencies change; do not edit generated Gradle/Xcode files manually. This host needs the task-local newer Ninja described in README to avoid Windows path failures. Run native compilation, multi-platform export and emulator testing sequentially on this 16 GB host. Two simultaneous API 36 emulators stalled the extra instance and caused paging pressure; prefer one emulator and a lightweight browser client. C: was low on free space at handoff because Windows expanded its pagefile. Native build output and task-local temporary files are on D:; check free space before the next large build.
+The APK is under `app\build\outputs\apk\release\app-release.apk`. Regenerate native projects with Expo when configuration or native dependencies change; do not edit generated Gradle/Xcode files manually. This host needs the task-local newer Ninja described in README to avoid Windows path failures. Run native compilation, multi-platform export and emulator testing sequentially on this 16 GB host. Two simultaneous API 36 emulators stalled the extra instance and caused paging pressure; prefer one emulator and a lightweight browser client. An earlier concurrent build/export expanded the Windows pagefile and temporarily exhausted C: space. Native build output and task-local temporary files are on D:; check free space before the next large build.
 
 ## What to try
 

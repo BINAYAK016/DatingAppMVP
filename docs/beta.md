@@ -1,6 +1,8 @@
-# Sangai redesigned private beta — 30 September 2026
+# Sangai redesigned private beta — 1 October 2026
 
 Sangai means together. The product is a dating app for Nepali adults in Kathmandu, Bhaktapur, Lalitpur, Pokhara, Sydney, Melbourne, Perth and Brisbane. Serious relationships, marriage and casual dating have equal emphasis. The core journey is **Discover → Match → Chat → Sangai → Date**, with four tabs: Discover, Chat, Sangai and Profile. No AI is used. The [September 29 beta](beta-20260929.md) is historical.
+
+The October frontend now uses a shared warm-white/rose design system, portrait-led discovery and profiles, a full-screen match celebration, story rings and clean conversations, large-media feed, section-based editing, one-question game play/review and staged date invitations. The [screen audit](ui-redesign.md) records the transformation and data limits. Runtime features and privacy rules below remain the same; the backend was not changed for the redesign.
 
 ## Implemented product
 

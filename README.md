@@ -6,6 +6,8 @@ This is a **local, private testing beta**, with a working NestJS API and Postgre
 
 The redesign audit, confirmed decisions and implementation roadmap are in [the audit](docs/redesign-audit.md), [plan](docs/redesign-plan.md) and [current beta guide](docs/beta.md). The product now follows **Discover → Match → Chat → Sangai → Date**.
 
+The [1 October frontend audit and redesign](docs/ui-redesign.md) covers the new portrait-led discovery, full-screen match moment, stories and conversations, editorial feed, focused profile editing, games and date planning. Backend code, API contracts, authentication/matching rules and data models are unchanged by this visual redesign. Demo portraits are bundled fictional artwork with [documented provenance and prompts](apps/mobile/assets/demo/README.md).
+
 ## Included
 
 - Four tabs: Discover, Chat, Sangai and Profile, with warm blush/peach/lavender branding.
@@ -47,7 +49,7 @@ Expo generates, builds, installs and starts Metro. To work inside the IDE, run `
 
 On Windows use a short checkout path. CMake 3.22.1 bundles Ninja 1.10.2, which can fail on React Native's generated paths even with Windows long paths enabled. This build uses **Ninja 1.13.2** from the [official releases](https://github.com/ninja-build/ninja/releases), replacing only `ninja.exe` inside the task's SDK `cmake/3.22.1/bin` (with the original saved). If you see “Filename longer than 260 characters”, use a current Ninja and an OS with long paths enabled, or shorten the checkout further.
 
-The emulator uses `http://10.0.2.2:4100` for the host API. The welcome screen has an editable server address; `EXPO_PUBLIC_API_URL` can override the build default. Keep Docker running. Choose **Aarav**, **Anaya** or **Samira** to explore the existing demo matches. Sign out under **Profile** to switch accounts. **Rohan** and **Nisha** let you test new matching.
+The emulator uses `http://10.0.2.2:4100` for the host API. The welcome screen has an editable server address; `EXPO_PUBLIC_API_URL` can override the build default. Keep Docker running. Choose **Aarav**, **Anaya** or **Samira** to explore existing demo matches. Sign out under **Profile** to switch accounts. Choose an eligible demo profile to test new matching; previous demo decisions persist.
 
 To build a standalone APK with bundled JavaScript:
 
