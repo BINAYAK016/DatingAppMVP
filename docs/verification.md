@@ -1,5 +1,12 @@
 # Verification record
 
+## Demo entry fix — 30 September 2026
+
+- The welcome, sign-up and sign-in screens now show an **Explore demo accounts** button. It opens a dedicated picker that stays visible while accounts load and offers Retry when the local API is unreachable. A failed first request no longer silently removes the demo entry.
+- Mobile TypeScript and lint pass; `git diff --check` passes. Expo web export succeeds. Chrome browser tests pass for both sign-up → demo after a failed first demo-list request and the existing verified-email onboarding journey.
+- Android x86_64 release build succeeds; APK signature verification passes. Installed on the SangaiBeta API 36 emulator. Native UI showed the demo button on sign-up, all five fictional accounts in the picker, and successful Aarav sign-in to Discover. The API, database and Mailpit were healthy during this check.
+- APK: `outputs/Sangai-beta-demo-entry-x86_64.apk`, SHA-256 `601a5604292ebabf03952c14da7f37f6d57ab3f2f53fee25e4c751f874ebdf4c`. It remains an emulator-only, development-signed build. Native iOS was not run on this Windows host.
+
 ## Redesign — 30 September 2026
 
 - API integration plus migration checks: **16/16 pass** on isolated PostgreSQL databases. Coverage includes hidden swipes/idempotency/undo, verification/reset replay, five-step profile gates, demo isolation, scoped readiness/invitation acceptance, Two Truths secret projection, expiry, media-purpose authorization, private saves/shares, blocks, account export and migration preservation/checksum drift.

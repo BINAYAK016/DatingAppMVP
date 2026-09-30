@@ -17,20 +17,52 @@ import {
 export default function Welcome() {
   const st = useStore();
   const { request } = st;
-  const [mode, setMode] = useState<"welcome" | "login" | "register">("welcome"),
+  const [mode, setMode] = useState<"welcome" | "login" | "register" | "demo">(
+      "welcome",
+    ),
+    [demoReturnMode, setDemoReturnMode] = useState<
+      "welcome" | "login" | "register"
+    >("welcome"),
     [email, setEmail] = useState(""),
     [password, setPassword] = useState(""),
     [accepted, setAccepted] = useState(false),
     [accounts, setAccounts] = useState<Person[]>([]),
+    [accountsLoading, setAccountsLoading] = useState(true),
+    [accountsError, setAccountsError] = useState(""),
+    [demoRetry, setDemoRetry] = useState(0),
     [settings, setSettings] = useState(false),
     [server, setServer] = useState(st.url);
   useEffect(() => {
+    if (!st.ready) return;
+    let active = true;
     request<Person[]>("/auth/demo")
-      .then(setAccounts)
-      .catch(() => setAccounts([]));
-  }, [request]);
+      .then((result) => {
+        if (active) setAccounts(result);
+      })
+      .catch((error: Error) => {
+        if (active) {
+          setAccounts([]);
+          setAccountsError(error.message);
+        }
+      })
+      .finally(() => {
+        if (active) setAccountsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [request, st.ready, demoRetry]);
   if (!st.ready) return <Loading />;
   if (st.token && st.data) return <Redirect href="/(tabs)" />;
+  const openDemo = () => {
+    if (mode !== "demo") setDemoReturnMode(mode);
+    setMode("demo");
+    if (!accounts.length) {
+      setAccountsLoading(true);
+      setAccountsError("");
+      setDemoRetry((value) => value + 1);
+    }
+  };
   const submit = async () => {
     try {
       await st.signIn(
@@ -55,120 +87,155 @@ export default function Welcome() {
         </Text>
         <Text style={[s.eyebrow, { marginTop: 10 }]}>TOGETHER STARTS HERE</Text>
       </View>
-      <Banner
-        title={"Good people.\nCloser connections."}
-        body="Meet people. Build connections. Find your together."
-        emoji="✺"
-      />
-      <View style={{ height: 25 }} />
-      {mode === "welcome" ? (
-        <>
-          <Text style={s.h2}>Meet. Match. Make memories.</Text>
-          <Text style={[s.body, { marginVertical: 12 }]}>
-            Discover someone new. Share the everyday with your matches. Let the
-            good conversations happen.
-          </Text>
-          <GoogleAuth />
-          <Button
-            title="Continue with email"
-            onPress={() => setMode("register")}
-            icon="arrow-forward"
-          />
-          <View style={{ height: 10 }} />
-          <Button
-            title="I already have an account"
-            onPress={() => setMode("login")}
-            secondary
-          />
-          {!!accounts.length && (
-            <View style={[s.card, { marginTop: 25 }]}>
-              <View style={[s.row, { justifyContent: "space-between" }]}>
-                <Text style={s.label}>EXPLORE THE LOCAL BETA</Text>
-                <Text style={s.tag}>SAMPLE DATA</Text>
-              </View>
-              <Text style={[s.small, { marginVertical: 12 }]}>
-                Try both sides of a match. These are fictional test accounts,
-                not real people.
-              </Text>
-              {accounts.map((p) => (
-                <Pressable
-                  key={p.id}
-                  disabled={st.loading}
-                  onPress={() =>
-                    st
-                      .signIn("/auth/demo", { id: p.id })
-                      .catch((e) => st.toast(e.message))
-                  }
-                  style={[s.row, { paddingVertical: 10 }]}
-                >
-                  <Avatar person={p} size={40} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.label}>{p.name}</Text>
-                    <Text style={s.small}>{p.city} · Demo account</Text>
-                  </View>
-                  <Text style={s.link}>Try →</Text>
-                </Pressable>
-              ))}
-            </View>
-          )}
-        </>
-      ) : (
+      {mode === "demo" ? (
         <View style={s.card}>
-          <Text style={[s.h2, { marginBottom: 18 }]}>
-            {mode === "register" ? "Make yourself at home" : "Welcome back"}
+          <Text style={[s.h2, { marginBottom: 10 }]}>
+            Choose a demo account
           </Text>
-          <Field
-            label="Email"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-          />
-          <Field
-            label="Password · at least 10 characters"
-            value={password}
-            onChangeText={setPassword}
-            secure
-          />
-          {mode === "register" && (
-            <Pressable
-              onPress={() => setAccepted(!accepted)}
-              style={[s.row, { marginBottom: 18 }]}
-            >
-              <Text style={{ fontSize: 22, color: C.primary }}>
-                {accepted ? "☑" : "☐"}
+          <Text style={[s.small, { marginBottom: 18 }]}>
+            Explore with fictional people and sample data. No signup needed.
+          </Text>
+          {accountsLoading ? (
+            <Text style={s.small}>Loading demo accounts…</Text>
+          ) : accounts.length ? (
+            accounts.map((p) => (
+              <Pressable
+                key={p.id}
+                accessibilityRole="button"
+                accessibilityLabel={`Try ${p.name} demo account`}
+                disabled={st.loading}
+                onPress={() =>
+                  st
+                    .signIn("/auth/demo", { id: p.id })
+                    .catch((error) => st.toast(error.message))
+                }
+                style={[s.row, { paddingVertical: 12 }]}
+              >
+                <Avatar person={p} size={40} />
+                <View style={{ flex: 1 }}>
+                  <Text style={s.label}>{p.name}</Text>
+                  <Text style={s.small}>{p.city} · Fictional demo</Text>
+                </View>
+                <Text style={s.link}>Try →</Text>
+              </Pressable>
+            ))
+          ) : (
+            <>
+              <Text style={[s.small, { marginBottom: 16 }]}>
+                {accountsError ||
+                  "Demo accounts are unavailable on this server."}
               </Text>
-              <Text style={[s.small, { flex: 1 }]}>
-                I am 18 or older and agree to the beta terms, privacy policy and
-                community rules.
-              </Text>
-            </Pressable>
-          )}
-          <Button
-            title={
-              st.loading
-                ? "Signing in…"
-                : mode === "register"
-                  ? "Create account"
-                  : "Sign in"
-            }
-            disabled={st.loading}
-            onPress={() => void submit()}
-          />
-          {mode === "login" && (
-            <Pressable
-              style={{ paddingTop: 16 }}
-              onPress={() => router.push("/reset-password")}
-            >
-              <Text style={s.link}>Forgot password?</Text>
-            </Pressable>
+              <Button
+                title="Retry loading demos"
+                onPress={() => {
+                  setAccountsLoading(true);
+                  setAccountsError("");
+                  setDemoRetry((value) => value + 1);
+                }}
+              />
+            </>
           )}
           <Pressable
-            style={{ paddingTop: 16 }}
-            onPress={() => setMode("welcome")}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+            style={{ paddingTop: 20 }}
+            onPress={() => setMode(demoReturnMode)}
           >
             <Text style={s.link}>← Back</Text>
           </Pressable>
         </View>
+      ) : (
+        <>
+          <Banner
+            title={"Good people.\nCloser connections."}
+            body="Meet people. Build connections. Find your together."
+            emoji="✺"
+          />
+          <View style={{ height: 25 }} />
+          <Button title="Explore demo accounts" onPress={openDemo} secondary />
+          <Text style={[s.small, { marginTop: 10, textAlign: "center" }]}>
+            Fictional profiles · No signup needed
+          </Text>
+          <View style={{ height: 20 }} />
+          {mode === "welcome" ? (
+            <>
+              <Text style={s.h2}>Meet. Match. Make memories.</Text>
+              <Text style={[s.body, { marginVertical: 12 }]}>
+                Discover someone new. Share the everyday with your matches. Let
+                the good conversations happen.
+              </Text>
+              <GoogleAuth />
+              <Button
+                title="Continue with email"
+                onPress={() => setMode("register")}
+                icon="arrow-forward"
+              />
+              <View style={{ height: 10 }} />
+              <Button
+                title="I already have an account"
+                onPress={() => setMode("login")}
+                secondary
+              />
+            </>
+          ) : (
+            <View style={s.card}>
+              <Text style={[s.h2, { marginBottom: 18 }]}>
+                {mode === "register" ? "Make yourself at home" : "Welcome back"}
+              </Text>
+              <Field
+                label="Email"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+              />
+              <Field
+                label="Password · at least 10 characters"
+                value={password}
+                onChangeText={setPassword}
+                secure
+              />
+              {mode === "register" && (
+                <Pressable
+                  onPress={() => setAccepted(!accepted)}
+                  style={[s.row, { marginBottom: 18 }]}
+                >
+                  <Text style={{ fontSize: 22, color: C.primary }}>
+                    {accepted ? "☑" : "☐"}
+                  </Text>
+                  <Text style={[s.small, { flex: 1 }]}>
+                    I am 18 or older and agree to the beta terms, privacy policy
+                    and community rules.
+                  </Text>
+                </Pressable>
+              )}
+              <Button
+                title={
+                  st.loading
+                    ? "Signing in…"
+                    : mode === "register"
+                      ? "Create account"
+                      : "Sign in"
+                }
+                disabled={st.loading}
+                onPress={() => void submit()}
+              />
+              {mode === "login" && (
+                <Pressable
+                  style={{ paddingTop: 16 }}
+                  onPress={() => router.push("/reset-password")}
+                >
+                  <Text style={s.link}>Forgot password?</Text>
+                </Pressable>
+              )}
+              <Pressable
+                style={{ paddingTop: 16 }}
+                onPress={() => setMode("welcome")}
+              >
+                <Text style={s.link}>← Back</Text>
+              </Pressable>
+            </View>
+          )}
+        </>
       )}
       <View style={{ marginTop: 18, gap: 15 }}>
         <Pressable onPress={() => void Linking.openURL(st.url + "/policies")}>
