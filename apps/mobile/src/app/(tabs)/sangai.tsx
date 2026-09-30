@@ -1,16 +1,17 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  AppState,
-  FlatList,
-  Pressable,
-  Text,
-  View,
-  ViewToken,
-} from "react-native";
+import { AppState, FlatList, Text, View, ViewToken } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
-import { Avatar, Button, C, Empty, Header, Icon, s } from "../../components/ui";
+import {
+  Button,
+  C,
+  Empty,
+  Header,
+  Icon,
+  IconButton,
+  Skeleton,
+  s,
+} from "../../components/ui";
 import { PostCard } from "../../components/PostCard";
 import { useStore } from "../../lib/store";
 import { Post } from "../../lib/types";
@@ -120,48 +121,59 @@ function SangaiFeed() {
         refreshing={refreshing}
         onRefresh={() => void refresh()}
         ListHeaderComponent={
-          <>
-            <Header title="Sangai" eyebrow="MORE TO KNOW. MORE TO SHARE." />
-            <Text style={[s.body, { marginBottom: 20 }]}>
-              A little window into your matches’ everyday.
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Create a Sangai post"
-              onPress={() =>
-                router.push({ pathname: "/compose", params: { kind: "post" } })
+          <View style={{ marginBottom: 24 }}>
+            <Header
+              title="Sangai"
+              action={
+                <IconButton
+                  name="add"
+                  label="Create a Sangai post"
+                  variant="soft"
+                  onPress={() =>
+                    router.push({
+                      pathname: "/compose",
+                      params: { kind: "post" },
+                    })
+                  }
+                />
               }
-              style={[s.card, s.row]}
-            >
-              <Avatar person={st.data?.me || {}} size={40} />
-              <Text style={[s.body, { flex: 1 }]}>
-                What’s your little moment?
-              </Text>
-              <Icon name="images-outline" />
-            </Pressable>
-            <View style={[s.row, { marginBottom: 18 }]}>
-              <Icon name="lock-closed-outline" size={13} />
+            />
+            <View style={[s.row, { gap: 6 }]}>
+              <Icon name="lock-closed-outline" size={13} color={C.muted} />
               <Text style={s.small}>
-                Shared only with current mutual matches
+                Little moments, shared with your matches.
               </Text>
             </View>
-          </>
+          </View>
         }
         ListEmptyComponent={
-          <>
-            <Empty
-              title="Your shared space starts small"
-              body="Moments from you and your matches will appear here. Discover someone to start a connection."
-            />
-            <Button
-              title="Discover people"
-              onPress={() => router.navigate("/(tabs)")}
-            />
-          </>
+          !st.data ? (
+            <View style={{ gap: 20 }}>
+              <Skeleton height={320} />
+              <Skeleton height={180} />
+            </View>
+          ) : (
+            <>
+              <Empty
+                icon="flower-outline"
+                title="A little quiet, for now"
+                body="Share a little of your everyday. Moments from you and your matches will appear here."
+              />
+              <Button
+                title="Share a moment"
+                onPress={() =>
+                  router.push({
+                    pathname: "/compose",
+                    params: { kind: "post" },
+                  })
+                }
+              />
+            </>
+          )
         }
         ListFooterComponent={
           loading ? (
-            <ActivityIndicator color={C.primary} />
+            <Skeleton height={120} />
           ) : posts.length > 0 ? (
             <Text
               style={[s.small, { textAlign: "center", marginVertical: 20 }]}

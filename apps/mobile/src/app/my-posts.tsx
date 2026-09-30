@@ -1,8 +1,16 @@
 import React, { useCallback, useRef, useState } from "react";
-import { ActivityIndicator, FlatList, View } from "react-native";
+import { FlatList, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
-import { Button, C, Empty, Header, s } from "../components/ui";
+import {
+  Button,
+  C,
+  Empty,
+  Header,
+  IconButton,
+  Skeleton,
+  s,
+} from "../components/ui";
 import { PostCard } from "../components/PostCard";
 import { useStore } from "../lib/store";
 import { Post } from "../lib/types";
@@ -70,18 +78,23 @@ function MyMoments() {
         onRefresh={() => void load()}
         ListHeaderComponent={
           <>
-            <Header back title="My moments" eyebrow="YOUR EVERYDAY, TOGETHER" />
-            <View style={{ marginBottom: 20 }}>
-              <Button
-                title="Share a moment"
-                onPress={() =>
-                  router.push({
-                    pathname: "/compose",
-                    params: { kind: "post" },
-                  })
-                }
-              />
-            </View>
+            <Header
+              back
+              title="My moments"
+              action={
+                <IconButton
+                  name="add"
+                  label="Share a moment"
+                  variant="soft"
+                  onPress={() =>
+                    router.push({
+                      pathname: "/compose",
+                      params: { kind: "post" },
+                    })
+                  }
+                />
+              }
+            />
           </>
         }
         ListEmptyComponent={
@@ -94,10 +107,16 @@ function MyMoments() {
         }
         ListFooterComponent={
           loading ? (
-            <ActivityIndicator color={C.primary} />
+            <View style={{ gap: 16 }}>
+              <Skeleton height={220} />
+              <Skeleton height={140} />
+            </View>
           ) : error ? (
             <>
-              <Empty title="Couldn’t load moments" body={error} />
+              <Empty
+                title="Let’s try that again"
+                body="Your moments couldn’t load. Check your connection and try again."
+              />
               <Button
                 title="Try again"
                 onPress={() => void load(posts.at(-1))}

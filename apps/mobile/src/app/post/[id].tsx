@@ -2,7 +2,7 @@ import React, { useCallback, useState } from "react";
 import { AppState } from "react-native";
 import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import { PostCard } from "../../components/PostCard";
-import { Empty, Header, Page } from "../../components/ui";
+import { Button, Empty, Header, Page, Skeleton } from "../../components/ui";
 import { useStore } from "../../lib/store";
 import { Post } from "../../lib/types";
 export default function PostScreen() {
@@ -10,6 +10,7 @@ export default function PostScreen() {
   const { request } = useStore();
   const [post, setPost] = useState<Post | null>(null),
     [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
   useFocusEffect(
     useCallback(() => {
       let alive = true;
@@ -25,7 +26,9 @@ export default function PostScreen() {
           .catch(() => {
             if (alive) {
               setPost(null);
-              setError("This moment is no longer shared with you.");
+              setError(
+                "This moment couldn’t load. Try again, or check back later.",
+              );
             }
           });
       };
@@ -35,18 +38,28 @@ export default function PostScreen() {
         alive = false;
         clearInterval(timer);
       };
-    }, [id, request]),
+      // A retry restarts the existing focus loader and polling interval.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [id, request, attempt]),
   );
   return (
     <Page>
       <Header back title="A shared moment" />
       {post ? (
-        <PostCard post={post} active />
+        <PostCard post={post} active detail />
+      ) : error ? (
+        <>
+          <Empty title="Let’s try that again" body={error} />
+          <Button
+            title="Retry"
+            onPress={() => {
+              setError("");
+              setAttempt((value) => value + 1);
+            }}
+          />
+        </>
       ) : (
-        <Empty
-          title={error ? "Moment unavailable" : "Loading moment…"}
-          body={error}
-        />
+        <Skeleton height={420} />
       )}
     </Page>
   );
