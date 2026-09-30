@@ -1,55 +1,65 @@
 import React from "react";
-import { Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import { Button, Header, Icon, Page, s } from "../components/ui";
+import { Button, C, Header, Icon, Page, s } from "../components/ui";
 import { PLUS_BENEFITS, PRICE_REGIONS, priceLabel } from "../lib/pricing";
-
 export default function SubscriptionPreview() {
   const params = useLocalSearchParams<{ region?: string; period?: string }>();
   const region = params.region === "AU" ? "AU" : "NP";
   const period = params.period === "annual" ? "annual" : "monthly";
   return (
-    <Page>
-      <Header back title="Your Plus preview" eyebrow="SANGAI PLUS" />
-      <View style={s.card}>
-        <View style={s.row}>
-          <Icon name="sparkles-outline" />
-          <Text style={s.h2}>A little more possibility.</Text>
-        </View>
-        <Text
-          accessibilityLabel="Selected plan price"
-          style={[s.title, { marginTop: 24 }]}
-        >
+    <Page
+      footer={<Button title="Back to plans" onPress={() => router.back()} />}
+    >
+      <Header back title="Your Plus preview" action={<View />} />
+      <View style={styles.summary}>
+        <Icon name="sparkles-outline" color={C.primary} size={36} />
+        <Text style={[s.small, { marginTop: 24, color: C.primary }]}>
+          SANGAI PLUS · {PRICE_REGIONS[region].label.toUpperCase()}
+        </Text>
+        <Text accessibilityLabel="Selected plan price" style={styles.price}>
           {priceLabel(region, period)}
         </Text>
-        <Text style={[s.body, { marginTop: 5 }]}>
-          {period === "annual" ? "Full annual price" : "Monthly price"} ·{" "}
-          {PRICE_REGIONS[region].label}
+        <Text style={s.body}>
+          {period === "annual" ? "Full annual price" : "Monthly price"}
         </Text>
         {period === "annual" && (
-          <Text style={[s.small, { marginTop: 8 }]}>
-            20% discount against twelve monthly payments, rounded to the nearest
-            minor currency unit.
+          <Text style={[s.small, { marginTop: 12 }]}>
+            20% less than twelve monthly payments, rounded to the nearest minor
+            currency unit.
           </Text>
         )}
-        <View style={s.divider} />
+        <View style={[s.divider, { marginVertical: 24 }]} />
         {PLUS_BENEFITS.map((b) => (
-          <Text key={b.name} style={[s.body, { marginBottom: 10 }]}>
-            ✓ {b.name} · planned
-          </Text>
+          <View key={b.name} style={[s.row, { marginBottom: 14 }]}>
+            <Icon name="checkmark" color={C.primary} size={18} />
+            <Text style={[s.body, { color: C.ink, flex: 1 }]}>
+              {b.name} · planned
+            </Text>
+          </View>
         ))}
       </View>
-      <View style={s.note}>
-        <Text style={s.label}>Purchases are coming later</Text>
-        <Text style={[s.body, { marginTop: 8 }]}>
+      <View style={{ paddingVertical: 28 }}>
+        <Text style={s.h2}>Purchases are coming later</Text>
+        <Text style={[s.body, { marginTop: 12 }]}>
           This is a price and benefits preview. No payment details are
           collected, no subscription starts, and no renewal is scheduled.
         </Text>
+        <Text style={[s.label, { marginTop: 24, color: C.primary }]}>
+          Your beta account remains Free.
+        </Text>
       </View>
-      <Button title="Back to plans" onPress={() => router.back()} />
-      <Text style={[s.small, { textAlign: "center", marginTop: 20 }]}>
-        Your beta account remains Free.
-      </Text>
     </Page>
   );
 }
+const styles = StyleSheet.create({
+  summary: { backgroundColor: C.blush, padding: 28, borderRadius: 18 },
+  price: {
+    fontSize: 36,
+    lineHeight: 44,
+    fontWeight: "600",
+    letterSpacing: -0.8,
+    color: C.ink,
+    marginVertical: 16,
+  },
+});

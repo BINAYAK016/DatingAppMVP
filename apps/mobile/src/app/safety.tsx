@@ -1,8 +1,19 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useStore } from "../lib/store";
-import { Button, Field, Header, Page, Section, s } from "../components/ui";
+import {
+  BottomSheet,
+  Button,
+  C,
+  Empty,
+  Field,
+  Header,
+  Icon,
+  Page,
+  Skeleton,
+  s,
+} from "../components/ui";
 export default function Safety() {
   const { target, context = "profile" } = useLocalSearchParams<{
     target?: string;
@@ -14,12 +25,20 @@ export default function Safety() {
     [blocks, setBlocks] = useState<any[]>([]),
     [reports, setReports] = useState<any[]>([]),
     [confirm, setConfirm] = useState("");
+  const [reportOpen, setReportOpen] = useState(false),
+    [loading, setLoading] = useState(true),
+    [failed, setFailed] = useState(false),
+    [busy, setBusy] = useState(false);
   const load = useCallback(async () => {
     try {
       setBlocks(await request("/blocks"));
       setReports(await request("/reports"));
+      setFailed(false);
     } catch (e: any) {
       toast(e.message);
+      setFailed(true);
+    } finally {
+      setLoading(false);
     }
   }, [request, toast]);
   useEffect(() => {
@@ -27,129 +46,242 @@ export default function Safety() {
     return () => clearTimeout(first);
   }, [load]);
   const act = async (fn: () => Promise<unknown>) => {
+    setBusy(true);
     try {
       await fn();
       await st.refresh();
       await load();
     } catch (e: any) {
       toast(e.message);
+    } finally {
+      setBusy(false);
     }
   };
+  const actions = [
+    {
+      title: "Submit a private report",
+      body: "Tell us when something doesn’t feel right.",
+      icon: "flag-outline",
+      onPress: () => setReportOpen(true),
+    },
+    {
+      title: "Block this person",
+      body: "Stop contact and remove shared social access.",
+      icon: "hand-left-outline",
+      onPress: () => setConfirm("block"),
+    },
+    {
+      title: "End this match",
+      body: "Close your chat and shared social access.",
+      icon: "heart-dislike-outline",
+      onPress: () => setConfirm("unmatch"),
+    },
+  ] as const;
   return (
-    <Page>
-      <Header back title="Your comfort matters." eyebrow="PRIVACY & SAFETY" />
-      <View style={s.note}>
-        <Text style={s.body}>
-          You never owe someone a conversation. Blocking immediately removes
-          contact and social access. Your reports are private; the reported
-          person cannot see who submitted them.
-        </Text>
-      </View>
-      {target && target !== st.data?.me.id && (
-        <>
-          <Section title="Something didn’t feel right?" />
-          <Field
-            label="Tell us what happened"
-            value={reason}
-            onChangeText={setReason}
-            multiline
-            placeholder="Harassment, impersonation, scam, underage user, or another concern…"
-          />
-          <Button
-            title="Submit a private report"
-            disabled={!reason.trim()}
-            onPress={() =>
-              void act(async () => {
-                await request("/reports", { target, reason, context });
-                setReason("");
-                toast("Report received. You can track it below.");
-              })
-            }
-          />
-          <View style={{ height: 16 }} />
-          <Button
-            title="Block this person"
-            secondary
-            onPress={() => setConfirm("block")}
-          />
-          <View style={{ height: 10 }} />
-          <Button
-            title="End this match"
-            secondary
-            onPress={() => setConfirm("unmatch")}
-          />
-          {confirm && (
-            <View style={[s.card, { marginTop: 15 }]}>
-              <Text style={[s.body, { marginBottom: 15 }]}>
-                {confirm === "block"
-                  ? "Block this person? You will lose contact and shared social access. Active games will close."
-                  : "End this match? Your chat and shared social access will close. This beta does not automatically restore ended matches."}
-              </Text>
-              <Button
-                title={confirm === "block" ? "Yes, block" : "Yes, end match"}
-                onPress={() =>
-                  void act(async () => {
-                    await request(`/${confirm}/${target}`, {});
-                    setConfirm("");
-                    toast("Your choice has been saved.");
-                    router.replace("/(tabs)");
-                  })
-                }
-              />
-              <View style={{ height: 8 }} />
-              <Button
-                title="Keep things as they are"
-                secondary
-                onPress={() => setConfirm("")}
-              />
-            </View>
-          )}
-        </>
-      )}
-      <Section title="My reports" />
-      {reports.length ? (
-        reports.map((r) => (
-          <View key={r.id} style={s.card}>
-            <Text style={s.label}>{r.state.toUpperCase()}</Text>
-            <Text style={s.body}>{r.reason}</Text>
-            {r.resolution && (
-              <Text style={[s.body, { marginTop: 10 }]}>
-                Resolution: {r.resolution}
+    <>
+      <Page>
+        <Header back title="Privacy & safety" action={<View />} />
+        <View style={styles.intro}>
+          <Icon name="shield-checkmark-outline" size={38} color={C.primary} />
+          <Text style={styles.headline}>Your comfort matters.</Text>
+          <Text style={[s.body, { marginTop: 12 }]}>
+            You never owe anyone a conversation. Your reports are private.
+          </Text>
+        </View>
+        {target && target !== st.data?.me.id && (
+          <View style={{ marginBottom: 28 }}>
+            {actions.map((a) => (
+              <Pressable
+                key={a.title}
+                accessibilityRole="button"
+                accessibilityLabel={a.title}
+                onPress={a.onPress}
+                style={styles.action}
+              >
+                <Icon name={a.icon} size={24} color={C.primary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={s.label}>{a.title}</Text>
+                  <Text style={[s.small, { marginTop: 4 }]}>{a.body}</Text>
+                </View>
+                <Icon name="chevron-forward" size={18} color={C.muted} />
+              </Pressable>
+            ))}
+          </View>
+        )}
+        {loading ? (
+          <View style={{ gap: 16 }}>
+            <Skeleton height={28} width="50%" />
+            <Skeleton height={72} />
+            <Skeleton height={72} />
+          </View>
+        ) : failed ? (
+          <>
+            <Empty
+              icon="cloud-offline-outline"
+              title="Let’s try that again"
+              body="We couldn’t load your safety settings."
+            />
+            <Button
+              title="Retry safety settings"
+              secondary
+              onPress={() => void load()}
+            />
+          </>
+        ) : (
+          <>
+            <Text style={[s.h2, { marginBottom: 12 }]}>My reports</Text>
+            {reports.length ? (
+              reports.map((r) => (
+                <View key={r.id} style={styles.report}>
+                  <Text style={[s.small, { color: C.primary }]}>
+                    {r.state.toUpperCase()}
+                  </Text>
+                  <Text style={[s.body, { marginTop: 8, color: C.ink }]}>
+                    {r.reason}
+                  </Text>
+                  {r.resolution && (
+                    <Text style={[s.body, { marginTop: 12 }]}>
+                      Resolution: {r.resolution}
+                    </Text>
+                  )}
+                </View>
+              ))
+            ) : (
+              <Text style={[s.body, { marginBottom: 28 }]}>
+                You haven’t submitted any reports.
               </Text>
             )}
-          </View>
-        ))
-      ) : (
-        <Text style={s.body}>No reports submitted.</Text>
-      )}
-      <Section title="Blocked accounts" />
-      {blocks.length ? (
-        blocks.map((b) => (
-          <View key={b.id} style={s.card}>
-            <Text style={[s.h2, { marginBottom: 15 }]}>{b.name}</Text>
-            <Button
-              title="Unblock · does not restore the match"
-              secondary
-              onPress={() =>
-                void act(() => request(`/block/${b.id}`, {}, "DELETE"))
-              }
-            />
-          </View>
-        ))
-      ) : (
-        <Text style={s.body}>No blocked accounts.</Text>
-      )}
-      <Section title="Before meeting someone" />
-      <Text style={s.body}>
-        Choose a public place, arrange independent transport, tell a trusted
-        person if you wish, and never send money to someone you haven’t met.
-        This beta is not an emergency service.
-      </Text>
-      <Text style={[s.small, { marginTop: 20 }]}>
-        The local beta operator reviews reports in the moderator console. Public
-        launch requires staffed safety coverage. Do not use this development
-        build for emergencies or sensitive personal content.
-      </Text>
-    </Page>
+            <Text style={[s.h2, { marginTop: 12, marginBottom: 12 }]}>
+              Blocked accounts
+            </Text>
+            {blocks.length ? (
+              blocks.map((b) => (
+                <View key={b.id} style={styles.block}>
+                  <Text style={[s.label, { marginBottom: 16 }]}>{b.name}</Text>
+                  <Button
+                    title="Unblock · does not restore the match"
+                    secondary
+                    disabled={busy}
+                    onPress={() =>
+                      void act(() => request(`/block/${b.id}`, {}, "DELETE"))
+                    }
+                  />
+                </View>
+              ))
+            ) : (
+              <Text style={s.body}>No blocked accounts.</Text>
+            )}
+          </>
+        )}
+        <View style={styles.meeting}>
+          <Icon name="cafe-outline" color={C.primary} size={24} />
+          <Text style={[s.h2, { marginTop: 16 }]}>Before you meet</Text>
+          <Text style={[s.body, { marginTop: 12 }]}>
+            Choose a public place, arrange your own transport and tell someone
+            you trust. Never send money to someone you haven’t met.
+          </Text>
+          <Text style={[s.small, { marginTop: 16 }]}>
+            The beta operator reviews reports. Sangai is not an emergency
+            service.
+          </Text>
+        </View>
+      </Page>
+      <BottomSheet
+        visible={reportOpen}
+        onClose={() => setReportOpen(false)}
+        title="Something didn’t feel right?"
+      >
+        <Text style={[s.body, { marginBottom: 24 }]}>
+          Tell us what happened. The person you report won’t see who submitted
+          it.
+        </Text>
+        <Field
+          label="Tell us what happened"
+          value={reason}
+          onChangeText={setReason}
+          multiline
+          placeholder="Harassment, impersonation, scam, underage user, or another concern…"
+        />
+        <Button
+          title={busy ? "Submitting…" : "Submit a private report"}
+          disabled={busy || !reason.trim()}
+          onPress={() =>
+            void act(async () => {
+              await request("/reports", { target, reason, context });
+              setReason("");
+              setReportOpen(false);
+              toast("Report received. You can track it below.");
+            })
+          }
+        />
+      </BottomSheet>
+      <BottomSheet
+        visible={!!confirm}
+        onClose={() => setConfirm("")}
+        title={confirm === "block" ? "Block this person?" : "End this match?"}
+      >
+        <Text style={[s.body, { marginBottom: 24 }]}>
+          {confirm === "block"
+            ? "You’ll lose contact and shared social access. Active games will close."
+            : "Your chat and shared social access will close. Ended matches don’t automatically return."}
+        </Text>
+        <Button
+          title={confirm === "block" ? "Yes, block" : "Yes, end match"}
+          disabled={busy}
+          onPress={() =>
+            void act(async () => {
+              await request(`/${confirm}/${target}`, {});
+              setConfirm("");
+              toast("Your choice has been saved.");
+              router.replace("/(tabs)");
+            })
+          }
+        />
+        <View style={{ marginTop: 12 }}>
+          <Button
+            title="Keep things as they are"
+            secondary
+            onPress={() => setConfirm("")}
+          />
+        </View>
+      </BottomSheet>
+    </>
   );
 }
+const styles = StyleSheet.create({
+  intro: { marginBottom: 28 },
+  headline: {
+    fontSize: 28,
+    lineHeight: 35,
+    fontWeight: "600",
+    letterSpacing: -0.6,
+    color: C.ink,
+    marginTop: 20,
+  },
+  action: {
+    flexDirection: "row",
+    gap: 16,
+    alignItems: "center",
+    minHeight: 84,
+    paddingVertical: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: C.line,
+  },
+  report: {
+    paddingVertical: 20,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: C.line,
+    marginBottom: 8,
+  },
+  block: {
+    paddingVertical: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: C.line,
+  },
+  meeting: {
+    backgroundColor: C.lavender,
+    padding: 24,
+    borderRadius: 18,
+    marginTop: 32,
+  },
+});
