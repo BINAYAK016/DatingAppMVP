@@ -14,10 +14,11 @@ export function GoogleAuth() {
   const { signIn, toast } = useStore();
   const [busy, setBusy] = useState(false);
   return (
-    <View style={{ marginBottom: 12 }}>
+    <View style={{ gap: 8 }}>
       <Button
-        title="Continue with Google"
+        title={busy ? "Connecting…" : "Continue with Google"}
         secondary
+        icon="logo-google"
         disabled={!configured || busy}
         onPress={async () => {
           setBusy(true);
@@ -36,9 +37,8 @@ export function GoogleAuth() {
         }}
       />
       {!configured && (
-        <Text style={[s.small, { marginTop: 8 }]}>
-          Google sign-in is not configured in this beta build yet. Continue with
-          email.
+        <Text style={[s.small, { textAlign: "center" }]}>
+          Google is unavailable in this beta.
         </Text>
       )}
     </View>

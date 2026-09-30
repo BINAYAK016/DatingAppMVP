@@ -1,8 +1,18 @@
 import React, { useState } from "react";
-import { Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { Redirect } from "expo-router";
 import { useStore } from "../lib/store";
-import { Button, C, Field, Header, Loading, Page, s } from "../components/ui";
+import {
+  Button,
+  C,
+  Field,
+  Header,
+  Icon,
+  Loading,
+  Page,
+  StepProgress,
+  s,
+} from "../components/ui";
 import {
   cleanDraft,
   draftFrom,
@@ -39,7 +49,69 @@ function Setup() {
     }
   };
   return (
-    <Page>
+    <Page
+      footer={
+        me.email_verified_at ? (
+          <View style={{ gap: 8 }}>
+            <Button
+              title={
+                busy
+                  ? "Saving…"
+                  : step === 4
+                    ? "Finish profile & Discover"
+                    : "Save & continue"
+              }
+              disabled={busy}
+              icon="arrow-forward"
+              onPress={() =>
+                void run(async () => {
+                  await st.request(
+                    "/onboarding",
+                    { step, data: cleanDraft(draft) },
+                    "PATCH",
+                  );
+                  await st.refresh();
+                  setStep(Math.min(step + 1, 4));
+                })
+              }
+            />
+            {step > 0 && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Previous step"
+                disabled={busy}
+                onPress={() => setStep(step - 1)}
+                style={{
+                  minHeight: 44,
+                  justifyContent: "center",
+                  alignItems: "center",
+                }}
+              >
+                <Text style={s.link}>Previous step</Text>
+              </Pressable>
+            )}
+          </View>
+        ) : (
+          <Button
+            title="Verify email"
+            disabled={busy || !code.trim()}
+            onPress={() =>
+              void run(async () => {
+                await st.request("/verification/confirm", {
+                  code: code.trim(),
+                });
+                await st.refresh();
+              })
+            }
+          />
+        )
+      }
+    >
+      {me.email_verified_at && (
+        <View style={{ marginTop: 8 }}>
+          <StepProgress current={step + 1} total={5} />
+        </View>
+      )}
       <Header
         title={me.email_verified_at ? SECTIONS[step] : "Verify your email"}
         eyebrow={
@@ -47,12 +119,30 @@ function Setup() {
             ? `STEP ${step + 1} OF 5`
             : "YOUR ACCOUNT, YOUR INBOX"
         }
+        action={<View />}
       />
       {!me.email_verified_at ? (
         <>
-          <Text style={[s.body, { marginBottom: 20 }]}>
-            We’ll send a code to {me.email}. Verification confirms access to
-            your inbox. Identity verification will come later.
+          <View
+            style={{
+              width: 80,
+              height: 80,
+              borderRadius: 24,
+              backgroundColor: C.blush,
+              alignItems: "center",
+              justifyContent: "center",
+              marginBottom: 24,
+            }}
+          >
+            <Icon name="mail-outline" size={36} color={C.primary} />
+          </View>
+          <Text style={[s.body, { marginBottom: 8 }]}>
+            We’ll send a code to your inbox.
+          </Text>
+          <Text style={[s.h2, { marginBottom: 24 }]}>{me.email}</Text>
+          <Text style={[s.small, { marginBottom: 24 }]}>
+            Confirm your email to start building your profile. This confirms
+            inbox access; identity verification comes later.
           </Text>
           <Button
             title={sent ? "Resend code" : "Send verification code"}
@@ -67,80 +157,34 @@ function Setup() {
               })
             }
           />
-          <View style={{ height: 24 }} />
+          <View style={{ height: 32 }} />
           <Field
             label="Verification code"
             value={code}
             onChangeText={setCode}
           />
-          <Button
-            title="Verify email"
-            disabled={busy || !code.trim()}
-            onPress={() =>
-              void run(async () => {
-                await st.request("/verification/confirm", {
-                  code: code.trim(),
-                });
-                await st.refresh();
-              })
-            }
-          />
         </>
       ) : (
         <>
-          <View style={[s.row, { marginBottom: 24 }]}>
-            {SECTIONS.map((_, i) => (
-              <View
-                key={i}
-                style={{
-                  height: 4,
-                  flex: 1,
-                  borderRadius: 2,
-                  backgroundColor: i <= step ? C.primary : C.line,
-                }}
-              />
-            ))}
-          </View>
           <ProfileForm step={step} draft={draft} setDraft={setDraft} me={me} />
-          <View style={{ height: 24 }} />
-          <Button
-            title={
-              busy
-                ? "Saving…"
-                : step === 4
-                  ? "Finish profile & Discover"
-                  : "Save & continue"
-            }
-            disabled={busy}
-            onPress={() =>
-              void run(async () => {
-                await st.request(
-                  "/onboarding",
-                  { step, data: cleanDraft(draft) },
-                  "PATCH",
-                );
-                await st.refresh();
-                setStep(Math.min(step + 1, 4));
-              })
-            }
-          />
-          {step > 0 && (
-            <View style={{ marginTop: 12 }}>
-              <Button
-                title="Previous step"
-                secondary
-                disabled={busy}
-                onPress={() => setStep(step - 1)}
-              />
-            </View>
-          )}
           <Text style={[s.small, { marginTop: 18, textAlign: "center" }]}>
-            Each completed step is saved. You can come back later.
+            Saved after each step. Make yourself at home.
           </Text>
         </>
       )}
       <View style={{ marginTop: 24 }}>
-        <Button title="Sign out" secondary onPress={() => void st.signOut()} />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Sign out"
+          onPress={() => void st.signOut()}
+          style={{
+            minHeight: 44,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Text style={s.small}>Sign out</Text>
+        </Pressable>
       </View>
     </Page>
   );
