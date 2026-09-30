@@ -163,13 +163,13 @@ export function PostCard({
       </View>
       {!!post.body && (
         <Text
-          numberOfLines={detail ? undefined : post.media_id ? 4 : 7}
+          numberOfLines={!detail && post.media_id ? 4 : undefined}
           style={post.media_id ? styles.caption : styles.textMoment}
         >
           {post.body}
         </Text>
       )}
-      {!detail && post.body.length > (post.media_id ? 200 : 280) && (
+      {!detail && !!post.media_id && !!post.body && (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Read full moment"
