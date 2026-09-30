@@ -24,7 +24,7 @@ export default function Layout() {
           paddingTop: 8,
           paddingBottom: Math.max(insets.bottom, 12),
         },
-        tabBarLabelStyle: { fontSize: 10, fontWeight: "600" },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
       }}
     >
       <Tabs.Screen

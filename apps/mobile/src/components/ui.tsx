@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
+  Animated,
   Image,
   Pressable,
   ScrollView,
@@ -12,27 +12,48 @@ import {
   ColorValue,
   ImageStyle,
   StyleProp,
+  ViewStyle,
+  Modal,
+  KeyboardAvoidingView,
+  Platform,
+  DimensionValue,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { LinearGradient } from "expo-linear-gradient";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useStore } from "../lib/store";
 import { useMediaVisible } from "../lib/useMediaVisible";
 import { Person } from "../lib/types";
+import { demoPortraits } from "../lib/demoArt";
+import { useReducedMotion } from "../lib/useReducedMotion";
 export const C = {
-  bg: "#FFFAFB",
-  ink: "#302A32",
-  muted: "#786D78",
-  line: "#EEDFE5",
-  primary: "#A84D69",
-  blush: "#FBE4EB",
-  peach: "#FFE6D8",
-  lavender: "#EEE8F8",
+  bg: "#FFFBF8",
+  ink: "#2C2529",
+  muted: "#7A6D73",
+  line: "#EEE4E3",
+  primary: "#AA536B",
+  blush: "#F7E6E9",
+  peach: "#F8E9DE",
+  lavender: "#EFEBF5",
   white: "#FFFFFF",
   red: "#A7374B",
 };
+export function humanMessage(message: string) {
+  if (
+    /fetch failed|failed to fetch|network request failed|ConnectException|ECONNREFUSED/i.test(
+      message,
+    )
+  )
+    return "We couldn’t connect. Check your connection and try again.";
+  if (/^(error\s*)?5\d\d\b|internal server error/i.test(message))
+    return "Something went wrong. Let’s try that again.";
+  return message;
+}
 export function Icon({
   name,
   size = 22,
@@ -88,9 +109,11 @@ export function Chip({
   return (
     <Pressable
       accessibilityRole={onPress ? "button" : undefined}
+      accessibilityState={onPress ? { selected } : undefined}
       onPress={onPress}
       style={[
         s.chip,
+        onPress && { minHeight: 44, justifyContent: "center" },
         selected && { backgroundColor: C.primary, borderColor: C.primary },
       ]}
     >
@@ -115,8 +138,9 @@ export function Field({
   secure?: boolean;
   keyboardType?: React.ComponentProps<typeof TextInput>["keyboardType"];
 }) {
+  const [focused, setFocused] = useState(false);
   return (
-    <View style={{ gap: 8, marginBottom: 14 }}>
+    <View style={{ gap: 8, marginBottom: 20 }}>
       {label && <Text style={s.label}>{label}</Text>}
       <TextInput
         accessibilityLabel={label || placeholder}
@@ -126,12 +150,15 @@ export function Field({
         placeholderTextColor={C.muted}
         multiline={multiline}
         secureTextEntry={secure}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
         autoCapitalize={
           secure || keyboardType === "email-address" ? "none" : "sentences"
         }
         keyboardType={keyboardType}
         style={[
           s.input,
+          focused && { borderColor: C.primary },
           multiline && { minHeight: 100, textAlignVertical: "top" },
         ]}
       />
@@ -157,22 +184,52 @@ export function Avatar({
         overflow: "hidden",
       }}
     >
-      {person.avatar_id ? (
-        <PrivateImage
-          id={person.avatar_id}
-          style={{ width: size, height: size }}
-        />
-      ) : (
-        <Text
-          style={{ fontSize: size * 0.36, color: C.ink, fontWeight: "600" }}
-        >
-          {person.name?.slice(0, 1) || "S"}
-        </Text>
-      )}
+      <PersonImage person={person} style={{ width: size, height: size }} />
     </View>
   );
 }
-export function Video({ id }: { id: string }) {
+export function PersonImage({
+  person,
+  style,
+}: {
+  person: Partial<Person>;
+  style: StyleProp<ImageStyle>;
+}) {
+  const frame: StyleProp<ImageStyle> = [
+    { width: "100%", height: "100%" },
+    style,
+  ];
+  if (person.avatar_id)
+    return <PrivateImage id={person.avatar_id} style={frame} />;
+  const artwork =
+    person.demo && person.id ? demoPortraits[person.id] : undefined;
+  if (artwork)
+    return (
+      <Image
+        source={artwork}
+        style={frame}
+        resizeMode="cover"
+        accessibilityLabel={`${person.name} · fictional demo portrait`}
+      />
+    );
+  return (
+    <LinearGradient
+      colors={[person.color || C.peach, C.blush]}
+      style={[frame, { alignItems: "center", justifyContent: "center" }]}
+    >
+      <Text style={{ fontSize: 36, fontWeight: "500", color: C.primary }}>
+        {person.name?.slice(0, 1) || "S"}
+      </Text>
+    </LinearGradient>
+  );
+}
+export function Video({
+  id,
+  style,
+}: {
+  id: string;
+  style?: StyleProp<ViewStyle>;
+}) {
   const { url, token } = useStore();
   const player = useVideoPlayer(
     {
@@ -186,7 +243,7 @@ export function Video({ id }: { id: string }) {
   return (
     <VideoView
       player={player}
-      style={s.media}
+      style={style || s.media}
       nativeControls
       contentFit="contain"
     />
@@ -195,9 +252,11 @@ export function Video({ id }: { id: string }) {
 export function PrivateImage({
   id,
   style,
+  resizeMode = "cover",
 }: {
   id: string;
   style: StyleProp<ImageStyle>;
+  resizeMode?: React.ComponentProps<typeof Image>["resizeMode"];
 }) {
   const { url, token } = useStore();
   const [loaded, setLoaded] = useState<{ key: string; uri: string } | null>(
@@ -234,7 +293,7 @@ export function PrivateImage({
     <Image
       source={{ uri: loaded.uri }}
       style={style}
-      resizeMode="cover"
+      resizeMode={resizeMode}
       onError={() => setFailedKey(key)}
       accessibilityLabel="Shared photo"
     />
@@ -246,23 +305,36 @@ export function PrivateImage({
       accessibilityLabel={failed ? "Photo unavailable. Retry" : "Loading photo"}
     >
       {failed ? (
-        <Text style={s.small}>Photo unavailable · Retry</Text>
+        <View style={{ alignItems: "center", gap: 8 }}>
+          <Icon name="image-outline" color={C.muted} />
+          <Text style={s.small}>Photo unavailable · Retry</Text>
+        </View>
       ) : (
-        <ActivityIndicator color={C.primary} />
+        <Skeleton height="100%" width="100%" radius={0} />
       )}
     </Pressable>
   );
 }
-export function Media({ id, kind = "image" }: { id: string; kind?: string }) {
+export function Media({
+  id,
+  kind = "image",
+  style,
+  resizeMode = "cover",
+}: {
+  id: string;
+  kind?: string;
+  style?: StyleProp<ImageStyle>;
+  resizeMode?: React.ComponentProps<typeof Image>["resizeMode"];
+}) {
   const [loadVideo, setLoadVideo] = useState(false);
   const visible = useMediaVisible();
   return kind === "video" ? (
     loadVideo && visible ? (
-      <Video id={id} />
+      <Video id={id} style={style} />
     ) : (
       <View
         style={[
-          s.media,
+          style || s.media,
           { alignItems: "center", justifyContent: "center", gap: 12 },
         ]}
       >
@@ -276,40 +348,68 @@ export function Media({ id, kind = "image" }: { id: string; kind?: string }) {
       </View>
     )
   ) : (
-    <PrivateImage id={id} style={s.media} />
+    <PrivateImage id={id} style={style || s.media} resizeMode={resizeMode} />
   );
 }
 export function Page({
   children,
   refresh = false,
+  footer,
+  padding = 20,
 }: {
   children: React.ReactNode;
   refresh?: boolean;
+  footer?: React.ReactNode;
+  padding?: number;
 }) {
   const st = useStore();
+  const insets = useSafeAreaInsets();
   return (
     <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor: C.bg }}>
-      <ScrollView
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={s.page}
-        refreshControl={
-          refresh ? (
-            <RefreshControl
-              refreshing={false}
-              onRefresh={() => void st.refresh()}
-              tintColor={C.primary}
-            />
-          ) : undefined
-        }
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        {children}
-      </ScrollView>
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[
+            s.page,
+            { padding, paddingBottom: footer ? 24 : 32 + insets.bottom },
+          ]}
+          refreshControl={
+            refresh ? (
+              <RefreshControl
+                refreshing={false}
+                onRefresh={() => void st.refresh()}
+                tintColor={C.primary}
+              />
+            ) : undefined
+          }
+        >
+          {children}
+        </ScrollView>
+        {!!footer && (
+          <View
+            style={{
+              padding: 20,
+              paddingBottom: Math.max(insets.bottom, 16),
+              backgroundColor: C.bg,
+              borderTopWidth: 1,
+              borderTopColor: C.line,
+            }}
+          >
+            {footer}
+          </View>
+        )}
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 export function Header({
   title,
-  eyebrow = "A LITTLE CLOSER",
+  eyebrow,
   back = false,
   action,
 }: {
@@ -321,20 +421,20 @@ export function Header({
   const { data } = useStore();
   return (
     <View style={s.header}>
+      {back && (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          onPress={() =>
+            router.canGoBack() ? router.back() : router.replace("/(tabs)")
+          }
+          style={s.iconButton}
+        >
+          <Icon name="arrow-back" />
+        </Pressable>
+      )}
       <View style={{ flex: 1 }}>
-        {back && (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-            onPress={() =>
-              router.canGoBack() ? router.back() : router.replace("/(tabs)")
-            }
-            style={{ paddingVertical: 8 }}
-          >
-            <Icon name="arrow-back" />
-          </Pressable>
-        )}
-        <Text style={s.eyebrow}>{eyebrow}</Text>
+        {!!eyebrow && <Text style={s.eyebrow}>{eyebrow}</Text>}
         <Text style={s.title}>{title}</Text>
       </View>
       {action ||
@@ -364,8 +464,26 @@ export function Empty({
   body: string;
 }) {
   return (
-    <View style={[s.card, { alignItems: "center", paddingVertical: 32 }]}>
-      <Icon name={icon} size={34} />
+    <View
+      style={{
+        alignItems: "center",
+        paddingVertical: 48,
+        paddingHorizontal: 24,
+      }}
+    >
+      <View
+        style={{
+          width: 72,
+          height: 72,
+          borderRadius: 36,
+          backgroundColor: C.blush,
+          alignItems: "center",
+          justifyContent: "center",
+          marginBottom: 12,
+        }}
+      >
+        <Icon name={icon} size={30} color={C.primary} />
+      </View>
       <Text style={[s.h2, { marginTop: 14, textAlign: "center" }]}>
         {title}
       </Text>
@@ -380,13 +498,15 @@ export function Loading() {
     <View
       style={{
         flex: 1,
-        alignItems: "center",
-        justifyContent: "center",
         backgroundColor: C.bg,
+        padding: 24,
+        gap: 20,
       }}
     >
-      <ActivityIndicator color={C.primary} />
-      <Text style={[s.body, { marginTop: 12 }]}>A little closer…</Text>
+      <Skeleton width={140} height={32} />
+      <Skeleton height={380} radius={24} />
+      <Skeleton width="75%" height={20} />
+      <Skeleton width="50%" height={20} />
     </View>
   );
 }
@@ -426,85 +546,356 @@ export function Section({ title, aside }: { title: string; aside?: string }) {
     </View>
   );
 }
+export function IconButton({
+  name,
+  label,
+  onPress,
+  variant = "plain",
+  disabled = false,
+  size = 22,
+}: {
+  name: React.ComponentProps<typeof Ionicons>["name"];
+  label: string;
+  onPress: () => void;
+  variant?: "plain" | "soft" | "primary";
+  disabled?: boolean;
+  size?: number;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [
+        s.iconButton,
+        {
+          backgroundColor:
+            variant === "primary"
+              ? C.primary
+              : variant === "soft"
+                ? C.blush
+                : "transparent",
+          opacity: disabled ? 0.4 : pressed ? 0.65 : 1,
+        },
+      ]}
+    >
+      <Icon
+        name={name}
+        size={size}
+        color={variant === "primary" ? C.white : C.ink}
+      />
+    </Pressable>
+  );
+}
+export function Skeleton({
+  height = 20,
+  width = "100%",
+  radius = 12,
+}: {
+  height?: DimensionValue;
+  width?: DimensionValue;
+  radius?: number;
+}) {
+  const [opacity] = useState(() => new Animated.Value(0.55));
+  const reduced = useReducedMotion();
+  useEffect(() => {
+    if (reduced) return;
+    const motion = Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacity, {
+          toValue: 1,
+          duration: 900,
+          useNativeDriver: true,
+        }),
+        Animated.timing(opacity, {
+          toValue: 0.55,
+          duration: 900,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    motion.start();
+    return () => motion.stop();
+  }, [opacity, reduced]);
+  return (
+    <Animated.View
+      accessibilityLabel="Loading"
+      style={{
+        height,
+        width,
+        borderRadius: radius,
+        backgroundColor: C.line,
+        opacity: reduced ? 1 : opacity,
+      }}
+    />
+  );
+}
+export function BottomSheet({
+  visible,
+  onClose,
+  title,
+  children,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  title?: string;
+  children: React.ReactNode;
+}) {
+  const insets = useSafeAreaInsets();
+  const reduced = useReducedMotion();
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType={reduced ? "none" : "slide"}
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={{ flex: 1, justifyContent: "flex-end" }}
+      >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Dismiss sheet"
+          onPress={onClose}
+          style={[StyleSheet.absoluteFill, { backgroundColor: "#2C25294D" }]}
+        />
+        <View
+          accessibilityViewIsModal
+          style={{
+            width: "100%",
+            maxWidth: 600,
+            alignSelf: "center",
+            maxHeight: "85%",
+            backgroundColor: C.bg,
+            borderTopLeftRadius: 24,
+            borderTopRightRadius: 24,
+            paddingTop: 8,
+            paddingBottom: Math.max(insets.bottom, 16),
+          }}
+        >
+          <View
+            style={{
+              width: 36,
+              height: 4,
+              borderRadius: 2,
+              backgroundColor: C.line,
+              alignSelf: "center",
+              marginBottom: 8,
+            }}
+          />
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              paddingHorizontal: 20,
+              marginBottom: 8,
+            }}
+          >
+            <Text style={[s.h2, { flex: 1 }]}>{title}</Text>
+            <IconButton name="close" label="Close sheet" onPress={onClose} />
+          </View>
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 12 }}
+          >
+            {children}
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+export function SelectionTile({
+  title,
+  subtitle,
+  icon,
+  selected = false,
+  onPress,
+}: {
+  title: string;
+  subtitle?: string;
+  icon?: React.ComponentProps<typeof Ionicons>["name"];
+  selected?: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityState={{ selected }}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        flexDirection: "row",
+        gap: 16,
+        alignItems: "center",
+        padding: 20,
+        marginBottom: 12,
+        minHeight: 72,
+        borderRadius: 16,
+        backgroundColor: selected ? C.blush : C.white,
+        borderWidth: 1,
+        borderColor: selected ? C.primary : C.line,
+        opacity: pressed ? 0.75 : 1,
+      })}
+    >
+      {icon && <Icon name={icon} color={C.primary} size={24} />}
+      <View style={{ flex: 1 }}>
+        <Text style={[s.label, { fontSize: 16 }]}>{title}</Text>
+        {!!subtitle && (
+          <Text style={[s.small, { marginTop: 4 }]}>{subtitle}</Text>
+        )}
+      </View>
+      <Icon
+        name={selected ? "checkmark-circle" : "ellipse-outline"}
+        color={selected ? C.primary : C.line}
+      />
+    </Pressable>
+  );
+}
+export function StepProgress({
+  current,
+  total,
+}: {
+  current: number;
+  total: number;
+}) {
+  return (
+    <View
+      accessibilityLabel={`Step ${current} of ${total}`}
+      style={{ flexDirection: "row", gap: 6, marginBottom: 24 }}
+    >
+      {Array.from({ length: total }, (_, i) => (
+        <View
+          key={i}
+          style={{
+            height: 3,
+            flex: 1,
+            borderRadius: 2,
+            backgroundColor: i < current ? C.primary : C.line,
+          }}
+        />
+      ))}
+    </View>
+  );
+}
+export function Notice({
+  title,
+  body,
+  onRetry,
+}: {
+  title: string;
+  body?: string;
+  onRetry?: () => void;
+}) {
+  return (
+    <View accessibilityRole="alert" style={[s.note, { gap: 8 }]}>
+      <Text style={s.label}>{title}</Text>
+      {!!body && <Text style={s.small}>{body}</Text>}
+      {onRetry && <Button title="Try again" onPress={onRetry} secondary />}
+    </View>
+  );
+}
 export const s = StyleSheet.create({
   page: {
-    padding: 22,
-    paddingBottom: 110,
-    maxWidth: 720,
+    padding: 20,
+    paddingBottom: 32,
+    maxWidth: 600,
     width: "100%",
     alignSelf: "center",
   },
   header: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 16,
-    marginBottom: 24,
+    gap: 12,
+    minHeight: 52,
+    marginBottom: 20,
   },
   eyebrow: {
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 2.4,
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 1.2,
     color: C.muted,
     marginBottom: 7,
   },
   title: {
-    fontWeight: "700",
-    fontSize: 37,
-    lineHeight: 44,
+    fontWeight: "600",
+    fontSize: 28,
+    lineHeight: 34,
     color: C.ink,
-    letterSpacing: -1,
+    letterSpacing: -0.8,
   },
-  h2: { fontSize: 19, fontWeight: "600", color: C.ink, letterSpacing: -0.4 },
-  body: { fontSize: 14, lineHeight: 22, color: C.muted },
-  small: { fontSize: 11, color: C.muted, lineHeight: 17 },
-  label: { fontSize: 12, fontWeight: "600", color: C.ink },
+  display: {
+    fontSize: 36,
+    lineHeight: 42,
+    fontWeight: "600",
+    color: C.ink,
+    letterSpacing: -1.2,
+  },
+  h2: {
+    fontSize: 22,
+    lineHeight: 28,
+    fontWeight: "600",
+    color: C.ink,
+    letterSpacing: -0.4,
+  },
+  body: { fontSize: 16, lineHeight: 25, color: C.ink },
+  small: { fontSize: 13, color: C.muted, lineHeight: 20 },
+  caption: { fontSize: 13, color: C.muted, lineHeight: 20 },
+  meta: { fontSize: 11, color: C.muted, lineHeight: 16 },
+  label: { fontSize: 14, lineHeight: 21, fontWeight: "600", color: C.ink },
   row: { flexDirection: "row", alignItems: "center", gap: 10 },
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   card: {
     backgroundColor: C.white,
-    borderWidth: 1,
-    borderColor: C.line,
-    borderRadius: 22,
-    padding: 19,
-    marginBottom: 14,
+    borderRadius: 18,
+    padding: 20,
+    marginBottom: 20,
   },
   button: {
     backgroundColor: C.primary,
-    borderRadius: 15,
-    paddingHorizontal: 19,
-    paddingVertical: 15,
+    borderRadius: 14,
+    minHeight: 54,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
     gap: 8,
   },
-  buttonText: { fontSize: 13, fontWeight: "600", color: C.white },
-  secondary: { backgroundColor: C.bg, borderWidth: 1, borderColor: C.line },
+  buttonText: { fontSize: 16, fontWeight: "600", color: C.white },
+  secondary: {
+    backgroundColor: "transparent",
+    borderWidth: 1,
+    borderColor: C.line,
+  },
   chip: {
     backgroundColor: C.bg,
     borderWidth: 1,
     borderColor: C.line,
     paddingHorizontal: 13,
-    paddingVertical: 9,
-    borderRadius: 22,
+    paddingVertical: 11,
+    borderRadius: 20,
   },
-  chipText: { fontSize: 11, color: C.ink, fontWeight: "500" },
+  chipText: { fontSize: 13, color: C.ink, fontWeight: "500" },
   input: {
     backgroundColor: C.white,
     borderWidth: 1,
     borderColor: C.line,
-    borderRadius: 14,
-    padding: 15,
+    borderRadius: 12,
+    minHeight: 56,
+    padding: 16,
     color: C.ink,
-    fontSize: 14,
+    fontSize: 16,
   },
   iconButton: {
     height: 44,
     width: 44,
-    backgroundColor: C.white,
+    backgroundColor: "transparent",
     borderRadius: 22,
-    borderWidth: 1,
-    borderColor: C.line,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -559,7 +950,7 @@ export const s = StyleSheet.create({
     marginVertical: 12,
   },
   divider: { height: 1, backgroundColor: C.line, marginVertical: 15 },
-  link: { fontSize: 12, color: C.primary, fontWeight: "600" },
+  link: { fontSize: 14, color: C.primary, fontWeight: "600" },
   danger: { color: C.red },
   heroInitial: {
     fontWeight: "700",

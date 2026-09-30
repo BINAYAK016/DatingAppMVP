@@ -8,10 +8,12 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { Provider, useStore } from "../lib/store";
-import { C } from "../components/ui";
+import { C, humanMessage } from "../components/ui";
+import { useReducedMotion } from "../lib/useReducedMotion";
 function Shell() {
   const { notice, token } = useStore();
   const insets = useSafeAreaInsets();
+  const reduced = useReducedMotion();
   useEffect(() => {
     if (Platform.OS === "web" || !token) return;
     const redirect = (response: Notifications.NotificationResponse) => {
@@ -34,7 +36,7 @@ function Shell() {
         screenOptions={{
           headerShown: false,
           contentStyle: { backgroundColor: C.bg },
-          animation: "slide_from_right",
+          animation: reduced ? "none" : "slide_from_right",
         }}
       />
       {!!notice && (
@@ -42,7 +44,7 @@ function Shell() {
           pointerEvents="none"
           style={{
             position: "absolute",
-            top: insets.top + 8,
+            bottom: insets.bottom + 82,
             left: 20,
             right: 20,
             padding: 16,
@@ -51,7 +53,12 @@ function Shell() {
             zIndex: 100,
           }}
         >
-          <Text style={{ color: "white", fontSize: 13 }}>{notice}</Text>
+          <Text
+            accessibilityRole="alert"
+            style={{ color: "white", fontSize: 14, lineHeight: 21 }}
+          >
+            {humanMessage(notice)}
+          </Text>
         </View>
       )}
     </>
