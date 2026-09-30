@@ -25,7 +25,7 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { useVideoPlayer, VideoView } from "expo-video";
+import { useVideoPlayer, VideoView, VideoSource } from "expo-video";
 import { useStore } from "../lib/store";
 import { useMediaVisible } from "../lib/useMediaVisible";
 import { Person } from "../lib/types";
@@ -45,7 +45,7 @@ export const C = {
 };
 export function humanMessage(message: string) {
   if (
-    /fetch failed|failed to fetch|network request failed|ConnectException|ECONNREFUSED/i.test(
+    /fetch failed|failed to fetch|network request failed|ConnectException|ECONNREFUSED|Cannot reach the beta server/i.test(
       message,
     )
   )
@@ -231,15 +231,91 @@ export function Video({
   style?: StyleProp<ViewStyle>;
 }) {
   const { url, token } = useStore();
-  const player = useVideoPlayer(
-    {
-      uri: `${url}/v1/media/${id}`,
-      headers: { Authorization: `Bearer ${token}` },
-    },
-    (p) => {
-      p.loop = false;
-    },
+  return Platform.OS === "web" ? (
+    <BrowserPrivateVideo key={`${url}:${id}:${token}`} id={id} style={style} />
+  ) : (
+    <VideoPlayerFrame
+      source={{
+        uri: `${url}/v1/media/${id}`,
+        headers: { Authorization: `Bearer ${token}` },
+      }}
+      style={style}
+    />
   );
+}
+function BrowserPrivateVideo({
+  id,
+  style,
+}: {
+  id: string;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const { url, token } = useStore();
+  const [uri, setUri] = useState<string | null>(null);
+  const [error, setError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    const controller = new AbortController();
+    let objectUrl: string | undefined;
+    // HTML video cannot attach the native player's Authorization headers.
+    // Keep the authenticated response in memory and release it on close.
+    void fetch(`${url}/v1/media/${id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Video unavailable");
+        const blob = await response.blob();
+        if (controller.signal.aborted) return;
+        objectUrl = URL.createObjectURL(blob);
+        setUri(objectUrl);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setError(true);
+      });
+    return () => {
+      controller.abort();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [url, token, id, attempt]);
+  return uri ? (
+    <VideoPlayerFrame source={uri} style={style} />
+  ) : (
+    <View
+      style={[
+        style || s.media,
+        { alignItems: "center", justifyContent: "center", gap: 16 },
+      ]}
+    >
+      {error ? (
+        <>
+          <Icon name="videocam-outline" color={C.muted} />
+          <Text style={s.body}>This video couldn’t load.</Text>
+          <Button
+            title="Retry video"
+            secondary
+            onPress={() => {
+              setError(false);
+              setAttempt((value) => value + 1);
+            }}
+          />
+        </>
+      ) : (
+        <Skeleton height="100%" width="100%" radius={18} />
+      )}
+    </View>
+  );
+}
+function VideoPlayerFrame({
+  source,
+  style,
+}: {
+  source: VideoSource;
+  style?: StyleProp<ViewStyle>;
+}) {
+  const player = useVideoPlayer(source, (p) => {
+    p.loop = false;
+  });
   return (
     <VideoView
       player={player}

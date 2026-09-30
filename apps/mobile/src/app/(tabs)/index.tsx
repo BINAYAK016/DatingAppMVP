@@ -190,7 +190,7 @@ export default function Discover() {
         </Text>
         <Text style={s.label}>Interested in</Text>
         <Text style={[s.body, { marginBottom: 24 }]}>
-          {st.data?.me.preferences.genders.join(", ")}
+          {st.data?.me.preferences.genders.join(", ") || "Everyone"}
         </Text>
         <Button
           title="Edit discovery preferences"

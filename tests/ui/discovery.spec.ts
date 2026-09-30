@@ -2,9 +2,42 @@ import { test, expect } from "@playwright/test";
 
 test("a card drag records a Pass, Undo restores it, and a tap opens its profile", async ({
   page,
+  request,
 }) => {
+  const accounts = await (
+    await request.get("http://localhost:4100/v1/auth/demo")
+  ).json();
+  let accountName = "";
+  for (const account of accounts) {
+    const session = await (
+      await request.post("http://localhost:4100/v1/auth/demo", {
+        data: { id: account.id },
+      })
+    ).json();
+    const state = await (
+      await request.get("http://localhost:4100/v1/state", {
+        headers: { Authorization: `Bearer ${session.token}` },
+      })
+    ).json();
+    if (state.discover?.length) {
+      accountName = account.name;
+      break;
+    }
+  }
+  expect(
+    accountName,
+    "A fictional demo needs an eligible card for this reversible gesture journey",
+  ).not.toBe("");
   await page.goto("/");
-  await page.getByText("Samira", { exact: true }).click();
+  await page
+    .getByRole("button", { name: "Explore demo accounts", exact: true })
+    .click();
+  await page
+    .getByRole("button", {
+      name: `Try ${accountName} demo account`,
+      exact: true,
+    })
+    .click();
   const card = page
     .getByRole("button", { name: /^View .+'s profile$/ })
     .first();

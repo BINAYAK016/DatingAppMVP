@@ -12,6 +12,9 @@ test("two matches explicitly become ready, invite, accept and reveal a live game
   const guest = await second.newPage();
   try {
     await guest.goto("http://localhost:8081/");
+    await guest
+      .getByRole("button", { name: "Explore demo accounts", exact: true })
+      .click();
     await guest.getByText("Anaya", { exact: true }).click();
     for (const [client, name] of [
       [page, "Anaya"],
@@ -58,16 +61,36 @@ test("two matches explicitly become ready, invite, accept and reveal a live game
       "Quality time",
       "Live music",
     ];
-    for (const option of options)
+    for (const [index, option] of options.entries()) {
       await page.getByRole("button", { name: option, exact: true }).click();
+      await page
+        .getByRole("button", {
+          name:
+            index === options.length - 1
+              ? "Review my choices"
+              : "Next question",
+          exact: true,
+        })
+        .click();
+    }
     await page
       .getByRole("button", { name: "Lock in my choices", exact: true })
       .click();
     await expect(guest.getByText("Your match ✓", { exact: true })).toHaveCount(
       0,
     );
-    for (const option of options)
+    for (const [index, option] of options.entries()) {
       await guest.getByRole("button", { name: option, exact: true }).click();
+      await guest
+        .getByRole("button", {
+          name:
+            index === options.length - 1
+              ? "Review my choices"
+              : "Next question",
+          exact: true,
+        })
+        .click();
+    }
     await guest
       .getByRole("button", { name: "Lock in my choices", exact: true })
       .click();
@@ -89,6 +112,9 @@ test("two matches explicitly become ready, invite, accept and reveal a live game
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
+  await page
+    .getByRole("button", { name: "Explore demo accounts", exact: true })
+    .click();
   await page.getByText("Aarav", { exact: true }).click();
   await expect(
     page.getByRole("tab", { name: "Discover", exact: false }),
@@ -118,6 +144,7 @@ test("four core areas, Discover landing and Chat-owned stories", async ({
     page.getByRole("button", { name: "Plan a Date", exact: true }),
   ).toBeVisible();
   const message = "A hello from the redesigned chat " + Date.now();
+  await page.getByLabel("Close sheet", { exact: true }).click();
   await page.getByPlaceholder("A thought, a question, a hello…").fill(message);
   await page.getByLabel("Send message", { exact: true }).click();
   await expect(page.getByText(message, { exact: true })).toBeVisible();
