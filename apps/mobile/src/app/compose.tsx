@@ -1,9 +1,18 @@
 import React, { useState } from "react";
-import { ActivityIndicator, Image, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { randomUUID } from "expo-crypto";
 import * as ImagePicker from "expo-image-picker";
-import { Button, C, Field, Header, Icon, Page, s } from "../components/ui";
+import { useVideoPlayer, VideoView } from "expo-video";
+import { Button, C, Header, Icon, IconButton, Page, s } from "../components/ui";
 import { useStore } from "../lib/store";
 export default function Compose() {
   const { kind = "post", target } = useLocalSearchParams<{
@@ -96,113 +105,166 @@ export default function Compose() {
       setStage("");
     }
   };
-  return (
-    <Page>
-      <Header
-        back
-        title={
-          kind === "gallery"
-            ? "Your profile gallery"
-            : kind === "message"
-              ? "Share in your chat"
-              : kind === "snap"
-                ? "A little just for you."
-                : kind === "story"
-                  ? "Here for a moment."
-                  : kind === "avatar"
-                    ? "Your first impression."
-                    : "Share your everyday."
-        }
-        eyebrow={
-          kind === "message"
-            ? "PHOTO OR VIDEO MESSAGE"
+  const title =
+    kind === "gallery"
+      ? "Profile photos"
+      : kind === "avatar"
+        ? "Your profile photo"
+        : kind === "message"
+          ? "Photo or video"
+          : kind === "snap"
+            ? "Send a snap"
+            : kind === "story"
+              ? "Your story"
+              : "Share a moment";
+  const hint =
+    kind === "message"
+      ? "A photo or video, just for this conversation."
+      : kind === "snap"
+        ? "View once · unopened snaps expire in 24 hours. Screenshots are possible."
+        : kind === "story"
+          ? "Here for 24 hours. Only your current matches can see it."
+          : kind === "avatar"
+            ? "Your first impression on Discover."
             : kind === "gallery"
-              ? "PROFILE GALLERY"
-              : kind === "snap"
-                ? "PRIVATE SNAP"
-                : kind === "story"
-                  ? "24-HOUR STORY"
-                  : kind === "avatar"
-                    ? "PROFILE PHOTO"
-                    : "A NEW MOMENT"
-        }
-      />
-      <View style={s.note}>
-        <Text style={s.body}>
-          {kind === "message"
-            ? "A regular photo or video message stays in this conversation. Choose the camera in Chat for a view-once snap."
-            : kind === "snap"
-              ? "Only this match can open it, once, for up to 30 seconds. Unopened snaps expire in 24 hours. Screenshots are still possible."
-              : kind === "story"
-                ? "Visible only to your current mutual matches. Disappears after 24 hours."
-                : kind === "avatar"
-                  ? "This photo is visible on your discovery profile."
-                  : "Your post, likes, and conversations stay inside your mutual-match community."}
-        </Text>
-      </View>
-      {kind !== "avatar" && (
-        <Field
-          label={kind === "snap" ? "A little caption" : "What’s on your mind?"}
-          value={body}
-          onChangeText={(v) =>
-            setBody(
-              v.slice(0, kind === "snap" ? 140 : kind === "story" ? 300 : 2000),
-            )
+              ? "A little more of you, on your profile."
+              : "Your everyday, shared only with current matches.";
+  return (
+    <Page
+      footer={
+        <View style={{ gap: 10 }}>
+          <Button
+            title={
+              busy
+                ? "One moment…"
+                : kind === "message"
+                  ? "Send to this match"
+                  : kind === "gallery"
+                    ? "Add to profile"
+                    : kind === "snap"
+                      ? "Send snap"
+                      : kind === "avatar"
+                        ? "Use this photo"
+                        : "Share with my matches"
+            }
+            disabled={
+              busy ||
+              (!body.trim() && !asset) ||
+              (["snap", "avatar", "gallery", "message"].includes(kind) &&
+                !asset)
+            }
+            onPress={() => void publish()}
+          />
+          {busy && (
+            <View style={[s.row, { justifyContent: "center" }]}>
+              <ActivityIndicator size="small" color={C.primary} />
+              <Text style={s.small}>{stage}</Text>
+            </View>
+          )}
+        </View>
+      }
+    >
+      <Header back title={title} />
+      <View style={[s.row, { alignItems: "flex-start", marginBottom: 24 }]}>
+        <Icon
+          name={
+            kind === "avatar" || kind === "gallery"
+              ? "person-outline"
+              : "lock-closed-outline"
           }
-          placeholder="The little things make the best stories…"
-          multiline
+          size={14}
+          color={C.muted}
         />
+        <Text style={[s.small, { flex: 1 }]}>{hint}</Text>
+      </View>
+      {kind !== "avatar" && kind !== "gallery" && (
+        <View style={{ marginBottom: 20 }}>
+          <TextInput
+            accessibilityLabel={
+              kind === "snap" ? "A little caption" : "What’s on your mind?"
+            }
+            value={body}
+            onChangeText={(value) =>
+              setBody(
+                value.slice(
+                  0,
+                  kind === "snap" ? 140 : kind === "story" ? 300 : 2000,
+                ),
+              )
+            }
+            placeholder="The little things make the best stories…"
+            placeholderTextColor={C.muted}
+            multiline
+            style={styles.caption}
+            editable={!busy}
+          />
+          {!!body.length && (
+            <Text style={[s.small, { textAlign: "right", marginTop: 8 }]}>
+              {body.length}/
+              {kind === "snap" ? 140 : kind === "story" ? 300 : 2000}
+            </Text>
+          )}
+        </View>
       )}
       {asset ? (
-        <View style={s.card}>
+        <View style={styles.preview}>
           {asset.type === "video" ? (
-            <View style={{ alignItems: "center", padding: 30 }}>
-              <Icon name="videocam-outline" size={45} />
-              <Text style={[s.body, { marginTop: 12 }]}>
-                Video selected · {Math.round((asset.duration || 0) / 1000)}{" "}
-                seconds
-              </Text>
-            </View>
+            <LocalVideo uri={asset.uri} />
           ) : (
             <Image
               source={{ uri: asset.uri }}
-              style={{ width: "100%", height: 270, borderRadius: 16 }}
+              style={styles.photo}
+              resizeMode="contain"
             />
           )}
-          <View style={{ marginTop: 12 }}>
-            <Button
-              title="Remove media"
-              secondary
-              onPress={() => setAsset(null)}
+          <View style={styles.remove}>
+            <IconButton
+              name="close"
+              label="Remove media"
+              variant="soft"
               disabled={busy}
+              onPress={() => setAsset(null)}
             />
           </View>
+          {asset.type === "video" && (
+            <Text style={styles.duration}>
+              Video · {Math.round((asset.duration || 0) / 1000)} seconds
+            </Text>
+          )}
         </View>
       ) : (
-        <View
-          style={[
-            s.card,
-            { padding: 30, alignItems: "center", borderStyle: "dashed" },
-          ]}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Choose a photo or video"
+          disabled={busy}
+          onPress={() => void pick(false)}
+          style={styles.emptyPreview}
         >
-          <Icon name="images-outline" size={40} />
-          <Text style={[s.body, { marginTop: 15 }]}>
-            A photo. A short video. A real moment.
+          <View style={styles.mediaIcon}>
+            <Icon name="images-outline" size={30} color={C.primary} />
+          </View>
+          <Text style={styles.mediaTitle}>
+            {kind === "avatar"
+              ? "A photo that feels like you"
+              : "A little glimpse of your world"}
           </Text>
-        </View>
+          <Text style={[s.small, { textAlign: "center" }]}>
+            {kind === "avatar"
+              ? "Choose your profile photo"
+              : "Add a photo or a short video"}
+          </Text>
+        </Pressable>
       )}
-      <View style={[s.row, { marginBottom: 12 }]}>
-        <View style={{ flex: 1 }}>
-          <Button
-            title="Library"
-            secondary
-            icon="images-outline"
-            disabled={busy}
-            onPress={() => void pick(false)}
-          />
-        </View>
+      <View style={{ gap: 10, marginTop: 20 }}>
+        <Button
+          title="Library"
+          secondary
+          icon="images-outline"
+          disabled={busy}
+          onPress={() => void pick(false)}
+        />
         {(kind === "snap" || kind === "story") && (
-          <View style={{ flex: 1 }}>
+          <>
             <Button
               title="Camera"
               secondary
@@ -210,46 +272,83 @@ export default function Compose() {
               disabled={busy}
               onPress={() => void pick(true)}
             />
-          </View>
+            <Button
+              title="Record a video · up to 30 seconds"
+              secondary
+              icon="videocam-outline"
+              disabled={busy}
+              onPress={() => void pick(true, true)}
+            />
+          </>
         )}
       </View>
-      {(kind === "snap" || kind === "story") && (
-        <Button
-          title="Record a video · up to 30 seconds"
-          secondary
-          icon="videocam-outline"
-          disabled={busy}
-          onPress={() => void pick(true, true)}
-        />
-      )}
-      <View style={{ height: 20 }} />
-      <Button
-        title={
-          busy
-            ? "One moment…"
-            : kind === "message"
-              ? "Send to this match"
-              : kind === "gallery"
-                ? "Add to profile"
-                : kind === "snap"
-                  ? "Send snap"
-                  : kind === "avatar"
-                    ? "Use this photo"
-                    : "Share with my matches"
-        }
-        disabled={
-          busy ||
-          (!body.trim() && !asset) ||
-          (["snap", "avatar", "gallery", "message"].includes(kind) && !asset)
-        }
-        onPress={() => void publish()}
-      />
-      {busy && (
-        <View style={[s.row, { marginTop: 16, justifyContent: "center" }]}>
-          <ActivityIndicator color={C.primary} />
-          <Text style={s.small}>{stage}</Text>
-        </View>
+      {kind !== "avatar" && (
+        <Text style={[s.small, { textAlign: "center", marginTop: 20 }]}>
+          Photos and videos up to 20 MB. Videos up to 30 seconds.
+        </Text>
       )}
     </Page>
   );
 }
+function LocalVideo({ uri }: { uri: string }) {
+  const player = useVideoPlayer(uri, (p) => {
+    p.loop = false;
+  });
+  return (
+    <VideoView
+      player={player}
+      style={styles.photo}
+      nativeControls
+      contentFit="contain"
+    />
+  );
+}
+const styles = StyleSheet.create({
+  caption: {
+    minHeight: 120,
+    padding: 0,
+    textAlignVertical: "top",
+    color: C.ink,
+    fontSize: 22,
+    lineHeight: 31,
+    backgroundColor: "transparent",
+  },
+  preview: {
+    position: "relative",
+    backgroundColor: C.blush,
+    borderRadius: 18,
+    overflow: "hidden",
+  },
+  photo: { width: "100%", height: 360 },
+  remove: { position: "absolute", right: 10, top: 10 },
+  duration: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    color: C.muted,
+    fontSize: 12,
+  },
+  emptyPreview: {
+    minHeight: 230,
+    borderRadius: 18,
+    backgroundColor: C.blush,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 12,
+    padding: 24,
+  },
+  mediaIcon: {
+    width: 64,
+    height: 64,
+    backgroundColor: C.white,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  mediaTitle: {
+    fontSize: 17,
+    fontWeight: "500",
+    color: C.ink,
+    textAlign: "center",
+  },
+});

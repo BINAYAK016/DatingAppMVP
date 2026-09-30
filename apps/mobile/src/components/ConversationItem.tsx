@@ -1,8 +1,16 @@
-import React from "react";
-import { Pressable, Text, View } from "react-native";
+import React, { useEffect, useState } from "react";
+import {
+  Animated,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { router } from "expo-router";
 import { Button, C, Icon, Media, s } from "./ui";
 import { useStore } from "../lib/store";
+import { useReducedMotion } from "../lib/useReducedMotion";
 export function ConversationItem({
   item: m,
   target,
@@ -16,23 +24,37 @@ export function ConversationItem({
 }) {
   const st = useStore(),
     mine = m.sender === st.data?.me.id;
+  const reducedMotion = useReducedMotion();
+  const [appearance] = useState(() => new Animated.Value(1));
+  useEffect(() => {
+    if (
+      reducedMotion ||
+      !mine ||
+      m.type !== "message" ||
+      Date.now() - new Date(m.created_at).getTime() > 5000
+    )
+      return;
+    appearance.setValue(0);
+    const animation = Animated.timing(appearance, {
+      toValue: 1,
+      duration: 180,
+      useNativeDriver: Platform.OS !== "web",
+    });
+    animation.start();
+    return () => animation.stop();
+  }, [appearance, mine, m.id, m.type, m.created_at, reducedMotion]);
   if (m.type === "message")
     return (
-      <View
-        style={{
-          alignSelf: mine ? "flex-end" : "flex-start",
-          width: m.media_id ? "86%" : undefined,
-          maxWidth: "86%",
-          backgroundColor: mine ? C.blush : C.white,
-          padding: 14,
-          borderRadius: 19,
-          marginBottom: 12,
-          borderWidth: 1,
-          borderColor: C.line,
-        }}
+      <Animated.View
+        style={[
+          styles.bubble,
+          { opacity: appearance },
+          mine ? styles.sent : styles.received,
+          m.media_id && { width: "86%" },
+        ]}
       >
         {!!m.media_id && <Media id={m.media_id} kind={m.kind} />}
-        {!!m.body && <Text style={s.body}>{m.body}</Text>}
+        {!!m.body && <Text style={styles.message}>{m.body}</Text>}
         {!!m.post_id && (
           <Button
             secondary
@@ -45,13 +67,13 @@ export function ConversationItem({
         {!m.post_id && !m.body && !m.media_id && (
           <Text style={s.small}>This attachment is no longer available.</Text>
         )}
-        <Text style={[s.small, { marginTop: 8, fontSize: 10 }]}>
+        <Text style={[styles.time, { textAlign: mine ? "right" : "left" }]}>
           {new Date(m.created_at).toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit",
           })}
         </Text>
-      </View>
+      </Animated.View>
     );
   if (m.type === "snap")
     return (
@@ -62,19 +84,34 @@ export function ConversationItem({
         }
         disabled={!!m.opened_at || mine}
         onPress={() => openSnap(m.id)}
-        style={[s.card, s.row, { backgroundColor: C.lavender }]}
+        style={[styles.snap, { alignSelf: mine ? "flex-end" : "flex-start" }]}
       >
-        <Icon name="camera-outline" />
-        <View style={{ flex: 1 }}>
-          <Text style={s.label}>
+        <View style={styles.snapIcon}>
+          <Icon
+            name={m.opened_at ? "camera" : "camera-outline"}
+            color={C.primary}
+            size={24}
+          />
+        </View>
+        <View style={{ flex: 1, gap: 4 }}>
+          <Text style={styles.snapTitle}>
             {m.opened_at
               ? "Snap opened"
               : mine
-                ? "Your snap · waiting to be opened"
-                : "A snap for you · tap to open"}
+                ? "Your snap is on its way"
+                : "A little moment for you"}
           </Text>
-          <Text style={s.small}>View once · screenshots are possible</Text>
+          <Text style={s.small}>
+            {m.opened_at
+              ? "This moment has passed"
+              : mine
+                ? "Waiting to be opened · view once"
+                : "View once · screenshots are possible"}
+          </Text>
         </View>
+        {!m.opened_at && !mine && (
+          <Icon name="chevron-forward" size={16} color={C.primary} />
+        )}
       </Pressable>
     );
   if (m.type === "game") {
@@ -83,25 +120,43 @@ export function ConversationItem({
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${def?.title || "Previous game"} · ${m.state}`}
-        style={[s.card, { backgroundColor: C.peach }]}
+        style={[styles.connection, { backgroundColor: C.lavender }]}
         onPress={() =>
           router.push({ pathname: "/game/[id]", params: { id: m.id, target } })
         }
       >
-        <Text style={s.h2}>
-          {def?.emoji} {def?.title || "Previous game"}
-        </Text>
-        <Text style={[s.body, { marginTop: 10 }]}>
+        <View style={[s.row, { marginBottom: 12 }]}>
+          <Icon name="dice-outline" size={22} color={C.primary} />
+          <Text style={s.small}>
+            {m.state === "invited"
+              ? "A game invitation"
+              : "A little more to know"}
+          </Text>
+        </View>
+        <Text style={s.h2}>{def?.title || "Previous game"}</Text>
+        <Text style={[s.body, { marginTop: 8 }]}>
           {m.state === "invited"
             ? m.guest === st.data?.me.id
-              ? "Invitation for you · accept or decline →"
-              : "Invitation sent · waiting for acceptance"
+              ? "Your match wants to play with you."
+              : "Invitation sent. A good time for two?"
             : m.complete
-              ? "Your reveal is ready →"
+              ? "Your reveal is ready."
               : m.state === "active"
-                ? "Game in progress →"
+                ? "Your game is in progress."
                 : `Game ${m.state}`}
         </Text>
+        <View
+          style={[s.row, { marginTop: 16, justifyContent: "space-between" }]}
+        >
+          <Text style={s.link}>
+            {m.state === "invited" && m.guest === st.data?.me.id
+              ? "View invitation"
+              : m.complete
+                ? "See your reveal"
+                : "Open game"}
+          </Text>
+          <Icon name="arrow-forward" size={18} color={C.primary} />
+        </View>
       </Pressable>
     );
   }
@@ -111,16 +166,21 @@ export function ConversationItem({
       .then(reload)
       .catch((e) => st.toast(e.message));
   return (
-    <View style={s.card}>
-      <Text style={s.eyebrow}>DATE IDEA · {m.state.toUpperCase()}</Text>
+    <View style={[styles.connection, { backgroundColor: C.peach }]}>
+      <View style={[s.row, { marginBottom: 14 }]}>
+        <Icon name="calendar-outline" size={21} color={C.primary} />
+        <Text style={s.small}>A date idea · {m.state}</Text>
+      </View>
       <Text style={s.h2}>{m.title}</Text>
-      <Text style={s.body}>{m.venue || "Location to decide together"}</Text>
-      <Text style={[s.small, { marginVertical: 12 }]}>
+      <Text style={[s.body, { marginTop: 8 }]}>
+        {m.venue || "Find a place together"}
+      </Text>
+      <Text style={[s.small, { marginVertical: 14 }]}>
         {new Date(m.scheduled_at).toLocaleString()} ·{" "}
         {Intl.DateTimeFormat().resolvedOptions().timeZone}
       </Text>
       {m.state === "proposed" && m.guest === st.data?.me.id && (
-        <View style={s.wrap}>
+        <View style={{ gap: 10 }}>
           <Button title="Sounds lovely" onPress={() => void act("accepted")} />
           <Button
             title="Another time"
@@ -132,8 +192,9 @@ export function ConversationItem({
       {["proposed", "accepted"].includes(m.state) && (
         <Pressable
           accessibilityRole="button"
+          accessibilityLabel="Cancel date"
           onPress={() => void act("cancelled")}
-          style={{ paddingTop: 16 }}
+          style={{ paddingTop: 16, minHeight: 44 }}
         >
           <Text style={[s.small, s.danger]}>Cancel date</Text>
         </Pressable>
@@ -141,3 +202,50 @@ export function ConversationItem({
     </View>
   );
 }
+const styles = StyleSheet.create({
+  bubble: {
+    maxWidth: "86%",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 20,
+    marginBottom: 10,
+  },
+  sent: {
+    alignSelf: "flex-end",
+    backgroundColor: C.blush,
+    borderBottomRightRadius: 6,
+  },
+  received: {
+    alignSelf: "flex-start",
+    backgroundColor: C.white,
+    borderBottomLeftRadius: 6,
+  },
+  message: { fontSize: 16, lineHeight: 24, color: C.ink },
+  time: { fontSize: 10, lineHeight: 14, color: C.muted, marginTop: 6 },
+  snap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    width: "86%",
+    backgroundColor: C.lavender,
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 12,
+  },
+  snapIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: C.white,
+  },
+  snapTitle: { fontSize: 15, fontWeight: "500", color: C.ink },
+  connection: {
+    borderRadius: 18,
+    padding: 22,
+    width: "92%",
+    alignSelf: "center",
+    marginVertical: 12,
+  },
+});
