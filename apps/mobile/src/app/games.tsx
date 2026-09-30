@@ -1,16 +1,15 @@
 import React, { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useIsFocused, useLocalSearchParams } from "expo-router";
 import { useStore } from "../lib/store";
 import { useGameReady } from "../lib/useGameReady";
 import {
   Avatar,
+  BottomSheet,
   Button,
   C,
   Empty,
-  Header,
   Icon,
-  Page,
   s,
 } from "../components/ui";
 export default function Games() {
@@ -19,12 +18,16 @@ export default function Games() {
 }
 function GameLobby({ target }: { target: string }) {
   const st = useStore();
+  const focused = useIsFocused();
   const { enabled, presence, update } = useGameReady(target);
   const [busy, setBusy] = useState(false);
   const person = st.data?.matches.find((p) => p.id === target);
   return (
-    <Page>
-      <Header back title="Dating games" action={<View />} />
+    <BottomSheet
+      visible={focused}
+      onClose={() => router.back()}
+      title="Dating games"
+    >
       {!person ? (
         <Empty
           icon="people-outline"
@@ -86,6 +89,9 @@ function GameLobby({ target }: { target: string }) {
                 key={game.id}
                 accessibilityRole="button"
                 accessibilityLabel={`Invite to ${game.title}`}
+                accessibilityState={{
+                  disabled: busy || !presence.self || !presence.partner,
+                }}
                 disabled={busy || !presence.self || !presence.partner}
                 onPress={async () => {
                   setBusy(true);
@@ -116,14 +122,33 @@ function GameLobby({ target }: { target: string }) {
                 <Text style={[s.h2, { marginTop: 24 }]}>{game.title}</Text>
                 <Text style={[s.body, { marginTop: 8 }]}>{game.subtitle}</Text>
                 <View style={[s.row, { marginTop: 24 }]}>
-                  <Text style={[s.label, { flex: 1, color: C.primary }]}>
+                  <Text
+                    style={[
+                      s.label,
+                      {
+                        flex: 1,
+                        color:
+                          !busy && presence.self && presence.partner
+                            ? C.primary
+                            : C.muted,
+                      },
+                    ]}
+                  >
                     {busy
                       ? "Sending…"
                       : presence.self && presence.partner
                         ? "Invite to play"
                         : "Both players need to be ready"}
                   </Text>
-                  <Icon name="arrow-forward" size={20} color={C.primary} />
+                  <Icon
+                    name="arrow-forward"
+                    size={20}
+                    color={
+                      !busy && presence.self && presence.partner
+                        ? C.primary
+                        : C.muted
+                    }
+                  />
                 </View>
               </Pressable>
             ))}
@@ -134,7 +159,7 @@ function GameLobby({ target }: { target: string }) {
           </Text>
         </>
       )}
-    </Page>
+    </BottomSheet>
   );
 }
 const styles = StyleSheet.create({

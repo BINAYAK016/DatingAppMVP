@@ -41,7 +41,9 @@ test("two matches explicitly become ready, invite, accept and reveal a live game
     await expect(
       page.getByText("Your invitation is waiting", { exact: true }),
     ).toBeVisible();
-    await guest.getByRole("button", { name: "Go back", exact: true }).click();
+    await guest
+      .getByRole("button", { name: "Close sheet", exact: true })
+      .click();
     await guest
       .getByRole("button", { name: "This or that · invited", exact: true })
       .click();

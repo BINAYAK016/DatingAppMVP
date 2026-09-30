@@ -38,7 +38,16 @@ function Shell() {
           contentStyle: { backgroundColor: C.bg },
           animation: reduced ? "none" : "slide_from_right",
         }}
-      />
+      >
+        <Stack.Screen
+          name="games"
+          options={{
+            presentation: "transparentModal",
+            animation: "none",
+            contentStyle: { backgroundColor: "transparent" },
+          }}
+        />
+      </Stack>
       {!!notice && (
         <View
           pointerEvents="none"
