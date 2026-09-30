@@ -226,13 +226,20 @@ export function PersonImage({
 export function Video({
   id,
   style,
+  allowFullscreen = true,
 }: {
   id: string;
   style?: StyleProp<ViewStyle>;
+  allowFullscreen?: boolean;
 }) {
   const { url, token } = useStore();
   return Platform.OS === "web" ? (
-    <BrowserPrivateVideo key={`${url}:${id}:${token}`} id={id} style={style} />
+    <BrowserPrivateVideo
+      key={`${url}:${id}:${token}`}
+      id={id}
+      style={style}
+      allowFullscreen={allowFullscreen}
+    />
   ) : (
     <VideoPlayerFrame
       source={{
@@ -240,15 +247,18 @@ export function Video({
         headers: { Authorization: `Bearer ${token}` },
       }}
       style={style}
+      allowFullscreen={allowFullscreen}
     />
   );
 }
 function BrowserPrivateVideo({
   id,
   style,
+  allowFullscreen,
 }: {
   id: string;
   style?: StyleProp<ViewStyle>;
+  allowFullscreen: boolean;
 }) {
   const { url, token } = useStore();
   const [uri, setUri] = useState<string | null>(null);
@@ -279,7 +289,11 @@ function BrowserPrivateVideo({
     };
   }, [url, token, id, attempt]);
   return uri ? (
-    <VideoPlayerFrame source={uri} style={style} />
+    <VideoPlayerFrame
+      source={uri}
+      style={style}
+      allowFullscreen={allowFullscreen}
+    />
   ) : (
     <View
       style={[
@@ -309,9 +323,11 @@ function BrowserPrivateVideo({
 function VideoPlayerFrame({
   source,
   style,
+  allowFullscreen,
 }: {
   source: VideoSource;
   style?: StyleProp<ViewStyle>;
+  allowFullscreen: boolean;
 }) {
   const player = useVideoPlayer(source, (p) => {
     p.loop = false;
@@ -321,6 +337,7 @@ function VideoPlayerFrame({
       player={player}
       style={style || s.media}
       nativeControls
+      fullscreenOptions={{ enable: allowFullscreen }}
       contentFit="contain"
     />
   );
@@ -396,17 +413,19 @@ export function Media({
   kind = "image",
   style,
   resizeMode = "cover",
+  allowFullscreen = true,
 }: {
   id: string;
   kind?: string;
   style?: StyleProp<ImageStyle>;
   resizeMode?: React.ComponentProps<typeof Image>["resizeMode"];
+  allowFullscreen?: boolean;
 }) {
   const [loadVideo, setLoadVideo] = useState(false);
   const visible = useMediaVisible();
   return kind === "video" ? (
     loadVideo && visible ? (
-      <Video id={id} style={style} />
+      <Video id={id} style={style} allowFullscreen={allowFullscreen} />
     ) : (
       <View
         style={[

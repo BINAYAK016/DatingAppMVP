@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { AppState, FlatList, Text, View, ViewToken } from "react-native";
+import React, { useCallback, useRef, useState } from "react";
+import { FlatList, Text, View, ViewToken } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useFocusEffect } from "expo-router";
+import { router } from "expo-router";
 import {
   Button,
   C,
@@ -15,6 +15,7 @@ import {
 import { PostCard } from "../../components/PostCard";
 import { useStore } from "../../lib/store";
 import { Post } from "../../lib/types";
+import { useMediaVisible } from "../../lib/useMediaVisible";
 
 export default function Sangai() {
   const { token } = useStore();
@@ -22,23 +23,8 @@ export default function Sangai() {
 }
 function SangaiFeed() {
   const st = useStore();
-  const [focused, setFocused] = useState(false);
-  const [foreground, setForeground] = useState(
-    AppState.currentState === "active",
-  );
+  const visible = useMediaVisible();
   const [activeId, setActiveId] = useState<string | null>(null);
-  useFocusEffect(
-    useCallback(() => {
-      setFocused(true);
-      return () => setFocused(false);
-    }, []),
-  );
-  useEffect(() => {
-    const subscription = AppState.addEventListener("change", (state) =>
-      setForeground(state === "active"),
-    );
-    return () => subscription.remove();
-  }, []);
   const [viewabilityConfig] = useState(() => ({
     itemVisiblePercentThreshold: 65,
     minimumViewTime: 250,
@@ -104,10 +90,7 @@ function SangaiFeed() {
         data={posts}
         keyExtractor={(p) => p.id}
         renderItem={({ item }) => (
-          <PostCard
-            post={item}
-            active={item.id === activeId && focused && foreground}
-          />
+          <PostCard post={item} active={item.id === activeId && visible} />
         )}
         viewabilityConfig={viewabilityConfig}
         onViewableItemsChanged={onViewableItemsChanged}

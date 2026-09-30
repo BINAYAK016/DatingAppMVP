@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { AppState } from "react-native";
+import { AppState, Platform } from "react-native";
 import { useFocusEffect } from "expo-router";
 export function useMediaVisible() {
   const [focused, setFocused] = useState(false);
@@ -18,5 +18,7 @@ export function useMediaVisible() {
     );
     return () => subscription.remove();
   }, []);
-  return focused && foreground;
+  // Android fullscreen pauses the React Activity, but still owns this player.
+  // Expo handles real background playback pause; route blur still unmounts it.
+  return focused && (Platform.OS === "android" || foreground);
 }

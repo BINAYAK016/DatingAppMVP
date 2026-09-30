@@ -447,6 +447,7 @@ export default function Chat() {
                   id={snap.mediaId}
                   kind={snap.kind}
                   style={styles.snapPhoto}
+                  allowFullscreen={Platform.OS !== "android"}
                 />
               ) : (
                 <PrivateImage

@@ -83,10 +83,20 @@ function Player({ source }: { source: VideoSource }) {
   });
   useEventListener(player, "statusChange", ({ status }) => {
     // On web the setup callback runs before VideoView mounts its media element.
-    if (status === "readyToPlay" && !manualPaused.current) player.play();
+    if (
+      Platform.OS === "web" &&
+      status === "readyToPlay" &&
+      !manualPaused.current
+    )
+      player.play();
   });
   useEffect(() => {
-    if (player.status === "readyToPlay" && !manualPaused.current) player.play();
+    if (
+      Platform.OS === "web" &&
+      player.status === "readyToPlay" &&
+      !manualPaused.current
+    )
+      player.play();
   }, [player]);
   return (
     <View style={styles.frame}>
