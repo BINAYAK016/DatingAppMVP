@@ -1,10 +1,18 @@
 import React, { useState } from "react";
-import { Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useStore } from "../lib/store";
 import { useGameReady } from "../lib/useGameReady";
-import { Button, C, Empty, Header, Page, s } from "../components/ui";
-
+import {
+  Avatar,
+  Button,
+  C,
+  Empty,
+  Header,
+  Icon,
+  Page,
+  s,
+} from "../components/ui";
 export default function Games() {
   const { target = "" } = useLocalSearchParams<{ target?: string }>();
   return <GameLobby key={target} target={target} />;
@@ -16,49 +24,68 @@ function GameLobby({ target }: { target: string }) {
   const person = st.data?.matches.find((p) => p.id === target);
   return (
     <Page>
-      <Header back title="Dating games" eyebrow="LESS SMALL TALK. MORE YOU." />
+      <Header back title="Dating games" action={<View />} />
       {!person ? (
         <Empty
+          icon="people-outline"
           title="It takes two"
           body="Open a match’s conversation to invite them to a game."
         />
       ) : (
         <>
-          <View style={[s.card, { backgroundColor: C.lavender }]}>
-            <Text style={s.h2}>A little play, with {person.name}</Text>
-            <Text style={[s.body, { marginVertical: 12 }]}>
-              Ready to play is shared only with this match. It expires within 45
-              seconds of leaving games or going offline.
-            </Text>
-            <Button
-              title={enabled ? "Stop being ready" : "I’m Ready to play"}
-              secondary
-              onPress={() => void update(!enabled)}
-            />
-            <Text
-              accessibilityLiveRegion="polite"
-              style={[s.small, { marginTop: 14 }]}
-            >
-              {presence.partner
-                ? `${person.name} is ready with you.`
-                : `${person.name} hasn’t marked ready with you yet.`}
-            </Text>
+          <View style={styles.pair}>
+            <Avatar person={st.data!.me} size={68} />
+            <View style={styles.between}>
+              <Icon name="sparkles-outline" color={C.primary} size={22} />
+            </View>
+            <Avatar person={person} size={68} />
           </View>
-          {st.data?.games.map((game, i) => (
-            <View
-              key={game.id}
-              style={[
-                s.card,
-                { backgroundColor: [C.blush, C.peach, C.lavender][i] },
-              ]}
-            >
-              <Text style={{ fontSize: 30 }}>{game.emoji}</Text>
-              <Text style={[s.h2, { marginTop: 12 }]}>{game.title}</Text>
-              <Text style={[s.body, { marginVertical: 14 }]}>
-                {game.subtitle}
+          <Text style={styles.headline}>
+            Less small talk.{"\n"}More you two.
+          </Text>
+          <Text
+            style={[
+              s.body,
+              { textAlign: "center", marginTop: 12, marginBottom: 28 },
+            ]}
+          >
+            A little curiosity, together with {person.name}.
+          </Text>
+          <View style={styles.ready}>
+            <View style={{ flex: 1 }}>
+              <Text style={s.label}>Ready to play?</Text>
+              <Text
+                accessibilityLiveRegion="polite"
+                style={[s.small, { marginTop: 6 }]}
+              >
+                {presence.partner
+                  ? `${person.name} is ready with you.`
+                  : `${person.name} hasn’t marked ready with you yet.`}
               </Text>
-              <Button
-                title={`Invite to ${game.title}`}
+            </View>
+            <View
+              style={[
+                styles.dot,
+                presence.self && { backgroundColor: C.primary },
+              ]}
+            />
+          </View>
+          <Button
+            title={enabled ? "Stop being ready" : "I’m Ready to play"}
+            secondary
+            onPress={() => void update(!enabled)}
+          />
+          <Text style={[s.small, { marginTop: 12, marginBottom: 28 }]}>
+            Only this match sees your temporary status. It expires within 45
+            seconds of leaving or going offline.
+          </Text>
+          <Text style={[s.h2, { marginBottom: 16 }]}>Pick your icebreaker</Text>
+          <View style={{ gap: 16 }}>
+            {st.data?.games.map((game, i) => (
+              <Pressable
+                key={game.id}
+                accessibilityRole="button"
+                accessibilityLabel={`Invite to ${game.title}`}
                 disabled={busy || !presence.self || !presence.partner}
                 onPress={async () => {
                   setBusy(true);
@@ -76,15 +103,65 @@ function GameLobby({ target }: { target: string }) {
                     setBusy(false);
                   }
                 }}
-              />
-            </View>
-          ))}
-          <Text style={[s.small, { textAlign: "center" }]}>
-            Your match still needs to accept. Invitations expire after two
-            minutes. Four more standard games will follow in the next increment.
+                style={({ pressed }) => [
+                  styles.game,
+                  {
+                    backgroundColor: [C.blush, C.peach, C.lavender][i % 3],
+                    opacity: pressed ? 0.8 : 1,
+                  },
+                ]}
+              >
+                <Text style={styles.gameNumber}>0{i + 1}</Text>
+                <Text style={styles.gameEmoji}>{game.emoji}</Text>
+                <Text style={[s.h2, { marginTop: 24 }]}>{game.title}</Text>
+                <Text style={[s.body, { marginTop: 8 }]}>{game.subtitle}</Text>
+                <View style={[s.row, { marginTop: 24 }]}>
+                  <Text style={[s.label, { flex: 1, color: C.primary }]}>
+                    {busy
+                      ? "Sending…"
+                      : presence.self && presence.partner
+                        ? "Invite to play"
+                        : "Both players need to be ready"}
+                  </Text>
+                  <Icon name="arrow-forward" size={20} color={C.primary} />
+                </View>
+              </Pressable>
+            ))}
+          </View>
+          <Text style={[s.small, { textAlign: "center", marginTop: 24 }]}>
+            Every game starts with an accepted invitation. Invites expire after
+            two minutes.
           </Text>
         </>
       )}
     </Page>
   );
 }
+const styles = StyleSheet.create({
+  pair: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 12,
+  },
+  between: { width: 56, alignItems: "center" },
+  headline: {
+    color: C.ink,
+    fontSize: 32,
+    lineHeight: 39,
+    fontWeight: "600",
+    textAlign: "center",
+    letterSpacing: -0.8,
+    marginTop: 24,
+  },
+  ready: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+    marginBottom: 16,
+  },
+  dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: C.line },
+  game: { padding: 24, borderRadius: 18 },
+  gameNumber: { fontSize: 11, color: C.muted, letterSpacing: 1.5 },
+  gameEmoji: { position: "absolute", right: 24, top: 22, fontSize: 30 },
+});
