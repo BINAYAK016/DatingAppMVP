@@ -43,6 +43,25 @@ export default function Chat() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const conversationScroll = useRef<ScrollView>(null);
   const followNewest = useRef(true);
+  const userScrolling = useRef(false);
+  const followEnd = useCallback(() => {
+    if (!followNewest.current || userScrolling.current) return;
+    requestAnimationFrame(() => {
+      if (followNewest.current && !userScrolling.current)
+        conversationScroll.current?.scrollToEnd({ animated: false });
+    });
+  }, []);
+  const trackScroll = (nativeEvent: {
+    contentSize: { height: number };
+    layoutMeasurement: { height: number };
+    contentOffset: { y: number };
+  }) => {
+    followNewest.current =
+      nativeEvent.contentSize.height -
+        nativeEvent.layoutMeasurement.height -
+        nativeEvent.contentOffset.y <
+      100;
+  };
   const pending = useRef<{ text: string; id: string } | null>(null);
   const load = useCallback(async () => {
     try {
@@ -160,18 +179,27 @@ export default function Chat() {
         </View>
         <ScrollView
           ref={conversationScroll}
+          onScrollBeginDrag={() => {
+            userScrolling.current = true;
+          }}
           onScroll={({ nativeEvent }) => {
-            followNewest.current =
-              nativeEvent.contentSize.height -
-                nativeEvent.layoutMeasurement.height -
-                nativeEvent.contentOffset.y <
-              100;
+            if (Platform.OS === "web" || userScrolling.current)
+              trackScroll(nativeEvent);
+          }}
+          onScrollEndDrag={({ nativeEvent }) => {
+            trackScroll(nativeEvent);
+            userScrolling.current = false;
+          }}
+          onMomentumScrollBegin={() => {
+            userScrolling.current = true;
+          }}
+          onMomentumScrollEnd={({ nativeEvent }) => {
+            trackScroll(nativeEvent);
+            userScrolling.current = false;
           }}
           scrollEventThrottle={100}
-          onContentSizeChange={() => {
-            if (followNewest.current)
-              conversationScroll.current?.scrollToEnd({ animated: false });
-          }}
+          onLayout={followEnd}
+          onContentSizeChange={followEnd}
           contentContainerStyle={styles.messages}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
