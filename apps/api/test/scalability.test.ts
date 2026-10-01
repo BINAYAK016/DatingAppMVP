@@ -364,7 +364,18 @@ test("state query count stays constant as matches, posts, visible commenters and
   }
   for (let i = 0; i < 29; i++) await post();
   const large = await measured(() => social.state(actor));
-  assert.equal(large.result.matches.length, 41);
+  assert.equal(large.result.matches.length, 30);
+  const remaining = await social.matchesPage(
+    actor,
+    large.result.matchesNextCursor.afterName,
+    large.result.matchesNextCursor.afterId,
+  );
+  assert.equal(remaining.items.length, 11);
+  assert.equal(
+    new Set([...large.result.matches, ...remaining.items].map((p) => p.id))
+      .size,
+    41,
+  );
   assert.equal(large.result.feed.length, 30);
   assert.equal(large.result.feed.find((p: any) => p.id === first).likes, 41);
   assert.equal(large.queries, small.queries);

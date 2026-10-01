@@ -282,18 +282,26 @@ export async function state(actor: string) {
         features: { gamesV2: gamesV2Enabled() },
       };
     const discover = await candidates(db, actor);
-    const matches = await projectMatches(db, actor, await matchRows(db, actor));
-    const stories = await projectStories(db, await storyRows(db, actor, 200));
+    const matchHead = await matchRows(db, actor, undefined, undefined, 31);
+    const matches = await projectMatches(db, actor, matchHead.slice(0, 30));
+    const lastMatch = matches.at(-1);
+    const storyHead = timePage(await storyRows(db, actor, 31), 30);
+    const stories = await projectStories(db, storyHead.items);
     const notifications = (await notificationRows(db, actor, 50)).map(
       ({ cursor_created_at, ...n }) => n,
     );
     return {
       me,
       matches,
+      matchesNextCursor:
+        matchHead.length > 30 && lastMatch
+          ? { afterName: lastMatch.name, afterId: lastMatch.id }
+          : null,
       discover,
       undoId: await lastUndo(db, actor),
       feed: await feed(db, actor),
       stories,
+      storiesNextCursor: storyHead.nextCursor,
       notifications,
       games: gameCatalog,
       features: { gamesV2: gamesV2Enabled() },

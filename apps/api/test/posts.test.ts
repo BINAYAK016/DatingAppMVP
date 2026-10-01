@@ -1,3 +1,4 @@
+import { legacyDemoFixture } from "./legacy-demo-fixture";
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, ChildProcess } from "node:child_process";
@@ -77,6 +78,7 @@ before(async () => {
       PORT: String(port),
       DATABASE_URL: url.toString(),
       ENABLE_DEMO: "true",
+      DEMO_MODE: "true",
       // This validation/privacy suite intentionally exceeds ten post attempts
       // per minute. Dedicated security tests exercise limiter boundaries; keep
       // the application's default quota unchanged and raise only this child.
@@ -101,6 +103,7 @@ before(async () => {
     await new Promise((r) => setTimeout(r, 200));
   }
   assert.ok(ready, logs);
+  await legacyDemoFixture(db, api, dbName);
   for (const id of ids) {
     const result = await call("/auth/demo", undefined, { id });
     assert.equal(result.status, 201);

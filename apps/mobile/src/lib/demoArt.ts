@@ -1,11 +1,16 @@
-import { ImageSourcePropType } from "react-native";
+// Illustrations contain no photographs or real identities. Private seeded
+// avatar media takes priority; this palette is used only for fictional users.
+const palettes = [
+  { background: "#F8E9DE", shirt: "#AA536B", skin: "#D69C7A", hair: "#44353E" },
+  { background: "#EFEBF5", shirt: "#7D729A", skin: "#C88966", hair: "#3B323D" },
+  { background: "#E7EEE7", shirt: "#65806D", skin: "#B77E60", hair: "#493C39" },
+  { background: "#F7E6E9", shirt: "#BD7D64", skin: "#E0AF8D", hair: "#59413C" },
+];
 
-// Bundled artwork is restricted to the server's explicitly fictional fixtures.
-// Real account photos always use authenticated media; missing photos stay empty.
-export const demoPortraits: Record<string, ImageSourcePropType> = {
-  "10000000-0000-4000-8000-000000000001": require("../../assets/demo/aarav.jpg"),
-  "10000000-0000-4000-8000-000000000002": require("../../assets/demo/anaya.jpg"),
-  "10000000-0000-4000-8000-000000000003": require("../../assets/demo/samira.jpg"),
-  "10000000-0000-4000-8000-000000000004": require("../../assets/demo/rohan.jpg"),
-  "10000000-0000-4000-8000-000000000005": require("../../assets/demo/nisha.jpg"),
-};
+export function demoPalette(id?: string) {
+  const hash = [...(id || "demo")].reduce(
+    (value, char) => value + char.charCodeAt(0),
+    0,
+  );
+  return palettes[hash % palettes.length];
+}

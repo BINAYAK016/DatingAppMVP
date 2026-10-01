@@ -533,6 +533,15 @@ export async function catalog(actor: string, target?: string) {
   });
 }
 export async function invite(actor: string, target: string, body: unknown) {
+  return tx((db) => inviteGameV2InTx(db, actor, target, body));
+}
+export async function inviteGameV2InTx(
+  db: DB,
+  actor: string,
+  target: string,
+  body: unknown,
+  gameId: string = randomUUID(),
+) {
   requireEnabled();
   const input = z
     .object({ kind: text(40), clientId: text(100) })
@@ -540,65 +549,64 @@ export async function invite(actor: string, target: string, body: unknown) {
     .parse(body);
   const d = definitionFor(input.kind);
   if (!d) throw new BadRequestException("Unknown game.");
-  return tx(async (db) => {
-    await lockPair(db, actor, target);
-    const signature = hash({ target, kind: input.kind });
-    const replay = await one(
-      db,
-      "SELECT * FROM games WHERE host=$1 AND client_id=$2 AND version=2 FOR UPDATE",
-      [actor, input.clientId],
-    );
-    if (replay) {
-      if (replay.invite_hash !== signature)
-        throw new ConflictException(
-          "Retry this invitation with its original choices.",
-        );
-      await reconcile(db, replay);
-      return projectGameV2(replay, actor);
-    }
-    const expired = await rows(
-      db,
-      "SELECT * FROM games WHERE version=2 AND LEAST(host,guest)=LEAST($1::uuid,$2::uuid) AND GREATEST(host,guest)=GREATEST($1::uuid,$2::uuid) AND state IN ('invited','active') AND expires_at<=now() ORDER BY created_at LIMIT 20 FOR UPDATE",
-      [actor, target],
-    );
-    for (const old of expired) await reconcile(db, old);
-    await db.query(
-      "UPDATE games SET state='expired',updated_at=now() WHERE version<>2 AND ((host=$1 AND guest=$2) OR (host=$2 AND guest=$1)) AND state IN ('invited','active') AND expires_at<=now()",
-      [actor, target],
-    );
-    const prior = await one(
-      db,
-      "SELECT id FROM games WHERE ((host=$1 AND guest=$2) OR (host=$2 AND guest=$1)) AND state IN ('invited','active') AND expires_at>now()",
-      [actor, target],
-    );
-    if (prior)
-      throw new ConflictException("Resume or cancel your current game first.");
-    const g = await one(
-      db,
-      "INSERT INTO games(id,host,guest,kind,version,definition_version,expires_at,client_id,invite_hash,state_data) VALUES($1,$2,$3,$4,2,$5,now()+interval '24 hours',$6,$7,$8) RETURNING *",
-      [
-        randomUUID(),
-        actor,
-        target,
-        d.id,
-        d.definitionVersion,
-        input.clientId,
-        signature,
-        JSON.stringify(initialGameData(actor, target, d)),
-      ],
-    );
-    await event(db, g, actor, "invited", input.clientId, { kind: d.id });
-    await save(db, g);
-    await notification(
-      db,
-      g,
-      target,
+
+  await lockPair(db, actor, target);
+  const signature = hash({ target, kind: input.kind });
+  const replay = await one(
+    db,
+    "SELECT * FROM games WHERE host=$1 AND client_id=$2 AND version=2 FOR UPDATE",
+    [actor, input.clientId],
+  );
+  if (replay) {
+    if (replay.invite_hash !== signature)
+      throw new ConflictException(
+        "Retry this invitation with its original choices.",
+      );
+    await reconcile(db, replay);
+    return projectGameV2(replay, actor);
+  }
+  const expired = await rows(
+    db,
+    "SELECT * FROM games WHERE version=2 AND LEAST(host,guest)=LEAST($1::uuid,$2::uuid) AND GREATEST(host,guest)=GREATEST($1::uuid,$2::uuid) AND state IN ('invited','active') AND expires_at<=now() ORDER BY created_at LIMIT 20 FOR UPDATE",
+    [actor, target],
+  );
+  for (const old of expired) await reconcile(db, old);
+  await db.query(
+    "UPDATE games SET state='expired',updated_at=now() WHERE version<>2 AND ((host=$1 AND guest=$2) OR (host=$2 AND guest=$1)) AND state IN ('invited','active') AND expires_at<=now()",
+    [actor, target],
+  );
+  const prior = await one(
+    db,
+    "SELECT id FROM games WHERE ((host=$1 AND guest=$2) OR (host=$2 AND guest=$1)) AND state IN ('invited','active') AND expires_at>now()",
+    [actor, target],
+  );
+  if (prior)
+    throw new ConflictException("Resume or cancel your current game first.");
+  const g = await one(
+    db,
+    "INSERT INTO games(id,host,guest,kind,version,definition_version,expires_at,client_id,invite_hash,state_data) VALUES($1,$2,$3,$4,2,$5,now()+interval '24 hours',$6,$7,$8) RETURNING *",
+    [
+      gameId,
       actor,
-      "invited",
-      `A match invited you to ${d.title}.`,
-    );
-    return projectGameV2(g, actor);
-  });
+      target,
+      d.id,
+      d.definitionVersion,
+      input.clientId,
+      signature,
+      JSON.stringify(initialGameData(actor, target, d)),
+    ],
+  );
+  await event(db, g, actor, "invited", input.clientId, { kind: d.id });
+  await save(db, g);
+  await notification(
+    db,
+    g,
+    target,
+    actor,
+    "invited",
+    `A match invited you to ${d.title}.`,
+  );
+  return projectGameV2(g, actor);
 }
 export async function read(actor: string, id: string) {
   return tx(async (db) => {
@@ -806,52 +814,59 @@ export function applyGameAction(
   throw new ForbiddenException("Wait for your turn.");
 }
 export async function action(actor: string, id: string, body: unknown) {
+  return tx((db) => actionGameV2InTx(db, actor, id, body));
+}
+export async function actionGameV2InTx(
+  db: DB,
+  actor: string,
+  id: string,
+  body: unknown,
+) {
   const input = envelope.parse(body);
   if (input.action !== "cancel") requireEnabled();
-  return tx(async (db) => {
-    const g = await load(db, actor, id);
-    await reconcile(db, g);
-    const replay = await one(
-      db,
-      "SELECT payload_hash FROM game_events WHERE game_id=$1 AND actor=$2 AND client_id=$3",
-      [id, actor, input.clientId],
-    );
-    if (replay) {
-      if (
-        replay.payload_hash !==
-        hash({ action: input.action, payload: input.payload })
-      )
-        throw new ConflictException(
-          "Retry this action with its original answer.",
-        );
-      return projectGameV2(g, actor);
-    }
-    if (g.revision !== input.expectedRevision)
-      throw new ConflictException("Your game changed. Refresh and try again.");
-    const payload = applyGameAction(g, actor, input.action, input.payload);
-    // Store the submitted canonical envelope hash for byte-order-independent
-    // retries. The validated bounded payload is private, never a public event.
-    if (JSON.stringify(payload).length > 4000)
-      throw new BadRequestException("Game answer is too long.");
-    await event(
-      db,
-      g,
-      actor,
-      input.action,
-      input.clientId,
-      payload,
-      hash({ action: input.action, payload: input.payload }),
-    );
-    await save(db, g);
-    if (input.action === "accept")
-      await notification(
-        db,
-        g,
-        g.host,
-        actor,
-        "accepted",
-        "Your match accepted your game invitation.",
+
+  const g = await load(db, actor, id);
+  await reconcile(db, g);
+  const replay = await one(
+    db,
+    "SELECT payload_hash FROM game_events WHERE game_id=$1 AND actor=$2 AND client_id=$3",
+    [id, actor, input.clientId],
+  );
+  if (replay) {
+    if (
+      replay.payload_hash !==
+      hash({ action: input.action, payload: input.payload })
+    )
+      throw new ConflictException(
+        "Retry this action with its original answer.",
       );
     return projectGameV2(g, actor);
-  });
+  }
+  if (g.revision !== input.expectedRevision)
+    throw new ConflictException("Your game changed. Refresh and try again.");
+  const payload = applyGameAction(g, actor, input.action, input.payload);
+  // Store the submitted canonical envelope hash for byte-order-independent
+  // retries. The validated bounded payload is private, never a public event.
+  if (JSON.stringify(payload).length > 4000)
+    throw new BadRequestException("Game answer is too long.");
+  await event(
+    db,
+    g,
+    actor,
+    input.action,
+    input.clientId,
+    payload,
+    hash({ action: input.action, payload: input.payload }),
+  );
+  await save(db, g);
+  if (input.action === "accept")
+    await notification(
+      db,
+      g,
+      g.host,
+      actor,
+      "accepted",
+      "Your match accepted your game invitation.",
+    );
+  return projectGameV2(g, actor);
 }

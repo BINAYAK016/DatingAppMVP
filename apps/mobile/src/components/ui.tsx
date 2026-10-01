@@ -29,7 +29,7 @@ import { useVideoPlayer, VideoView, VideoSource } from "expo-video";
 import { useStore } from "../lib/store";
 import { useMediaVisible } from "../lib/useMediaVisible";
 import { Person } from "../lib/types";
-import { demoPortraits } from "../lib/demoArt";
+import { DemoAvatarArt } from "./DemoAvatarArt";
 import { useReducedMotion } from "../lib/useReducedMotion";
 export const C = {
   bg: "#FFFBF8",
@@ -210,17 +210,8 @@ export function PersonImage({
   ];
   if (person.avatar_id)
     return <PrivateImage id={person.avatar_id} style={frame} />;
-  const artwork =
-    person.demo && person.id ? demoPortraits[person.id] : undefined;
-  if (artwork)
-    return (
-      <Image
-        source={artwork}
-        style={frame}
-        resizeMode="cover"
-        accessibilityLabel={`${person.name} · fictional demo portrait`}
-      />
-    );
+  if (person.demo)
+    return <DemoAvatarArt person={person} style={frame as StyleProp<ViewStyle>} />;
   return (
     <LinearGradient
       colors={[person.color || C.peach, C.blush]}

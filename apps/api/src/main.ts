@@ -59,6 +59,7 @@ import {
   purgeRateLimits,
 } from "./rate-limit";
 import { seed } from "./seed";
+import { demoConfig, demoUsersPage, resetDemoWorld } from "./demoWorld";
 import { dispatchPush } from "./push";
 import { text, uuid } from "./validation";
 import { metricsSnapshot, requestMetrics } from "./observability";
@@ -103,6 +104,29 @@ class ApiController {
   }
   @Get("v1/auth/demo") demo() {
     return demoAccounts();
+  }
+  @Get("v1/demo/config") demoConfig() {
+    return demoConfig();
+  }
+  @Get("v1/demo/users") demoUsers(@Query() query: Record<string, string>) {
+    const input = z
+      .object({
+        group: z.enum(["men", "women", "lgbtq"]).optional(),
+        limit: z.coerce.number().int().min(1).max(10).default(6),
+        cursor: z.string().max(240).optional(),
+      })
+      .strict()
+      .parse(query);
+    return demoUsersPage(input);
+  }
+  @Post("v1/demo/reset") resetDemo(
+    @Req() r: AuthRequest,
+    @Body() body: unknown,
+  ) {
+    z.object({ confirm: z.literal(true) })
+      .strict()
+      .parse(body);
+    return resetDemoWorld(r.actor);
   }
   @Post("v1/auth/demo") demoSignIn(@Body() b: any) {
     return demoLogin(uuid.parse(b.id));
@@ -176,6 +200,21 @@ class ApiController {
   }
   @Get("v1/state") state(@Req() r: AuthRequest) {
     return social.state(r.actor);
+  }
+  @Get("v1/discovery") discoveryPage(
+    @Req() r: AuthRequest,
+    @Query() query: Record<string, string>,
+  ) {
+    const input = z
+      .object({
+        cursor: z.string().max(240).optional(),
+        limit: z.coerce.number().int().min(1).max(10).default(8),
+      })
+      .strict()
+      .parse(query);
+    return readTx((db) =>
+      discovery.candidatesPage(db, r.actor, input.cursor, input.limit),
+    );
   }
   @Get("v1/feed") getFeed(
     @Req() r: AuthRequest,
@@ -783,6 +822,11 @@ export async function bootstrap() {
         return next();
       }
       if (routePath.startsWith("/v1/auth")) return next();
+      if (
+        req.method === "GET" &&
+        ["/v1/demo/config", "/v1/demo/users"].includes(routePath)
+      )
+        return next();
       req.actor = await authenticate(req.headers.authorization);
       const setupRoutes = [
         "/v1/state",

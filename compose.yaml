@@ -26,6 +26,7 @@ services:
       NODE_ENV: development
       DATABASE_URL: postgres://sangai:${POSTGRES_PASSWORD:-local-beta-only}@db:5432/sangai
       ENABLE_DEMO: ${ENABLE_DEMO:-true}
+      DEMO_MODE: ${DEMO_MODE:-true}
       ENABLE_PUSH: ${ENABLE_PUSH:-false}
       ENABLE_GAMES_V2: ${ENABLE_GAMES_V2:-true}
       MAX_UPLOAD_REQUESTS: ${MAX_UPLOAD_REQUESTS:-4}

@@ -15,7 +15,7 @@ import {
 import { useStore } from "../../lib/store";
 
 export default function ChatList() {
-  const { data, refresh } = useStore();
+  const { data, refresh, loadMoreMatches, loadMoreStories, toast } = useStore();
   const [refreshing, setRefreshing] = useState(false);
   const available = (data?.stories || []).filter(
     (story) => new Date(story.expires_at) > new Date(),
@@ -34,6 +34,10 @@ export default function ChatList() {
         initialNumToRender={7}
         maxToRenderPerBatch={5}
         windowSize={5}
+        onEndReached={() =>
+          void loadMoreMatches().catch((error) => toast(error.message))
+        }
+        onEndReachedThreshold={0.3}
         showsVerticalScrollIndicator={false}
         refreshing={refreshing}
         onRefresh={() => {
@@ -53,6 +57,19 @@ export default function ChatList() {
                 initialNumToRender={5}
                 maxToRenderPerBatch={3}
                 windowSize={3}
+                ListFooterComponent={
+                  data.storiesNextCursor ? (
+                    <Button
+                      title="More stories"
+                      secondary
+                      onPress={() =>
+                        void loadMoreStories().catch((error) =>
+                          toast(error.message),
+                        )
+                      }
+                    />
+                  ) : null
+                }
                 ListHeaderComponent={
                   <Pressable
                     accessibilityRole="button"

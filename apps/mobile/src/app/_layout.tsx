@@ -21,6 +21,7 @@ function Shell() {
     const publicRoute =
       (pathname === "/" && group !== "(tabs)") ||
       pathname === "/welcome" ||
+      pathname === "/demo" ||
       pathname === "/reset-password";
     if (ready && !token && !publicRoute) router.replace("/welcome");
   }, [ready, token, pathname, group]);

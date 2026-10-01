@@ -81,10 +81,12 @@ export type State = {
     };
   };
   matches: Person[];
+  matchesNextCursor?: { afterName: string; afterId: string } | null;
   discover: Person[];
   undoId: string | null;
   feed: Post[];
   stories: Story[];
+  storiesNextCursor?: { before: string; beforeId: string } | null;
   notifications: {
     id: string;
     body: string;

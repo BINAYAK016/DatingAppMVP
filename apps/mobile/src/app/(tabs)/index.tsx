@@ -67,6 +67,8 @@ export default function Discover() {
       if (result.matched) setMatch(p);
       else if (action === "super")
         st.toast("Super Like saved. It stays private until you both match.");
+      else if (action === "like")
+        st.toast("Like sent. Match when you both choose each other.");
       await st.refresh();
     } catch (e: any) {
       setError(e.message);

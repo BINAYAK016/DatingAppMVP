@@ -13,6 +13,7 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/src/schema.sql ./src/schema.sql
 COPY --from=build /app/src/migrations ./src/migrations
+COPY --from=build /app/src/demo-assets ./src/demo-assets
 COPY --from=build /app/src/admin.html ./src/admin.html
 COPY --from=build /app/src/admin.js ./src/admin.js
 RUN mkdir -p /data/media && chown -R node:node /data /app

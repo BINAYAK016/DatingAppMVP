@@ -45,12 +45,13 @@ export async function dispatchPush() {
       if (!n) break;
       const recipient = await one(
         pool,
-        "SELECT push_token,notifications,suspended FROM users WHERE id=$1",
+        "SELECT push_token,notifications,suspended,demo FROM users WHERE id=$1",
         [n.recipient],
       );
       const allowed =
         n.kind !== "request" &&
         recipient?.push_token &&
+        !recipient.demo &&
         recipient.notifications &&
         !recipient.suspended &&
         (await matched(pool, n.actor, n.recipient));

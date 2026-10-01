@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -24,6 +24,7 @@ import {
   Loading,
   Page,
   s,
+  humanMessage,
 } from "../../components/ui";
 import {
   ProfileHero,
@@ -40,6 +41,17 @@ type Setting =
 
 export default function Profile() {
   const st = useStore();
+  const [resetOpen, setResetOpen] = useState(false),
+    [resetting, setResetting] = useState(false),
+    [resetError, setResetError] = useState("");
+  const resetInFlight = useRef(false),
+    mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [pendingSettings, setPendingSettings] = useState<
     Partial<Record<Setting, boolean>>
@@ -102,6 +114,31 @@ export default function Profile() {
             onPress={() => router.push("/edit-profile")}
           />
         </View>
+        {st.demoMode && me.demo && (
+          <View style={{ gap: 8, paddingVertical: 16 }}>
+            <Button
+              title="Switch Demo User"
+              secondary
+              icon="people-outline"
+              onPress={() => router.push("/demo")}
+            />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Reset Demo"
+              onPress={() => {
+                setResetError("");
+                setResetOpen(true);
+              }}
+              style={{
+                minHeight: 44,
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+            >
+              <Text style={[s.link, { color: C.primary }]}>Reset Demo</Text>
+            </Pressable>
+          </View>
+        )}
         {!me.demo && (
           <View style={styles.accountStatus}>
             <Icon
@@ -309,17 +346,19 @@ export default function Profile() {
         ))}
         <View style={{ marginTop: 24 }}>
           <Button
-            title={me.demo ? "Switch demo account / sign out" : "Sign out"}
+            title={st.demoMode && me.demo ? "Switch Demo User" : "Sign out"}
             secondary
-            onPress={() =>
-              st
+            onPress={() => {
+              if (st.demoMode && me.demo)
+                return closeThen(() => router.push("/demo"));
+              void st
                 .signOut()
                 .then(() => {
                   setSettingsOpen(false);
                   router.replace("/welcome");
                 })
-                .catch((e) => st.toast(e.message))
-            }
+                .catch((e) => st.toast(e.message));
+            }}
           />
         </View>
         <Pressable
@@ -368,6 +407,60 @@ export default function Profile() {
             />
           </View>
         )}
+      </BottomSheet>
+      <BottomSheet
+        visible={resetOpen && !!st.demoMode && me.demo}
+        onClose={() => {
+          if (!resetInFlight.current) setResetOpen(false);
+        }}
+        title="Reset demo data?"
+      >
+        <Text style={[s.body, { marginBottom: 16 }]}>
+          This restores all 30 fictional profiles, matches, chats, stories,
+          games, dates and Sangai feed activity to the predefined beta world.
+        </Text>
+        <Text style={[s.body, { marginBottom: 24 }]}>
+          Changes made by every demo user will be replaced. This affects
+          everyone testing this demo server.
+        </Text>
+        {!!resetError && (
+          <Text
+            accessibilityRole="alert"
+            style={[s.body, { color: C.red, marginBottom: 16 }]}
+          >
+            {resetError}
+          </Text>
+        )}
+        <Button
+          title={resetting ? "Resetting demo…" : "Reset all demo data"}
+          disabled={resetting}
+          onPress={async () => {
+            if (resetInFlight.current) return;
+            resetInFlight.current = true;
+            setResetting(true);
+            setResetError("");
+            try {
+              await st.resetDemo();
+              if (mounted.current) {
+                setResetOpen(false);
+                router.replace("/(tabs)");
+              }
+            } catch (error: any) {
+              if (mounted.current && error.name !== "SessionChangedError")
+                setResetError(humanMessage(error.message));
+            } finally {
+              resetInFlight.current = false;
+              if (mounted.current) setResetting(false);
+            }
+          }}
+        />
+        <View style={{ height: 12 }} />
+        <Button
+          title="Keep current demo"
+          secondary
+          disabled={resetting}
+          onPress={() => setResetOpen(false)}
+        />
       </BottomSheet>
     </>
   );

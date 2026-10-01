@@ -1,3 +1,4 @@
+import { legacyDemoFixture } from "./legacy-demo-fixture";
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn, ChildProcess } from "node:child_process";
@@ -77,6 +78,7 @@ before(async () => {
       PORT: String(port),
       DATABASE_URL: url.toString(),
       ENABLE_DEMO: "true",
+      DEMO_MODE: "true",
       ADMIN_KEY: "test-admin-private-key",
       UPLOAD_DIR: uploads,
     },
@@ -97,6 +99,7 @@ before(async () => {
     await new Promise((r) => setTimeout(r, 200));
   }
   assert.ok(ready, logs);
+  await legacyDemoFixture(db, api, dbName);
   for (const id of ids) {
     const result = await call("/auth/demo", undefined, { id });
     assert.equal(result.status, 201);

@@ -7,6 +7,7 @@ import {
 import { z } from "zod";
 import { DB, matched, one, profile, publicFields, rows, tx } from "./db";
 import { uuid } from "./validation";
+import { demoProfilePreviewSql } from "./demo-mode";
 
 // Both people's explicit preferences apply. Incoming Likes never affect ordering
 // or the profile projection, so discovery cannot act as an incoming-Likes inbox.
@@ -24,15 +25,50 @@ export const eligibility = `NOT u.paused AND NOT u.suspended AND NOT me.paused A
  AND (u.preferences->'genders'='[]'::jsonb OR u.preferences->'genders' ? me.gender)
  AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.actor=me.id AND b.target=u.id) OR (b.actor=u.id AND b.target=me.id))
  AND NOT EXISTS(SELECT 1 FROM connections c WHERE c.a=LEAST(me.id,u.id) AND c.b=GREATEST(me.id,u.id) AND c.state IN ('matched','declined','ended'))`;
-export async function candidates(db: DB, actor: string) {
-  return rows(
+const discoveryCursor = z
+  .object({ at: z.iso.datetime({ offset: true }), id: uuid })
+  .strict();
+export async function candidatesPage(
+  db: DB,
+  actor: string,
+  cursor?: string,
+  limit = 8,
+) {
+  z.number().int().min(1).max(10).parse(limit);
+  let after: z.infer<typeof discoveryCursor> | undefined;
+  if (cursor !== undefined) {
+    if (cursor.length > 240)
+      throw new BadRequestException("Invalid discovery cursor.");
+    try {
+      after = discoveryCursor.parse(
+        JSON.parse(Buffer.from(cursor, "base64url").toString("utf8")),
+      );
+    } catch {
+      throw new BadRequestException("Invalid discovery cursor.");
+    }
+  }
+  const found = await rows(
     db,
-    `SELECT ${publicFields} FROM users WHERE id IN (
+    `SELECT ${publicFields},to_char(created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at FROM users WHERE id IN (
     SELECT u.id FROM users u CROSS JOIN users me WHERE me.id=$1 AND u.id<>me.id AND ${eligibility}
     AND NOT EXISTS(SELECT 1 FROM discovery_actions d WHERE d.actor=me.id AND d.target=u.id AND d.undone_at IS NULL)
-  ) ORDER BY created_at,id LIMIT 30`,
-    [actor],
+  ) AND ($2::timestamptz IS NULL OR (created_at,id)>($2::timestamptz,$3::uuid)) ORDER BY created_at,id LIMIT $4`,
+    [actor, after?.at ?? null, after?.id ?? null, limit + 1],
   );
+  const page = found.slice(0, limit),
+    last = page.at(-1);
+  return {
+    items: page.map(({ cursor_at, ...person }) => person),
+    nextCursor:
+      found.length > limit && last
+        ? Buffer.from(
+            JSON.stringify({ at: last.cursor_at, id: last.id }),
+          ).toString("base64url")
+        : null,
+  };
+}
+export async function candidates(db: DB, actor: string) {
+  return (await candidatesPage(db, actor)).items;
 }
 export async function lastUndo(db: DB, actor: string) {
   const action = await one(
@@ -49,71 +85,78 @@ export async function lastUndo(db: DB, actor: string) {
   return closed ? null : action.id;
 }
 export async function swipe(actor: string, target: string, body: unknown) {
+  return tx((db) => swipeInTx(db, actor, target, body));
+}
+// Seed/reset uses this same authoritative transition inside its atomic transaction.
+export async function swipeInTx(
+  db: DB,
+  actor: string,
+  target: string,
+  body: unknown,
+) {
   const input = z
     .object({ action: z.enum(["like", "pass", "super"]), clientId: uuid })
     .parse(body);
-  return tx(async (db) => {
-    const prior = await one(db, "SELECT * FROM discovery_actions WHERE id=$1", [
-      input.clientId,
-    ]);
-    if (prior) {
-      if (
-        prior.actor !== actor ||
-        prior.target !== target ||
-        prior.kind !== input.action ||
-        prior.undone_at
-      )
-        throw new ConflictException(
-          "This action has already changed. Refresh discovery.",
-        );
-      return { id: prior.id, matched: await matched(db, actor, target) };
-    }
-    const valid = await one(
+  const prior = await one(db, "SELECT * FROM discovery_actions WHERE id=$1", [
+    input.clientId,
+  ]);
+  if (prior) {
+    if (
+      prior.actor !== actor ||
+      prior.target !== target ||
+      prior.kind !== input.action ||
+      prior.undone_at
+    )
+      throw new ConflictException(
+        "This action has already changed. Refresh discovery.",
+      );
+    return { id: prior.id, matched: await matched(db, actor, target) };
+  }
+  const valid = await one(
+    db,
+    `SELECT 1 FROM users u CROSS JOIN users me WHERE u.id=$2 AND me.id=$1 AND u.id<>me.id AND ${eligibility}`,
+    [actor, target],
+  );
+  if (!valid)
+    throw new NotFoundException(
+      "Profile unavailable for your current preferences.",
+    );
+  if (
+    await one(
       db,
-      `SELECT 1 FROM users u CROSS JOIN users me WHERE u.id=$2 AND me.id=$1 AND u.id<>me.id AND ${eligibility}`,
+      "SELECT 1 FROM discovery_actions WHERE actor=$1 AND target=$2 AND undone_at IS NULL",
+      [actor, target],
+    )
+  )
+    throw new ConflictException("You have already decided on this profile.");
+  await db.query(
+    "INSERT INTO discovery_actions(id,actor,target,kind) VALUES($1,$2,$3,$4)",
+    [input.clientId, actor, target, input.action],
+  );
+  const mutual =
+    input.action !== "pass" &&
+    !!(await one(
+      db,
+      "SELECT 1 FROM discovery_actions WHERE actor=$2 AND target=$1 AND kind IN ('like','super') AND undone_at IS NULL",
+      [actor, target],
+    ));
+  if (mutual) {
+    await db.query(
+      `INSERT INTO connections(a,b,sender,state) VALUES(LEAST($1::uuid,$2::uuid),GREATEST($1::uuid,$2::uuid),$1,'matched')
+        ON CONFLICT(a,b) DO UPDATE SET state='matched',note='' WHERE connections.state='pending'`,
       [actor, target],
     );
-    if (!valid)
-      throw new NotFoundException(
-        "Profile unavailable for your current preferences.",
-      );
-    if (
-      await one(
-        db,
-        "SELECT 1 FROM discovery_actions WHERE actor=$1 AND target=$2 AND undone_at IS NULL",
-        [actor, target],
-      )
-    )
-      throw new ConflictException("You have already decided on this profile.");
-    await db.query(
-      "INSERT INTO discovery_actions(id,actor,target,kind) VALUES($1,$2,$3,$4)",
-      [input.clientId, actor, target, input.action],
-    );
-    const mutual =
-      input.action !== "pass" &&
-      !!(await one(
-        db,
-        "SELECT 1 FROM discovery_actions WHERE actor=$2 AND target=$1 AND kind IN ('like','super') AND undone_at IS NULL",
-        [actor, target],
-      ));
-    if (mutual) {
+    for (const [recipient, sender] of [
+      [actor, target],
+      [target, actor],
+    ]) {
       await db.query(
-        `INSERT INTO connections(a,b,sender,state) VALUES(LEAST($1::uuid,$2::uuid),GREATEST($1::uuid,$2::uuid),$1,'matched')
-        ON CONFLICT(a,b) DO UPDATE SET state='matched',note='' WHERE connections.state='pending'`,
-        [actor, target],
+        "INSERT INTO notifications(id,recipient,actor,kind,body) VALUES($1,$2,$3,'match','You have a new mutual match.')",
+        [randomUUID(), recipient, sender],
       );
-      for (const [recipient, sender] of [
-        [actor, target],
-        [target, actor],
-      ]) {
-        await db.query(
-          "INSERT INTO notifications(id,recipient,actor,kind,body) VALUES($1,$2,$3,'match','You have a new mutual match.')",
-          [randomUUID(), recipient, sender],
-        );
-      }
     }
-    return { id: input.clientId, matched: mutual };
-  });
+  }
+  return { id: input.clientId, matched: mutual };
 }
 export async function undo(actor: string, id: string) {
   return tx(async (db) => {
@@ -151,7 +194,7 @@ export async function visibleProfile(actor: string, target: string) {
       (await matched(db, actor, target)) ||
       (await one(
         db,
-        `SELECT 1 FROM users u CROSS JOIN users me WHERE me.id=$1 AND u.id=$2 AND ${eligibility}`,
+        `SELECT 1 FROM users u CROSS JOIN users me WHERE me.id=$1 AND u.id=$2 AND (${eligibility} OR ${demoProfilePreviewSql()})`,
         [actor, target],
       ));
     if (!visible) throw new NotFoundException("Profile unavailable.");

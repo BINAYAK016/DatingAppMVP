@@ -14,6 +14,7 @@ import type { Response } from "express";
 import sharp from "sharp";
 import { DB, matched, one, pool, tx } from "./db";
 import { eligibility } from "./discovery";
+import { demoProfilePreviewSql } from "./demo-mode";
 import { RateLimitExceeded } from "./rate-limit";
 const exec = promisify(execFile);
 export const uploadDir = resolve(process.env.UPLOAD_DIR || "uploads");
@@ -249,10 +250,10 @@ export async function authorizedMedia(
     if (!m) throw new NotFoundException();
     if (m.owner === actor) return m;
     if (!(await matched(db, actor, m.owner))) {
-      // Discovery exposes ONLY the explicitly selected profile photo, never social media.
+      // Profile preview exposes only linked profile media, never social content.
       const p = await one(
         db,
-        `SELECT 1 FROM users u CROSS JOIN users me WHERE u.id=$1 AND (u.avatar_id=$2 OR EXISTS(SELECT 1 FROM profile_media WHERE user_id=u.id AND media_id=$2)) AND me.id=$3 AND ${eligibility}`,
+        `SELECT 1 FROM users u CROSS JOIN users me WHERE u.id=$1 AND (u.avatar_id=$2 OR EXISTS(SELECT 1 FROM profile_media WHERE user_id=u.id AND media_id=$2)) AND me.id=$3 AND (${eligibility} OR ${demoProfilePreviewSql()})`,
         [m.owner, id, actor],
       );
       if (!p) throw new NotFoundException("Media unavailable.");

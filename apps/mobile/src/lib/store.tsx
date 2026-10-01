@@ -9,6 +9,7 @@ import React, {
 import { AppState, Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import { State } from "./types";
+import { DemoConfig } from "./demo";
 import { clearGameDrafts } from "./gameDrafts";
 import { clearGameConversations } from "./gameChatBridge";
 import {
@@ -32,6 +33,13 @@ type Store = {
   sessionLoading: boolean;
   sessionKey: number;
   storageWarning: boolean;
+  demoMode: boolean | null;
+  demoConfig: DemoConfig | null;
+  demoConfigError: string;
+  loadDemoConfig: () => Promise<void>;
+  resetDemo: () => Promise<void>;
+  loadMoreMatches: () => Promise<void>;
+  loadMoreStories: () => Promise<void>;
   clearSavedSignIn: () => Promise<void>;
   setUrl: (v: string) => void;
   toast: (s: string) => void;
@@ -57,6 +65,9 @@ export function Provider({ children }: { children: React.ReactNode }) {
   const [sessionLoading, setSessionLoading] = useState(false);
   const [sessionKey, setSessionKey] = useState(0);
   const [storageWarning, setStorageWarning] = useState(false);
+  const [demoMode, setDemoMode] = useState<boolean | null>(null);
+  const [demoConfig, setDemoConfig] = useState<DemoConfig | null>(null);
+  const [demoConfigError, setDemoConfigError] = useState("");
   const credentialWrites = useRef<Promise<unknown>>(Promise.resolve());
   const persistCredentials = useCallback((write: () => Promise<void>) => {
     const pending = credentialWrites.current.catch(() => {}).then(write);
@@ -69,6 +80,12 @@ export function Provider({ children }: { children: React.ReactNode }) {
   const epoch = useRef(0);
   const accountRef = useRef<string | undefined>(undefined);
   const reads = useRef(new Map<string, Promise<any>>());
+  const dataRef = useRef<State | null>(null);
+  const loadedPages = useRef({ matches: 1, stories: 1 });
+  const pageFlights = useRef(new Map<string, Promise<void>>());
+  useEffect(() => {
+    dataRef.current = data;
+  }, [data]);
   const refreshFlight = useRef<Promise<void> | null>(null);
   const refreshQueued = useRef(false);
   const toast = useCallback((s: string) => setNotice(s), []);
@@ -123,6 +140,8 @@ export function Provider({ children }: { children: React.ReactNode }) {
       epoch.current++;
       setSessionKey((value) => value + 1);
       reads.current.clear();
+      loadedPages.current = { matches: 1, stories: 1 };
+      pageFlights.current.clear();
       if (!t || t !== tokenRef.current) {
         const previousAccount = accountRef.current;
         accountRef.current = undefined;
@@ -168,6 +187,9 @@ export function Provider({ children }: { children: React.ReactNode }) {
       return;
     }
     if (value === urlRef.current) return;
+    setDemoMode(null);
+    setDemoConfig(null);
+    setDemoConfigError("");
     urlRef.current = value;
     // A bearer token belongs to its server and must never follow an address change.
     void saveToken(null);
@@ -191,7 +213,10 @@ export function Provider({ children }: { children: React.ReactNode }) {
         return reads.current.get(key)!;
       const run = async (): Promise<T> => {
         const controller = new AbortController(),
-          timer = setTimeout(() => controller.abort(), 15000);
+          timer = setTimeout(
+            () => controller.abort(),
+            path === "/demo/reset" ? 120000 : 15000,
+          );
         try {
           const response = await fetch(server + "/v1" + path, {
             method: verb,
@@ -288,6 +313,31 @@ export function Provider({ children }: { children: React.ReactNode }) {
         setSessionLoading(true);
         try {
           const next = await request<State>("/state");
+          // Refresh all pages the user explicitly opened. Re-projecting through
+          // the server drops revoked people/stories rather than retaining stale
+          // cached tail pages after a block, expiry or preference change.
+          for (const kind of ["matches", "stories"] as const) {
+            const cursorKey =
+              kind === "matches" ? "matchesNextCursor" : "storiesNextCursor";
+            for (
+              let page = 1;
+              page < loadedPages.current[kind] && next[cursorKey];
+              page++
+            ) {
+              const params = new URLSearchParams(
+                next[cursorKey] as Record<string, string>,
+              );
+              const more = await request<{ items: any[]; nextCursor: any }>(
+                `/${kind}?limit=30&${params}`,
+              );
+              (next[kind] as any[]) = [
+                ...new Map(
+                  [...next[kind], ...more.items].map((item) => [item.id, item]),
+                ).values(),
+              ];
+              next[cursorKey] = more.nextCursor;
+            }
+          }
           if (
             started === epoch.current &&
             sequence === refreshSequence.current
@@ -315,6 +365,83 @@ export function Provider({ children }: { children: React.ReactNode }) {
     refreshFlight.current = pending;
     return pending;
   }, [request, toast]);
+  const loadMorePage = useCallback(
+    (kind: "matches" | "stories"): Promise<void> => {
+      const cursorKey =
+        kind === "matches" ? "matchesNextCursor" : "storiesNextCursor";
+      const cursor = dataRef.current?.[cursorKey];
+      if (!cursor) return Promise.resolve();
+      const existing = pageFlights.current.get(kind);
+      if (existing) return existing;
+      const started = epoch.current;
+      const startedSequence = refreshSequence.current;
+      const pending = (async () => {
+        const params = new URLSearchParams(cursor as Record<string, string>);
+        const page = await request<{ items: any[]; nextCursor: any }>(
+          `/${kind}?limit=30&${params}`,
+        );
+        if (started !== epoch.current) return;
+        loadedPages.current[kind]++;
+        // An older page cannot append people/media that a newer bootstrap
+        // already revoked. Preserve the requested depth and re-read it through
+        // the current server projection instead of committing the stale page.
+        if (startedSequence !== refreshSequence.current) {
+          await refresh();
+          return;
+        }
+        setData((current) => {
+          if (
+            !current ||
+            started !== epoch.current ||
+            startedSequence !== refreshSequence.current
+          )
+            return current;
+          return {
+            ...current,
+            [kind]: [
+              ...new Map(
+                [...current[kind], ...page.items].map((item) => [
+                  item.id,
+                  item,
+                ]),
+              ).values(),
+            ],
+            [cursorKey]: page.nextCursor,
+          };
+        });
+        if (refreshFlight.current) {
+          refreshQueued.current = true;
+        }
+      })().finally(() => {
+        if (pageFlights.current.get(kind) === pending)
+          pageFlights.current.delete(kind);
+      });
+      pageFlights.current.set(kind, pending);
+      return pending;
+    },
+    [request, refresh],
+  );
+  const loadDemoConfig = useCallback(async () => {
+    const server = urlRef.current;
+    try {
+      const config = await request<DemoConfig>("/demo/config");
+      if (server !== urlRef.current) return;
+      setDemoMode(config.enabled === true);
+      setDemoConfig(config);
+      setDemoConfigError("");
+    } catch (e: any) {
+      if (server !== urlRef.current) return;
+      // A session switch can invalidate a concurrent public read; retry it via
+      // the same request guard instead of displaying a misleading offline state.
+      if (e.name === "SessionChangedError") return;
+      setDemoConfigError(e.message);
+    }
+  }, [request]);
+  useEffect(() => {
+    if (!ready) return;
+    const initial = setTimeout(() => void loadDemoConfig(), 0);
+    return () => clearTimeout(initial);
+  }, [ready, url, loadDemoConfig]);
   useEffect(() => {
     if (!token) return;
     const first = setTimeout(() => void refresh(), 0);
@@ -349,6 +476,29 @@ export function Provider({ children }: { children: React.ReactNode }) {
       setData(null);
     }
   };
+  const resetDemo = async () => {
+    if (!demoMode || !data?.me.demo)
+      throw new Error("Enter a demo profile first.");
+    const account = data.me.id;
+    await request("/demo/reset", { confirm: true });
+    clearGameConversations(account);
+    void clearGameDrafts(account).catch(() =>
+      toast(
+        "The demo world was restored, but saved game drafts could not be cleared on this device.",
+      ),
+    );
+    // Retain the server identity while invalidating every old account projection
+    // and remounting Chat/game screens after the shared world is restored.
+    epoch.current++;
+    setSessionKey((value) => value + 1);
+    reads.current.clear();
+    loadedPages.current = { matches: 1, stories: 1 };
+    pageFlights.current.clear();
+    dataRef.current = null;
+    setData(null);
+    await refresh();
+    toast("Demo world restored. All 30 fictional profiles are ready.");
+  };
   return (
     <Context.Provider
       value={{
@@ -362,6 +512,13 @@ export function Provider({ children }: { children: React.ReactNode }) {
         sessionLoading,
         sessionKey,
         storageWarning,
+        demoMode,
+        demoConfig,
+        demoConfigError,
+        loadDemoConfig,
+        resetDemo,
+        loadMoreMatches: () => loadMorePage("matches"),
+        loadMoreStories: () => loadMorePage("stories"),
         clearSavedSignIn: () => saveToken(null),
         setUrl,
         toast,

@@ -12,6 +12,8 @@ import {
 } from "node:crypto";
 import { DB, one, pool, publicFields, rows, tx } from "./db";
 import { registerInput } from "./validation";
+import { demoModeEnabled } from "./demo-mode";
+import { demoIds } from "./demoPersonas";
 export const digest = (value: string) =>
   createHash("sha256").update(value).digest("hex");
 export function hashPassword(password: string) {
@@ -88,14 +90,16 @@ export async function login(email: string, password: string) {
   return session(pool, user.id);
 }
 export async function demoAccounts() {
-  if (process.env.ENABLE_DEMO !== "true") return [];
+  if (!demoModeEnabled()) return [];
   return rows(
     pool,
-    `SELECT ${publicFields} FROM users WHERE demo AND NOT suspended ORDER BY name`,
+    `SELECT ${publicFields} FROM users WHERE demo AND NOT suspended AND id=ANY($1::uuid[]) ORDER BY name LIMIT 30`,
+    [demoIds],
   );
 }
 export async function demoLogin(id: string) {
-  if (process.env.ENABLE_DEMO !== "true") throw new ForbiddenException();
+  if (!demoModeEnabled() || !demoIds.includes(id))
+    throw new ForbiddenException();
   if (
     !(await one(
       pool,
