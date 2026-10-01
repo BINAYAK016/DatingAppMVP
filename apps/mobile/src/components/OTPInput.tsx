@@ -18,10 +18,15 @@ export function OTPInput({
   label?: string;
 }) {
   const input = useRef<TextInput>(null);
+  const didInitialFocus = useRef(false);
   const [focused, setFocused] = useState(false);
   useEffect(() => {
-    if (disabled) return;
-    const timer = setTimeout(() => input.current?.focus(), 150);
+    if (disabled || didInitialFocus.current) return;
+    const timer = setTimeout(() => {
+      if (!input.current || didInitialFocus.current) return;
+      didInitialFocus.current = true;
+      input.current.focus();
+    }, 150);
     return () => clearTimeout(timer);
   }, [disabled]);
   return (
@@ -52,7 +57,6 @@ export function OTPInput({
           accessibilityHint="Enter or paste the six-digit code from your email."
           value={value}
           onChangeText={(text) => onChange(text.replace(/\D/g, "").slice(0, 6))}
-          autoFocus
           autoComplete="one-time-code"
           textContentType="oneTimeCode"
           keyboardType="number-pad"
@@ -61,7 +65,10 @@ export function OTPInput({
           autoCorrect={false}
           editable={!disabled}
           caretHidden
-          onFocus={() => setFocused(true)}
+          onFocus={() => {
+            didInitialFocus.current = true;
+            setFocused(true);
+          }}
           onBlur={() => setFocused(false)}
           style={styles.input}
         />
