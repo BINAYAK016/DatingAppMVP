@@ -63,9 +63,14 @@ const smtp = createServer((socket) => {
     }
   });
 });
-async function call(path: string, token?: string, body?: unknown) {
-  const response = await fetch(api + path, {
-    method: body === undefined ? "GET" : "POST",
+async function call(
+  path: string,
+  token?: string,
+  body?: unknown,
+  method?: string,
+) {
+  const response = await fetch(path.startsWith("http://") ? path : api + path, {
+    method: method ?? (body === undefined ? "GET" : "POST"),
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -345,11 +350,14 @@ test("metadata and fictional demo traffic have separate quotas from credentials 
   });
   const exit = new Promise<void>((done) => child.once("close", () => done()));
   const status = async (route: string, body?: unknown) => {
-    const response = await fetch(throttleApi + route, {
-      method: body === undefined ? "GET" : "POST",
-      headers: { "Content-Type": "application/json" },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
+    const response = await fetch(
+      route.startsWith("http://") ? route : throttleApi + route,
+      {
+        method: body === undefined ? "GET" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      },
+    );
     await response.arrayBuffer();
     return response.status;
   };
@@ -384,12 +392,24 @@ test("metadata and fictional demo traffic have separate quotas from credentials 
       "LOGIN/",
     ])
       assert.equal(await status("/auth/" + route, {}), 429);
+    assert.equal(
+      await status(throttleApi.slice(0, -3) + "/V1/auth/login", credentials),
+      429,
+    );
+    assert.equal(
+      await status(throttleApi.slice(0, -3) + "/V1/AUTH/RESET/", {}),
+      429,
+    );
     assert.equal(await status("/auth/config"), 200);
     assert.equal(await status("/auth/demo", fictionalDemo), 403);
     for (let i = 0; i < 10; i++)
       assert.equal(await status("/verification/send", {}), 401);
     assert.equal(await status("/verification/send", {}), 429);
     assert.equal(await status("/verification/SEND/", {}), 429);
+    assert.equal(
+      await status(throttleApi.slice(0, -3) + "/V1/verification/send/", {}),
+      429,
+    );
     for (let i = 0; i < 30; i++)
       assert.equal(
         await status("/verification/confirm", { code: "000000" }),
@@ -399,9 +419,62 @@ test("metadata and fictional demo traffic have separate quotas from credentials 
       await status("/verification/confirm", { code: "000000" }),
       429,
     );
+    assert.equal(
+      await status(throttleApi.slice(0, -3) + "/V1/VERIFICATION/CONFIRM/", {
+        code: "000000",
+      }),
+      429,
+    );
     assert.equal(await status("/auth/config"), 200);
   } finally {
     child.kill();
     await exit;
   }
+});
+
+test("case and trailing-slash variants preserve admin, session and setup guards", async () => {
+  const origin = api.slice(0, -3);
+  for (const path of [
+    "/V1/admin/reports",
+    "/v1/ADMIN/reports/",
+    "/V1/ADMIN/REPORTS/",
+  ])
+    assert.equal((await call(origin + path)).status, 401);
+  const authorized = await fetch(origin + "/V1/ADMIN/REPORTS/", {
+    headers: { "x-admin-key": "synthetic-auth-test-admin-key" },
+  });
+  assert.equal(authorized.status, 200);
+  await authorized.body?.cancel();
+  assert.equal((await call(origin + "/V1/state/")).status, 401);
+  const user = await signup("case-guards");
+  assert.equal((await call(origin + "/V1/STATE/", user.token)).status, 200);
+  assert.equal(
+    (
+      await call(
+        origin + "/V1/ONBOARDING/",
+        user.token,
+        {
+          step: 0,
+          data: {
+            name: "Case Fixture",
+            birthDate: "1997-03-10",
+            city: "Kathmandu",
+            gender: "Woman",
+            adult: true,
+          },
+        },
+        "PATCH",
+      )
+    ).status,
+    403,
+  );
+  const upload = await call(origin + "/V1/MEDIA/", user.token, {});
+  assert.equal(upload.status, 400);
+  assert.equal(
+    upload.data.message,
+    "Verify your email and complete the adult declaration before adding photos.",
+  );
+  const sent = await call(origin + "/V1/VERIFICATION/SEND/", user.token, {});
+  assert.equal(sent.status, 201);
+  assert.equal(sent.data.sent, true);
 });

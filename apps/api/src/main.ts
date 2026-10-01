@@ -665,14 +665,14 @@ export async function bootstrap() {
   app.use(async (req: AuthRequest, res: Response, next: any) => {
     res.setHeader("Cache-Control", "no-store");
     try {
-      if (!req.path.startsWith("/v1")) return next();
-      const ratePath = req.path.toLowerCase().replace(/\/+$/, "");
-      const verification = ratePath.startsWith("/v1/verification/");
+      const routePath = req.path.toLowerCase().replace(/\/+$/, "");
+      if (!routePath.startsWith("/v1")) return next();
+      const verification = routePath.startsWith("/v1/verification/");
       const scope = verification
-        ? ratePath.endsWith("/send")
+        ? routePath.endsWith("/send")
           ? "otp-send"
           : "otp-verify"
-        : req.method === "POST" && credentialRoutes.has(ratePath)
+        : req.method === "POST" && credentialRoutes.has(routePath)
           ? "auth"
           : "api";
       const key = `${req.ip}:${scope}`;
@@ -696,7 +696,7 @@ export async function bootstrap() {
           .json({ message: "Please slow down and try again shortly." });
       if (counters.size > 10000)
         for (const [k, v] of counters) if (v.until < now) counters.delete(k);
-      if (req.path.startsWith("/v1/admin")) {
+      if (routePath.startsWith("/v1/admin")) {
         const expected = process.env.ADMIN_KEY || "";
         const actual = String(req.headers["x-admin-key"] || "");
         if (
@@ -707,7 +707,7 @@ export async function bootstrap() {
           throw new UnauthorizedException();
         return next();
       }
-      if (req.path.startsWith("/v1/auth")) return next();
+      if (routePath.startsWith("/v1/auth")) return next();
       req.actor = await authenticate(req.headers.authorization);
       const setupRoutes = [
         "/v1/state",
@@ -721,13 +721,13 @@ export async function bootstrap() {
         "/v1/profile/photo",
       ];
       if (
-        !setupRoutes.includes(req.path) &&
-        !/^\/v1\/media\/[a-f0-9-]+$/.test(req.path)
+        !setupRoutes.includes(routePath) &&
+        !/^\/v1\/media\/[a-f0-9-]+$/.test(routePath)
       )
         await identity.requireReadyAccount(req.actor);
       if (
         req.method === "POST" &&
-        ["/v1/media", "/v1/profile/photo"].includes(req.path)
+        ["/v1/media", "/v1/profile/photo"].includes(routePath)
       ) {
         const adult = await one(
           pool,
