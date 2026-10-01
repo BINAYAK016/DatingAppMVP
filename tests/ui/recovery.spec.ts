@@ -408,3 +408,81 @@ test("access revoked during Send clears private data and rejects a delayed autho
     release();
   }
 });
+
+test("changing reduced motion during a new message entrance keeps its text readable and fully opaque", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  const { data, person, open } = await openDemoChat(page);
+  const timeline: any[] = [
+    {
+      id: "synthetic-motion-existing",
+      type: "message",
+      sender: person.id,
+      body: "Synthetic conversation before changing motion preferences",
+      created_at: "2026-01-01T00:00:00.000Z",
+    },
+  ];
+  let sends = 0;
+  const currentTime = new Date();
+  await page.route(`**/v1/chat/${person.id}`, async (route) => {
+    if (route.request().method() === "POST") {
+      sends++;
+      const payload = route.request().postDataJSON();
+      const id = "synthetic-motion-confirmed-message";
+      timeline.push({
+        id,
+        type: "message",
+        sender: data.me.id,
+        body: payload.body,
+        created_at: currentTime.toISOString(),
+      });
+      return route.fulfill({ json: { id } });
+    }
+    await route.fulfill({
+      json: { person, games: [], hasMore: false, timeline },
+    });
+  });
+  await open();
+  await expect(
+    page.getByText(
+      "Synthetic conversation before changing motion preferences",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  // Freeze Date only, keeping browser frames and media-query events running.
+  // This holds the short entrance in progress until the preference changes,
+  // rather than depending on the test machine beating a 180 ms animation.
+  await page.clock.setFixedTime(currentTime);
+  const message =
+    "Synthetic new message must remain readable when motion changes";
+  await page.getByPlaceholder("A thought, a question, a hello…").fill(message);
+  await page.getByLabel("Send message", { exact: true }).click();
+  const text = page.getByText(message, { exact: true });
+  await expect(text).toBeInViewport();
+  const effectiveOpacity = () =>
+    text.evaluate((node) => {
+      let opacity = 1;
+      for (
+        let element: Element | null = node;
+        element;
+        element = element.parentElement
+      )
+        opacity *= Number(getComputedStyle(element).opacity);
+      return Number(opacity.toFixed(3));
+    });
+  await expect.poll(effectiveOpacity).toBeLessThan(1);
+  expect(await effectiveOpacity()).toBeGreaterThanOrEqual(0.7);
+
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => matchMedia("(prefers-reduced-motion: reduce)").matches,
+      ),
+    )
+    .toBe(true);
+  await expect.poll(effectiveOpacity).toBe(1);
+  await expect(text).toBeInViewport();
+  expect(sends).toBe(1);
+});

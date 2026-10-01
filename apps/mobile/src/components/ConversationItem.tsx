@@ -74,6 +74,8 @@ export function ConversationItem({
     }
   };
   useEffect(() => {
+    // A cancelled entrance must never leave a keyed, still-mounted message dim.
+    appearance.setValue(1);
     if (
       reducedMotion ||
       !mine ||
@@ -81,14 +83,21 @@ export function ConversationItem({
       Date.now() - new Date(m.created_at).getTime() > 5000
     )
       return;
-    appearance.setValue(0);
+    appearance.setValue(0.75);
+    let active = true;
     const animation = Animated.timing(appearance, {
       toValue: 1,
       duration: 180,
       useNativeDriver: Platform.OS !== "web",
     });
-    animation.start();
-    return () => animation.stop();
+    animation.start(() => {
+      if (active) appearance.setValue(1);
+    });
+    return () => {
+      active = false;
+      animation.stop();
+      appearance.setValue(1);
+    };
   }, [appearance, mine, m.id, m.type, m.created_at, reducedMotion]);
   if (m.type === "message")
     return (
