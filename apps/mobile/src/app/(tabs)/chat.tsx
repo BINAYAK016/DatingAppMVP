@@ -17,7 +17,10 @@ import { useStore } from "../../lib/store";
 export default function ChatList() {
   const { data, refresh } = useStore();
   const [refreshing, setRefreshing] = useState(false);
-  const authors = (data?.stories || []).filter(
+  const available = (data?.stories || []).filter(
+    (story) => new Date(story.expires_at) > new Date(),
+  );
+  const authors = available.filter(
     (story, index, all) =>
       all.findIndex((candidate) => candidate.author.id === story.author.id) ===
       index,
@@ -76,7 +79,16 @@ export default function ChatList() {
                     accessibilityRole="button"
                     accessibilityLabel={`View ${story.author.name}'s story`}
                     style={styles.story}
-                    onPress={() => router.push(`/story/${story.id}`)}
+                    onPress={() => {
+                      const first = available
+                        .filter(
+                          (moment) => moment.author.id === story.author.id,
+                        )
+                        .sort((a, b) =>
+                          a.expires_at.localeCompare(b.expires_at),
+                        )[0];
+                      if (first) router.push(`/story/${first.id}`);
+                    }}
                   >
                     <View style={styles.ring}>
                       <Avatar person={story.author} size={60} />
