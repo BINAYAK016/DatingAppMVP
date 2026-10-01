@@ -52,6 +52,8 @@ export function humanMessage(message: string) {
     return "We couldn’t connect. Check your connection and try again.";
   if (/^(error\s*)?5\d\d\b|internal server error/i.test(message))
     return "Something went wrong. Let’s try that again.";
+  if (/^\s*[\[{]|ZodError|invalid_type|invalid_format/i.test(message))
+    return "Some details need another look. Check them and try again.";
   return message;
 }
 export function Icon({
@@ -101,20 +103,24 @@ export function Chip({
   label,
   selected = false,
   onPress,
+  disabled = false,
 }: {
   label: string;
   selected?: boolean;
   onPress?: () => void;
+  disabled?: boolean;
 }) {
   return (
     <Pressable
       accessibilityRole={onPress ? "button" : undefined}
-      accessibilityState={onPress ? { selected } : undefined}
+      accessibilityState={onPress ? { selected, disabled } : undefined}
+      disabled={disabled}
       onPress={onPress}
       style={[
         s.chip,
         onPress && { minHeight: 44, justifyContent: "center" },
         selected && { backgroundColor: C.primary, borderColor: C.primary },
+        disabled && { opacity: 0.5 },
       ]}
     >
       <Text style={[s.chipText, selected && { color: C.white }]}>{label}</Text>
@@ -129,6 +135,7 @@ export function Field({
   multiline = false,
   secure = false,
   keyboardType = "default",
+  editable = true,
 }: {
   label?: string;
   value: string;
@@ -137,6 +144,7 @@ export function Field({
   multiline?: boolean;
   secure?: boolean;
   keyboardType?: React.ComponentProps<typeof TextInput>["keyboardType"];
+  editable?: boolean;
 }) {
   const [focused, setFocused] = useState(false);
   return (
@@ -145,6 +153,7 @@ export function Field({
       <TextInput
         accessibilityLabel={label || placeholder}
         value={value}
+        editable={editable}
         onChangeText={onChangeText}
         placeholder={placeholder}
         placeholderTextColor={C.muted}
@@ -346,10 +355,12 @@ export function PrivateImage({
   id,
   style,
   resizeMode = "cover",
+  thumbnail = false,
 }: {
   id: string;
   style: StyleProp<ImageStyle>;
   resizeMode?: React.ComponentProps<typeof Image>["resizeMode"];
+  thumbnail?: boolean;
 }) {
   const { url, token } = useStore();
   const [loaded, setLoaded] = useState<{ key: string; uri: string } | null>(
@@ -357,17 +368,20 @@ export function PrivateImage({
   );
   const [failedKey, setFailedKey] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
-  const key = `${url}:${id}:${token}:${attempt}`;
+  const key = `${url}:${id}:${token}:${attempt}:${thumbnail}`;
   const failed = failedKey === key;
   useEffect(() => {
     const controller = new AbortController();
     // Authenticate through the same fetch path as the API on every platform.
     // Data stays in component memory; no bearer token is put in an image URL.
     (async () => {
-      const response = await fetch(`${url}/v1/media/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-        signal: controller.signal,
-      });
+      const response = await fetch(
+        `${url}/v1/media/${id}${thumbnail ? "?thumbnail=1" : ""}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
+        },
+      );
       if (!response.ok) throw new Error("Photo unavailable");
       const mime = response.headers.get("content-type") || "";
       if (!mime.startsWith("image/")) throw new Error("Invalid photo");
@@ -381,7 +395,7 @@ export function PrivateImage({
       if (!controller.signal.aborted) setFailedKey(key);
     });
     return () => controller.abort();
-  }, [url, id, token, key, attempt]);
+  }, [url, id, token, key, attempt, thumbnail]);
   return loaded?.key === key && !failed ? (
     <Image
       source={{ uri: loaded.uri }}
@@ -737,11 +751,13 @@ export function BottomSheet({
   onClose,
   title,
   children,
+  footer,
 }: {
   visible: boolean;
   onClose: () => void;
   title?: string;
   children: React.ReactNode;
+  footer?: React.ReactNode;
 }) {
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
@@ -776,6 +792,8 @@ export function BottomSheet({
             maxWidth: 600,
             alignSelf: "center",
             maxHeight: "85%",
+            height: footer ? "85%" : undefined,
+            flexShrink: 1,
             backgroundColor: C.bg,
             borderTopLeftRadius: 24,
             borderTopRightRadius: 24,
@@ -805,12 +823,26 @@ export function BottomSheet({
             <IconButton name="close" label="Close sheet" onPress={onClose} />
           </View>
           <ScrollView
+            style={{ flexShrink: 1, minHeight: 0 }}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 12 }}
           >
             {children}
           </ScrollView>
+          {footer && (
+            <View
+              style={{
+                flexShrink: 0,
+                paddingHorizontal: 20,
+                paddingTop: 12,
+                borderTopWidth: 1,
+                borderTopColor: C.line,
+              }}
+            >
+              {footer}
+            </View>
+          )}
         </View>
       </KeyboardAvoidingView>
     </Modal>

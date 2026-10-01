@@ -34,6 +34,7 @@ export type Post = {
   body: string;
   media_id?: string;
   kind?: string;
+  media?: { id: string; kind: string; position: number }[];
   created_at: string;
   comments: Comment[];
   likes: number;

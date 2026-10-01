@@ -8,7 +8,6 @@ import {
   Empty,
   Header,
   Icon,
-  IconButton,
   Skeleton,
   s,
 } from "../../components/ui";
@@ -26,7 +25,7 @@ function SangaiFeed() {
   const visible = useMediaVisible();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [viewabilityConfig] = useState(() => ({
-    itemVisiblePercentThreshold: 65,
+    viewAreaCoveragePercentThreshold: 45,
     minimumViewTime: 250,
   }));
   const onViewableItemsChanged = useCallback(
@@ -108,10 +107,10 @@ function SangaiFeed() {
             <Header
               title="Sangai"
               action={
-                <IconButton
-                  name="add"
-                  label="Create a Sangai post"
-                  variant="soft"
+                <Button
+                  title="Create Post"
+                  icon="add"
+                  secondary
                   onPress={() =>
                     router.push({
                       pathname: "/compose",
@@ -139,11 +138,11 @@ function SangaiFeed() {
             <>
               <Empty
                 icon="flower-outline"
-                title="A little quiet, for now"
+                title="Your moments start here"
                 body="Share a little of your everyday. Moments from you and your matches will appear here."
               />
               <Button
-                title="Share a moment"
+                title="Create Post"
                 onPress={() =>
                   router.push({
                     pathname: "/compose",

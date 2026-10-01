@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   Animated,
   Modal,
@@ -29,6 +29,7 @@ import {
   s,
 } from "./ui";
 import { FeedVideo } from "./FeedVideo";
+import { PhotoCarousel } from "./PhotoCarousel";
 
 export function PostCard({
   post: source,
@@ -53,22 +54,54 @@ export function PostCard({
     [play, setPlay] = useState(false);
   const [options, setOptions] = useState(false),
     [photo, setPhoto] = useState(false);
+  const [photoId, setPhotoId] = useState<string | undefined>(post.media_id);
+  const [hidden, setHidden] = useState(false),
+    [confirmDelete, setConfirmDelete] = useState(false);
+  const busyRef = useRef(false);
+  const attachments = post.media?.length
+    ? post.media
+    : post.media_id
+      ? [{ id: post.media_id, kind: post.kind || "image", position: 0 }]
+      : [];
+  const captionLimit = post.media_id ? 200 : 300;
+  const shortened = !detail && post.body.length > captionLimit;
+  const caption = shortened
+    ? post.body.slice(0, captionLimit).trimEnd() + "…"
+    : post.body;
   const act = async (fn: () => Promise<unknown>) => {
-    if (busy) return;
+    if (busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     try {
       await fn();
       setUpdated({ source, value: await st.request(`/posts/${post.id}`) });
       await st.refresh();
     } catch (e: any) {
+      setUpdated(null);
+      if ([403, 404, 410].includes(e.status)) {
+        setDeleted(true);
+        setOpen(false);
+        setSharing(false);
+        setPhoto(false);
+      }
       st.toast(e.message);
     } finally {
+      busyRef.current = false;
       setBusy(false);
     }
   };
   const reducedMotion = useReducedMotion();
   const [heartScale] = useState(() => new Animated.Value(1));
   const reactToMoment = () => {
+    if (busyRef.current) return;
+    setUpdated({
+      source,
+      value: {
+        ...post,
+        liked: !post.liked,
+        likes: Math.max(0, post.likes + (post.liked ? -1 : 1)),
+      },
+    });
     if (!reducedMotion)
       Animated.sequence([
         Animated.timing(heartScale, {
@@ -91,49 +124,15 @@ export function PostCard({
     void act(() => st.request(`/posts/${post.id}/react`, {}));
   };
   if (deleted) return null;
+  if (hidden)
+    return (
+      <View style={styles.post}>
+        <Text style={s.small}>Hidden for this visit.</Text>
+        <Button title="Undo hide" secondary onPress={() => setHidden(false)} />
+      </View>
+    );
   return (
     <View style={styles.post}>
-      {post.media_id ? (
-        post.kind === "video" ? (
-          active && (!st.data?.me.data_saver || play) ? (
-            <FeedVideo id={post.media_id} />
-          ) : (
-            <View style={styles.videoPlaceholder}>
-              <Icon name="videocam-outline" size={32} color={C.primary} />
-              <Text style={s.small}>
-                {st.data?.me.data_saver
-                  ? "A moment to play when you’re ready"
-                  : "A little moment in motion"}
-              </Text>
-              {!active ? (
-                <Button
-                  title="Open video moment"
-                  secondary
-                  icon="play-outline"
-                  onPress={() => router.push(`/post/${post.id}`)}
-                />
-              ) : (
-                st.data?.me.data_saver && (
-                  <Button
-                    title="Play this video"
-                    icon="play-outline"
-                    disabled={!active}
-                    onPress={() => setPlay(true)}
-                  />
-                )
-              )}
-            </View>
-          )
-        ) : (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="View full photo"
-            onPress={() => setPhoto(true)}
-          >
-            <PrivateImage id={post.media_id} style={styles.photo} />
-          </Pressable>
-        )
-      ) : null}
       <View style={styles.author}>
         <Pressable
           accessibilityRole="button"
@@ -161,31 +160,71 @@ export function PostCard({
           onPress={() => setOptions(true)}
         />
       </View>
+      {post.media_id ? (
+        post.kind === "video" ? (
+          active && (!st.data?.me.data_saver || play) ? (
+            <FeedVideo id={post.media_id} />
+          ) : (
+            <View style={styles.videoPlaceholder}>
+              <PrivateImage
+                id={post.media_id}
+                thumbnail
+                style={StyleSheet.absoluteFill}
+              />
+              <View style={styles.videoPrompt}>
+                <Icon name="play" size={28} color={C.white} />
+                <Button
+                  title={!active ? "Open video moment" : "Play this video"}
+                  icon="play-outline"
+                  onPress={() =>
+                    !active ? router.push("/post/" + post.id) : setPlay(true)
+                  }
+                />
+              </View>
+            </View>
+          )
+        ) : (
+          <PhotoCarousel
+            items={attachments}
+            onOpen={(id) => {
+              setPhotoId(id);
+              setPhoto(true);
+            }}
+          />
+        )
+      ) : null}
       {!!post.body && (
         <Text
-          numberOfLines={!detail && post.media_id ? 4 : undefined}
-          style={post.media_id ? styles.caption : styles.textMoment}
+          style={
+            post.media_id
+              ? styles.caption
+              : [
+                  styles.textMoment,
+                  post.body.trim().endsWith("?") && styles.question,
+                ]
+          }
         >
-          {post.body}
+          {caption}
         </Text>
       )}
-      {!detail && !!post.media_id && !!post.body && (
+      {shortened && (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Read full moment"
           onPress={() => router.push(`/post/${post.id}`)}
           style={{ minHeight: 44, justifyContent: "center" }}
         >
-          <Text style={s.link}>Read moment</Text>
+          <Text style={s.link}>Read more</Text>
         </Pressable>
       )}
       <View style={styles.actions}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Like post"
+          aria-pressed={post.liked}
           accessibilityState={{ selected: post.liked }}
           disabled={busy}
-          style={styles.action}
+          style={[styles.action, busy && { opacity: 0.65 }]}
           onPress={reactToMoment}
         >
           <Animated.View style={{ transform: [{ scale: heartScale }] }}>
@@ -270,7 +309,39 @@ export function PostCard({
       <BottomSheet
         visible={open}
         onClose={() => setOpen(false)}
-        title="A little conversation"
+        title="Comments"
+        footer={
+          <>
+            {parent && (
+              <View style={{ marginBottom: 12 }}>
+                <Chip
+                  label="Replying to a comment · cancel"
+                  onPress={() => setParent(undefined)}
+                />
+              </View>
+            )}
+            <Field
+              value={reply}
+              onChangeText={(value) => setReply(value.slice(0, 2000))}
+              editable={!busy}
+              placeholder="A little thought…"
+            />
+            <Button
+              title="Send reply"
+              disabled={busy || !reply.trim()}
+              onPress={() =>
+                void act(async () => {
+                  await st.request(`/posts/${post.id}/comments`, {
+                    body: reply,
+                    parentId: parent,
+                  });
+                  setReply("");
+                  setParent(undefined);
+                })
+              }
+            />
+          </>
+        }
       >
         {post.comments.length ? (
           post.comments.map((comment) => (
@@ -303,33 +374,6 @@ export function PostCard({
             Start with a thought, a question, a little hello.
           </Text>
         )}
-        {parent && (
-          <View style={{ marginBottom: 12 }}>
-            <Chip
-              label="Replying to a comment · cancel"
-              onPress={() => setParent(undefined)}
-            />
-          </View>
-        )}
-        <Field
-          value={reply}
-          onChangeText={setReply}
-          placeholder="A little thought…"
-        />
-        <Button
-          title="Send reply"
-          disabled={busy || !reply.trim()}
-          onPress={() =>
-            void act(async () => {
-              await st.request(`/posts/${post.id}/comments`, {
-                body: reply,
-                parentId: parent,
-              });
-              setReply("");
-              setParent(undefined);
-            })
-          }
-        />
       </BottomSheet>
       <BottomSheet
         visible={options}
@@ -342,34 +386,86 @@ export function PostCard({
             secondary
             icon="trash-outline"
             disabled={busy}
-            onPress={async () => {
-              setBusy(true);
-              try {
-                await st.request(`/posts/${post.id}`, {}, "DELETE");
-                setDeleted(true);
-                setOptions(false);
-                await st.refresh();
-              } catch (e: any) {
-                st.toast(e.message);
-              } finally {
-                setBusy(false);
-              }
+            onPress={() => {
+              setOptions(false);
+              setConfirmDelete(true);
             }}
           />
         ) : (
-          <Button
-            title="Report post"
-            secondary
-            icon="flag-outline"
-            onPress={() => {
-              setOptions(false);
-              router.push({
-                pathname: "/safety",
-                params: { target: post.author.id, context: "post:" + post.id },
-              });
-            }}
-          />
+          <View style={{ gap: 12 }}>
+            <Button
+              title="Hide for this visit"
+              secondary
+              icon="eye-off-outline"
+              onPress={() => {
+                setOptions(false);
+                setHidden(true);
+              }}
+            />
+            <Button
+              title="Block or end match"
+              secondary
+              icon="hand-left-outline"
+              onPress={() => {
+                setOptions(false);
+                router.push({
+                  pathname: "/safety",
+                  params: {
+                    target: post.author.id,
+                    context: "post:" + post.id,
+                  },
+                });
+              }}
+            />
+            <Button
+              title="Report post"
+              secondary
+              icon="flag-outline"
+              onPress={() => {
+                setOptions(false);
+                router.push({
+                  pathname: "/safety",
+                  params: {
+                    target: post.author.id,
+                    context: "post:" + post.id,
+                  },
+                });
+              }}
+            />
+          </View>
         )}
+      </BottomSheet>
+      <BottomSheet
+        visible={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        title="Delete this post?"
+      >
+        <Text style={[s.body, { marginBottom: 18 }]}>
+          Your photos, caption and comments will be removed from your matches’
+          feed.
+        </Text>
+        <Button
+          title="Keep my post"
+          secondary
+          onPress={() => setConfirmDelete(false)}
+        />
+        <Button
+          title="Delete post"
+          disabled={busy}
+          onPress={async () => {
+            setBusy(true);
+            try {
+              await st.request(`/posts/${post.id}`, {}, "DELETE");
+              setDeleted(true);
+              setOptions(false);
+              await st.refresh();
+            } catch (e: any) {
+              st.toast(e.message);
+            } finally {
+              setBusy(false);
+            }
+          }}
+        />
       </BottomSheet>
       <Modal
         visible={photo}
@@ -385,20 +481,30 @@ export function PostCard({
               onPress={() => setPhoto(false)}
             />
           </View>
-          {post.media_id && (
+          {photoId && (
             <PrivateImage
-              id={post.media_id}
+              id={photoId}
               resizeMode="contain"
               style={{ flex: 1, width: "100%", borderRadius: 18 }}
             />
           )}
           {!!post.body && (
-            <Text
-              numberOfLines={3}
-              style={[s.body, { color: C.ink, paddingVertical: 20 }]}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Read full moment"
+              onPress={() => {
+                setPhoto(false);
+                router.push("/post/" + post.id);
+              }}
             >
-              {post.body}
-            </Text>
+              <Text
+                numberOfLines={3}
+                style={[s.body, { color: C.ink, paddingVertical: 20 }]}
+              >
+                {post.body}
+              </Text>
+              <Text style={s.link}>Read full moment</Text>
+            </Pressable>
           )}
         </SafeAreaView>
       </Modal>
@@ -431,11 +537,24 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    marginTop: 14,
+    marginTop: 0,
     marginBottom: 12,
   },
   name: { fontSize: 14, color: C.ink, fontWeight: "600" },
-  caption: { color: C.ink, fontSize: 16, lineHeight: 24 },
+  caption: { color: C.ink, fontSize: 16, lineHeight: 24, marginTop: 14 },
+  question: {
+    backgroundColor: C.lavender,
+    padding: 20,
+    borderRadius: 18,
+    marginVertical: 8,
+  },
+  videoPrompt: {
+    gap: 12,
+    padding: 16,
+    borderRadius: 20,
+    backgroundColor: "#2C2529AA",
+    alignItems: "center",
+  },
   textMoment: {
     color: C.ink,
     fontSize: 25,

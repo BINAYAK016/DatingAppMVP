@@ -4,15 +4,22 @@ import { useVideoPlayer, VideoView, VideoSource } from "expo-video";
 import { useEvent, useEventListener } from "expo";
 import { useStore } from "../lib/store";
 import { useMediaVisible } from "../lib/useMediaVisible";
-import { C, IconButton, Skeleton, s } from "./ui";
+import { Button, C, IconButton, Skeleton, s } from "./ui";
 export function FeedVideo({ id }: { id: string }) {
   const { url, token } = useStore();
   const visible = useMediaVisible();
+  const [attempt, setAttempt] = useState(0);
   if (!visible) return <Skeleton height={420} radius={18} />;
   return Platform.OS === "web" ? (
-    <BrowserVideo key={`${id}:${token}`} id={id} />
+    <BrowserVideo
+      key={`${id}:${token}:${attempt}`}
+      id={id}
+      onRetry={() => setAttempt((n) => n + 1)}
+    />
   ) : (
     <Player
+      key={`${id}:${token}:${attempt}`}
+      onRetry={() => setAttempt((n) => n + 1)}
       source={{
         uri: `${url}/v1/media/${id}`,
         headers: { Authorization: `Bearer ${token}` },
@@ -20,7 +27,7 @@ export function FeedVideo({ id }: { id: string }) {
     />
   );
 }
-function BrowserVideo({ id }: { id: string }) {
+function BrowserVideo({ id, onRetry }: { id: string; onRetry: () => void }) {
   const { url, token } = useStore();
   const [source, setSource] = useState<string | null>(null),
     [error, setError] = useState(false);
@@ -47,7 +54,7 @@ function BrowserVideo({ id }: { id: string }) {
     };
   }, [url, token, id]);
   return source ? (
-    <Player source={source} />
+    <Player source={source} onRetry={onRetry} />
   ) : (
     <View
       style={[
@@ -61,14 +68,23 @@ function BrowserVideo({ id }: { id: string }) {
       ]}
     >
       {error ? (
-        <Text style={s.small}>Video unavailable</Text>
+        <View style={{ gap: 12, alignItems: "center" }}>
+          <Text style={s.small}>We couldn’t load this video.</Text>
+          <Button title="Retry video" secondary onPress={onRetry} />
+        </View>
       ) : (
         <Skeleton height={420} radius={18} />
       )}
     </View>
   );
 }
-function Player({ source }: { source: VideoSource }) {
+function Player({
+  source,
+  onRetry,
+}: {
+  source: VideoSource;
+  onRetry: () => void;
+}) {
   const [muted, setMuted] = useState(true);
   const video = useRef<VideoView>(null);
   const { toast } = useStore();
@@ -80,6 +96,9 @@ function Player({ source }: { source: VideoSource }) {
   const manualPaused = useRef(false);
   const { isPlaying } = useEvent(player, "playingChange", {
     isPlaying: player.playing,
+  });
+  const { status } = useEvent(player, "statusChange", {
+    status: player.status,
   });
   useEventListener(player, "statusChange", ({ status }) => {
     // On web the setup callback runs before VideoView mounts its media element.
@@ -107,39 +126,61 @@ function Player({ source }: { source: VideoSource }) {
         contentFit="contain"
         nativeControls={false}
       />
-      <View style={styles.controls}>
-        <IconButton
-          name={isPlaying ? "pause-outline" : "play-outline"}
-          label={isPlaying ? "Pause video" : "Play video"}
-          variant="soft"
-          onPress={() => {
-            manualPaused.current = isPlaying;
-            if (isPlaying) player.pause();
-            else player.play();
-          }}
-        />
-        <IconButton
-          name="expand-outline"
-          label="View video full screen"
-          variant="soft"
-          onPress={() => {
-            void video.current
-              ?.enterFullscreen()
-              .catch(() => toast("Full screen couldn’t open. Try again."));
-          }}
-        />
-        <IconButton
-          name={muted ? "volume-mute-outline" : "volume-high-outline"}
-          label={muted ? "Unmute video" : "Mute video"}
-          variant="soft"
-          onPress={() => {
-            // Expo's VideoPlayer exposes a native setter, not mutable React state.
-            // eslint-disable-next-line react-hooks/immutability
-            player.muted = !muted;
-            setMuted(!muted);
-          }}
-        />
-      </View>
+      {status === "loading" && (
+        <View style={[StyleSheet.absoluteFill, { justifyContent: "center" }]}>
+          <Skeleton height={420} />
+        </View>
+      )}
+      {status === "error" ? (
+        <View
+          style={[
+            StyleSheet.absoluteFill,
+            {
+              justifyContent: "center",
+              alignItems: "center",
+              gap: 12,
+              backgroundColor: C.lavender,
+            },
+          ]}
+        >
+          <Text style={s.small}>We couldn’t play this video.</Text>
+          <Button title="Retry video" secondary onPress={onRetry} />
+        </View>
+      ) : (
+        <View style={styles.controls}>
+          <IconButton
+            name={isPlaying ? "pause-outline" : "play-outline"}
+            label={isPlaying ? "Pause video" : "Play video"}
+            variant="soft"
+            onPress={() => {
+              manualPaused.current = isPlaying;
+              if (isPlaying) player.pause();
+              else player.play();
+            }}
+          />
+          <IconButton
+            name="expand-outline"
+            label="View video full screen"
+            variant="soft"
+            onPress={() => {
+              void video.current
+                ?.enterFullscreen()
+                .catch(() => toast("Full screen couldn’t open. Try again."));
+            }}
+          />
+          <IconButton
+            name={muted ? "volume-mute-outline" : "volume-high-outline"}
+            label={muted ? "Unmute video" : "Mute video"}
+            variant="soft"
+            onPress={() => {
+              // Expo's VideoPlayer exposes a native setter, not mutable React state.
+              // eslint-disable-next-line react-hooks/immutability
+              player.muted = !muted;
+              setMuted(!muted);
+            }}
+          />
+        </View>
+      )}
     </View>
   );
 }

@@ -1,103 +1,289 @@
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  AppState,
   Image,
+  Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, useNavigation } from "expo-router";
+import { usePreventRemove } from "expo-router/react-navigation";
 import { randomUUID } from "expo-crypto";
 import * as ImagePicker from "expo-image-picker";
+import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import { useVideoPlayer, VideoView } from "expo-video";
-import { Button, C, Header, Icon, IconButton, Page, s } from "../components/ui";
+import {
+  BottomSheet,
+  Button,
+  C,
+  Header,
+  Icon,
+  IconButton,
+  Page,
+  s,
+} from "../components/ui";
 import { useStore } from "../lib/store";
+import { useMediaVisible } from "../lib/useMediaVisible";
+import { uploadMedia } from "../lib/uploadMedia";
+
 export default function Compose() {
-  const { kind = "post", target } = useLocalSearchParams<{
+  const {
+    kind = "post",
+    target,
+    camera,
+  } = useLocalSearchParams<{
     kind?: string;
     target?: string;
+    camera?: string;
   }>();
-  const st = useStore();
-  const [body, setBody] = useState(""),
-    [asset, setAsset] = useState<ImagePicker.ImagePickerAsset | null>(null),
+  const st = useStore(),
+    navigation = useNavigation();
+  const [body, setBody] = useState("");
+  const [assets, setAssets] = useState<ImagePicker.ImagePickerAsset[]>([]);
+  const [selected, setSelected] = useState(0),
     [busy, setBusy] = useState(false),
-    [stage, setStage] = useState("");
-  const pick = async (camera: boolean, video = false) => {
-    try {
-      if (camera) {
-        const permission = await ImagePicker.requestCameraPermissionsAsync();
-        if (!permission.granted) {
-          st.toast(
-            "Camera permission is off. You can still choose from your library.",
-          );
+    [picking, setPicking] = useState(false);
+  const [stage, setStage] = useState(""),
+    [progress, setProgress] = useState(0),
+    [sent, setSent] = useState(false);
+  const [discard, setDiscard] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const pendingAction = useRef<
+    Parameters<typeof navigation.dispatch>[0] | null
+  >(null);
+  const uploads = useRef(new Map<string, string>()),
+    controller = useRef<AbortController | null>(null);
+  const pickingRef = useRef(false),
+    cameraOpened = useRef(false);
+  const [clientId, setClientId] = useState(() => randomUUID());
+  const mutable = !busy && !picking;
+  const limit = kind === "post" ? 6 : 1;
+  const needsMedia = ["snap", "avatar", "gallery", "message"].includes(kind);
+  const captionLimit = kind === "snap" ? 140 : kind === "story" ? 300 : 2000;
+  const updateDraft = () => setClientId(randomUUID());
+  usePreventRemove(
+    !sent && !leaving && (busy || !!body.trim() || !!assets.length),
+    ({ data }) => {
+      pendingAction.current = data.action;
+      setDiscard(true);
+    },
+  );
+  useEffect(
+    () => () => {
+      controller.current?.abort();
+    },
+    [],
+  );
+  useEffect(() => {
+    if (leaving && pendingAction.current)
+      navigation.dispatch(pendingAction.current);
+  }, [leaving, navigation]);
+  const accept = useCallback(
+    (result: ImagePicker.ImagePickerResult, append = false) => {
+      if (result.canceled) return;
+      const picked = result.assets;
+      if (
+        picked.some(
+          (a) =>
+            a.type === "video" &&
+            ((a.fileSize || 0) > 20 * 1024 * 1024 || (a.duration || 0) > 30000),
+        )
+      )
+        throw new Error("Choose a shorter video, up to 30 seconds.");
+      if (picked.some((a) => a.type === "video") && picked.length > 1)
+        throw new Error("Choose photos together, or one video.");
+      setAssets((previous) => {
+        const next =
+          append &&
+          !picked.some((a) => a.type === "video") &&
+          !previous.some((a) => a.type === "video")
+            ? [...previous, ...picked]
+            : picked;
+        return [...new Map(next.map((a) => [a.uri, a])).values()].slice(
+          0,
+          limit,
+        );
+      });
+      setSelected(0);
+      setClientId(randomUUID());
+    },
+    [limit],
+  );
+  const pick = useCallback(
+    async (mode: "photos" | "video" | "camera" | "record") => {
+      if (pickingRef.current) return;
+      pickingRef.current = true;
+      setPicking(true);
+      try {
+        const nativeCamera = mode === "camera" || mode === "record";
+        if (nativeCamera && Platform.OS !== "web") {
+          const permission = await ImagePicker.requestCameraPermissionsAsync();
+          if (!permission.granted) {
+            st.toast(
+              "Allow camera access in Settings, or choose from your photos.",
+            );
+            return;
+          }
+        }
+        const video = mode === "video" || mode === "record";
+        const options: ImagePicker.ImagePickerOptions = {
+          mediaTypes: video ? ["videos"] : ["images"],
+          quality: 0.85,
+          videoMaxDuration: 30,
+          allowsEditing: kind === "avatar",
+          aspect: [1, 1],
+          allowsMultipleSelection: !nativeCamera && kind === "post" && !video,
+          orderedSelection: true,
+          selectionLimit:
+            kind === "post" && !video ? Math.max(1, 6 - assets.length) : 1,
+        };
+        accept(
+          nativeCamera
+            ? await ImagePicker.launchCameraAsync(options)
+            : await ImagePicker.launchImageLibraryAsync(options),
+          !nativeCamera && kind === "post" && !video,
+        );
+      } catch (e: any) {
+        st.toast(e.message);
+      } finally {
+        pickingRef.current = false;
+        setPicking(false);
+      }
+    },
+    [st, kind, assets.length, accept],
+  );
+  useEffect(() => {
+    if (cameraOpened.current) return;
+    cameraOpened.current = true;
+    void (async () => {
+      if (Platform.OS === "android") {
+        const pending = await ImagePicker.getPendingResultAsync();
+        if (pending && "assets" in pending && pending.assets) {
+          accept(pending as ImagePicker.ImagePickerResult);
           return;
         }
+        if (pending && "message" in pending)
+          st.toast("Your camera couldn’t finish. Please try again.");
       }
-      const result = camera
-        ? await ImagePicker.launchCameraAsync({
-            mediaTypes: video ? ["videos"] : ["images"],
-            videoMaxDuration: 30,
-            quality: 0.75,
-          })
-        : await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: kind === "avatar" ? ["images"] : ["images", "videos"],
-            quality: 0.75,
-            videoMaxDuration: 30,
-          });
-      if (!result.canceled) {
-        const a = result.assets[0];
-        if ((a.fileSize || 0) > 20 * 1024 * 1024 || (a.duration || 0) > 30000)
-          throw new Error(
-            "Choose a photo or a video up to 30 seconds and 20 MB.",
-          );
-        setAsset(a);
-      }
-    } catch (e: any) {
-      st.toast(e.message);
+      if (camera === "photo" && kind === "snap" && Platform.OS !== "web")
+        await pick("camera");
+    })().catch(() =>
+      st.toast("Your camera couldn’t open. You can still choose a photo."),
+    );
+  }, [camera, kind, pick, accept, st]);
+  const crop = async () => {
+    const asset = assets[selected];
+    if (!asset || asset.type === "video" || !asset.width || !asset.height)
+      return;
+    setPicking(true);
+    try {
+      const side = Math.min(asset.width, asset.height);
+      const context = ImageManipulator.manipulate(asset.uri);
+      context.crop({
+        originX: Math.floor((asset.width - side) / 2),
+        originY: Math.floor((asset.height - side) / 2),
+        width: side,
+        height: side,
+      });
+      const result = await (
+        await context.renderAsync()
+      ).saveAsync({ format: SaveFormat.JPEG, compress: 0.9 });
+      setAssets((items) =>
+        items.map((a, i) =>
+          i === selected
+            ? {
+                ...a,
+                ...result,
+                file: undefined,
+                mimeType: "image/jpeg",
+                fileName: "photo.jpg",
+              }
+            : a,
+        ),
+      );
+      updateDraft();
+    } catch {
+      st.toast("We couldn’t crop this photo. Try another one.");
+    } finally {
+      setPicking(false);
     }
   };
-  const [clientId] = useState(() => randomUUID());
+  const move = (direction: number) => {
+    const destination = selected + direction;
+    if (destination < 0 || destination >= assets.length) return;
+    setAssets((items) => {
+      const next = [...items];
+      [next[selected], next[destination]] = [next[destination], next[selected]];
+      return next;
+    });
+    setSelected(destination);
+    updateDraft();
+  };
   const publish = async () => {
+    if (busy || !st.token) return;
     setBusy(true);
+    controller.current = new AbortController();
     try {
-      let mediaId: string | undefined;
-      if (asset) {
-        setStage("Uploading & preparing your media…");
-        mediaId = (await st.upload(asset)).id;
+      const mediaIds: string[] = [];
+      for (const [index, asset] of assets.entries()) {
+        let id = uploads.current.get(asset.uri);
+        if (!id) {
+          setProgress(0);
+          setStage(
+            `Uploading ${assets.length > 1 ? `photo ${index + 1} of ${assets.length}` : asset.type === "video" ? "video" : "photo"}`,
+          );
+          const media = await uploadMedia(
+            st.url,
+            st.token,
+            asset,
+            (fraction) => {
+              setProgress(fraction);
+              if (fraction >= 1)
+                setStage(
+                  asset.type === "video"
+                    ? "Getting your video ready…"
+                    : "Getting your photo ready…",
+                );
+            },
+            controller.current.signal,
+          );
+          id = media.id;
+          uploads.current.set(asset.uri, id);
+        }
+        mediaIds.push(id);
       }
-      setStage("Sharing your moment…");
-      if (kind === "gallery") {
-        if (!mediaId) throw new Error("Choose a photo or video first.");
-        await st.request("/profile/media", { mediaId });
-      } else if (kind === "avatar") {
-        if (!mediaId) throw new Error("Choose a photo first.");
+      if (controller.current.signal.aborted)
+        throw new Error("Upload cancelled.");
+      setStage(kind === "post" ? "Posting…" : "Sending…");
+      const mediaId = mediaIds[0];
+      if (kind === "gallery") await st.request("/profile/media", { mediaId });
+      else if (kind === "avatar")
         await st.request("/profile/photo", { mediaId });
-      } else if (kind === "message") {
-        if (!mediaId || !target)
-          throw new Error("Choose a photo or video for your match.");
+      else if (kind === "message")
         await st.request(`/chat/${target}`, { body, mediaId, clientId });
-      } else if (kind === "snap") {
-        if (!mediaId || !target)
-          throw new Error("Choose a photo or video for your snap.");
+      else if (kind === "snap")
         await st.request(`/snaps/${target}`, { mediaId, caption: body });
-      } else
-        await st.request(kind === "story" ? "/stories" : "/posts", {
-          body,
-          mediaId,
-        });
+      else if (kind === "story")
+        await st.request("/stories", { body, mediaId });
+      else await st.request("/posts", { body, mediaIds, clientId });
+      setSent(true);
       await st.refresh();
       st.toast(
-        kind === "message"
-          ? "Message sent."
+        kind === "post"
+          ? "Posted to your matches."
           : kind === "snap"
             ? "Snap sent."
-            : kind === "avatar"
-              ? "Profile photo updated."
-              : "Your moment is shared.",
+            : kind === "story"
+              ? "Story shared."
+              : kind === "message"
+                ? "Message sent."
+                : "Profile photo saved.",
       );
-      router.back();
     } catch (e: any) {
       st.toast(e.message);
     } finally {
@@ -105,67 +291,73 @@ export default function Compose() {
       setStage("");
     }
   };
+  useEffect(() => {
+    if (sent) router.back();
+  }, [sent]);
+  const asset = assets[selected];
   const title =
-    kind === "gallery"
-      ? "Profile photos"
-      : kind === "avatar"
-        ? "Your profile photo"
-        : kind === "message"
-          ? "Photo or video"
-          : kind === "snap"
-            ? "Send a snap"
-            : kind === "story"
-              ? "Your story"
-              : "Share a moment";
-  const hint =
-    kind === "message"
-      ? "A photo or video, just for this conversation."
+    kind === "post"
+      ? "Create Post"
       : kind === "snap"
-        ? "View once · unopened snaps expire in 24 hours. Screenshots are possible."
+        ? "Send a snap"
         : kind === "story"
-          ? "Here for 24 hours. Only your current matches can see it."
-          : kind === "avatar"
-            ? "Your first impression on Discover."
-            : kind === "gallery"
-              ? "A little more of you, on your profile."
-              : "Your everyday, shared only with current matches.";
+          ? "Your story"
+          : kind === "message"
+            ? "Photo or video"
+            : "Your profile photo";
   return (
     <Page
       footer={
         <View style={{ gap: 10 }}>
+          {busy && (
+            <>
+              <View style={[s.row, { justifyContent: "center" }]}>
+                <ActivityIndicator size="small" color={C.primary} />
+                <Text style={s.small}>
+                  {stage}
+                  {progress > 0 && progress < 1
+                    ? ` · ${Math.round(progress * 100)}%`
+                    : ""}
+                </Text>
+              </View>
+              <View style={styles.progress}>
+                <View
+                  style={[
+                    styles.progressFill,
+                    { width: `${Math.round(progress * 100)}%` },
+                  ]}
+                />
+              </View>
+            </>
+          )}
           <Button
             title={
               busy
                 ? "One moment…"
-                : kind === "message"
-                  ? "Send to this match"
-                  : kind === "gallery"
-                    ? "Add to profile"
-                    : kind === "snap"
-                      ? "Send snap"
-                      : kind === "avatar"
-                        ? "Use this photo"
-                        : "Share with my matches"
+                : kind === "post"
+                  ? "Post"
+                  : kind === "snap"
+                    ? "Send snap"
+                    : kind === "message"
+                      ? "Send to this match"
+                      : kind === "story"
+                        ? "Share story"
+                        : kind === "gallery"
+                          ? "Add to profile"
+                          : "Use this photo"
             }
             disabled={
-              busy ||
-              (!body.trim() && !asset) ||
-              (["snap", "avatar", "gallery", "message"].includes(kind) &&
-                !asset)
+              !mutable ||
+              (!body.trim() && !assets.length) ||
+              (needsMedia && !assets.length)
             }
             onPress={() => void publish()}
           />
-          {busy && (
-            <View style={[s.row, { justifyContent: "center" }]}>
-              <ActivityIndicator size="small" color={C.primary} />
-              <Text style={s.small}>{stage}</Text>
-            </View>
-          )}
         </View>
       }
     >
       <Header back title={title} />
-      <View style={[s.row, { alignItems: "flex-start", marginBottom: 24 }]}>
+      <View style={[s.row, { marginBottom: 20 }]}>
         <Icon
           name={
             kind === "avatar" || kind === "gallery"
@@ -175,143 +367,252 @@ export default function Compose() {
           size={14}
           color={C.muted}
         />
-        <Text style={[s.small, { flex: 1 }]}>{hint}</Text>
+        <Text style={[s.small, { flex: 1 }]}>
+          {kind === "post"
+            ? "Your everyday, shared with your current matches."
+            : kind === "snap"
+              ? "View once · unopened for 24 hours. Screenshots are possible."
+              : kind === "story"
+                ? "24 hours, just for your current matches."
+                : kind === "message"
+                  ? "Just for this conversation."
+                  : "A little more of you, on your profile."}
+        </Text>
       </View>
+      {asset ? (
+        <>
+          <View style={styles.preview}>
+            {asset.type === "video" ? (
+              <LocalVideo uri={asset.uri} />
+            ) : (
+              <Image
+                source={{ uri: asset.uri }}
+                style={styles.photo}
+                resizeMode="contain"
+              />
+            )}
+            <View style={styles.remove}>
+              <IconButton
+                name="close"
+                label={`Remove ${asset.type === "video" ? "video" : "photo"}`}
+                variant="soft"
+                disabled={!mutable}
+                onPress={() => {
+                  setAssets((items) => items.filter((_, i) => i !== selected));
+                  setSelected(0);
+                  updateDraft();
+                }}
+              />
+            </View>
+            {assets.length > 1 && (
+              <Text style={styles.badge}>
+                {selected + 1} / {assets.length}
+              </Text>
+            )}
+          </View>
+          {assets.length > 1 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={{ marginTop: 12 }}
+            >
+              <View style={[s.row, { gap: 10 }]}>
+                {assets.map((item, i) => (
+                  <Pressable
+                    key={item.uri}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Preview photo ${i + 1}`}
+                    accessibilityState={{ selected: i === selected }}
+                    onPress={() => setSelected(i)}
+                    style={[
+                      styles.thumb,
+                      i === selected && { borderColor: C.primary },
+                    ]}
+                  >
+                    <Image
+                      source={{ uri: item.uri }}
+                      style={{ width: 56, height: 64 }}
+                    />
+                  </Pressable>
+                ))}
+              </View>
+            </ScrollView>
+          )}
+          <View
+            style={[
+              s.row,
+              { justifyContent: "space-between", marginVertical: 10 },
+            ]}
+          >
+            {asset.type !== "video" && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Crop square"
+                disabled={!mutable}
+                onPress={() => void crop()}
+                style={styles.textAction}
+              >
+                <Icon name="crop-outline" size={18} />
+                <Text style={s.link}>Crop square</Text>
+              </Pressable>
+            )}
+            {assets.length > 1 && (
+              <View style={s.row}>
+                <IconButton
+                  name="arrow-back"
+                  label="Move photo earlier"
+                  disabled={!mutable || selected === 0}
+                  onPress={() => move(-1)}
+                />
+                <IconButton
+                  name="arrow-forward"
+                  label="Move photo later"
+                  disabled={!mutable || selected === assets.length - 1}
+                  onPress={() => move(1)}
+                />
+              </View>
+            )}
+          </View>
+          {kind === "post" && asset.type !== "video" && assets.length < 6 && (
+            <Button
+              title="Add photos"
+              secondary
+              icon="add"
+              disabled={!mutable}
+              onPress={() => void pick("photos")}
+            />
+          )}
+        </>
+      ) : (
+        <View style={styles.chooser}>
+          <View style={s.row}>
+            <Icon name="images-outline" size={26} color={C.primary} />
+            <Text style={[s.h2, { flex: 1 }]}>
+              {needsMedia ? "Choose a moment" : "Add to your moment"}
+            </Text>
+          </View>
+          <Button
+            title={kind === "post" ? "Choose photos" : "Choose a photo"}
+            secondary
+            icon="images-outline"
+            disabled={!mutable}
+            onPress={() => void pick("photos")}
+          />
+          {kind !== "avatar" && (
+            <Button
+              title="Choose a short video"
+              secondary
+              icon="videocam-outline"
+              disabled={!mutable}
+              onPress={() => void pick("video")}
+            />
+          )}
+        </View>
+      )}
+      {(kind === "snap" || kind === "story") && (
+        <View style={[s.row, { marginTop: 12 }]}>
+          <View style={{ flex: 1 }}>
+            <Button
+              title="Camera"
+              secondary
+              icon="camera-outline"
+              disabled={!mutable}
+              onPress={() => void pick("camera")}
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Button
+              title="Record"
+              secondary
+              icon="videocam-outline"
+              disabled={!mutable}
+              onPress={() => void pick("record")}
+            />
+          </View>
+        </View>
+      )}
       {kind !== "avatar" && kind !== "gallery" && (
-        <View style={{ marginBottom: 20 }}>
+        <View style={{ marginTop: 24 }}>
+          <Text style={[s.small, { marginBottom: 8 }]}>
+            {assets.length ? "A little caption" : "Or share a thought"}
+          </Text>
           <TextInput
             accessibilityLabel={
               kind === "snap" ? "A little caption" : "What’s on your mind?"
             }
             value={body}
-            onChangeText={(value) =>
-              setBody(
-                value.slice(
-                  0,
-                  kind === "snap" ? 140 : kind === "story" ? 300 : 2000,
-                ),
-              )
-            }
-            placeholder="The little things make the best stories…"
+            onChangeText={(value) => {
+              setBody(value.slice(0, captionLimit));
+              updateDraft();
+            }}
+            placeholder="What made you smile today?"
             placeholderTextColor={C.muted}
             multiline
+            editable={mutable}
             style={styles.caption}
-            editable={!busy}
           />
-          {!!body.length && (
-            <Text style={[s.small, { textAlign: "right", marginTop: 8 }]}>
-              {body.length}/
-              {kind === "snap" ? 140 : kind === "story" ? 300 : 2000}
+          {body.length > captionLimit - 100 && (
+            <Text style={[s.small, { textAlign: "right" }]}>
+              {body.length}/{captionLimit}
             </Text>
           )}
         </View>
       )}
-      {asset ? (
-        <View style={styles.preview}>
-          {asset.type === "video" ? (
-            <LocalVideo uri={asset.uri} />
-          ) : (
-            <Image
-              source={{ uri: asset.uri }}
-              style={styles.photo}
-              resizeMode="contain"
-            />
-          )}
-          <View style={styles.remove}>
-            <IconButton
-              name="close"
-              label="Remove media"
-              variant="soft"
-              disabled={busy}
-              onPress={() => setAsset(null)}
-            />
-          </View>
-          {asset.type === "video" && (
-            <Text style={styles.duration}>
-              Video · {Math.round((asset.duration || 0) / 1000)} seconds
-            </Text>
-          )}
-        </View>
-      ) : (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Choose a photo or video"
-          disabled={busy}
-          onPress={() => void pick(false)}
-          style={styles.emptyPreview}
-        >
-          <View style={styles.mediaIcon}>
-            <Icon name="images-outline" size={30} color={C.primary} />
-          </View>
-          <Text style={styles.mediaTitle}>
-            {kind === "avatar"
-              ? "A photo that feels like you"
-              : "A little glimpse of your world"}
-          </Text>
-          <Text style={[s.small, { textAlign: "center" }]}>
-            {kind === "avatar"
-              ? "Choose your profile photo"
-              : "Add a photo or a short video"}
-          </Text>
-        </Pressable>
-      )}
-      <View style={{ gap: 10, marginTop: 20 }}>
-        <Button
-          title="Library"
-          secondary
-          icon="images-outline"
-          disabled={busy}
-          onPress={() => void pick(false)}
-        />
-        {(kind === "snap" || kind === "story") && (
-          <>
-            <Button
-              title="Camera"
-              secondary
-              icon="camera-outline"
-              disabled={busy}
-              onPress={() => void pick(true)}
-            />
-            <Button
-              title="Record a video · up to 30 seconds"
-              secondary
-              icon="videocam-outline"
-              disabled={busy}
-              onPress={() => void pick(true, true)}
-            />
-          </>
-        )}
-      </View>
-      {kind !== "avatar" && (
-        <Text style={[s.small, { textAlign: "center", marginTop: 20 }]}>
-          Photos and videos up to 20 MB. Videos up to 30 seconds.
+      <BottomSheet
+        visible={discard}
+        onClose={() => setDiscard(false)}
+        title={busy ? "Leave while uploading?" : "Discard this draft?"}
+      >
+        <Text style={[s.body, { marginBottom: 18 }]}>
+          {busy
+            ? "Leaving stops the current upload. A post already sent may still appear in your feed."
+            : "Your photos and caption haven’t been posted."}
         </Text>
-      )}
+        <Button title="Keep editing" onPress={() => setDiscard(false)} />
+        <Button
+          title="Discard and leave"
+          secondary
+          onPress={() => {
+            controller.current?.abort();
+            setDiscard(false);
+            setLeaving(true);
+          }}
+        />
+      </BottomSheet>
     </Page>
   );
 }
 function LocalVideo({ uri }: { uri: string }) {
+  const visible = useMediaVisible();
   const player = useVideoPlayer(uri, (p) => {
     p.loop = false;
   });
+  useEffect(() => {
+    if (!visible) player.pause();
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state !== "active") player.pause();
+    });
+    return () => subscription.remove();
+  }, [player, visible]);
   return (
     <VideoView
       player={player}
       style={styles.photo}
       nativeControls
       contentFit="contain"
+      fullscreenOptions={{ enable: false }}
     />
   );
 }
 const styles = StyleSheet.create({
+  chooser: { padding: 20, backgroundColor: C.blush, borderRadius: 20, gap: 14 },
   caption: {
-    minHeight: 120,
+    minHeight: 100,
     padding: 0,
     textAlignVertical: "top",
     color: C.ink,
-    fontSize: 22,
-    lineHeight: 31,
-    backgroundColor: "transparent",
+    fontSize: 20,
+    lineHeight: 29,
   },
   preview: {
     position: "relative",
@@ -319,36 +620,35 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     overflow: "hidden",
   },
-  photo: { width: "100%", height: 360 },
+  photo: { width: "100%", height: 310 },
   remove: { position: "absolute", right: 10, top: 10 },
-  duration: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    color: C.muted,
-    fontSize: 12,
+  badge: {
+    position: "absolute",
+    left: 12,
+    bottom: 12,
+    backgroundColor: "#2C2529CC",
+    color: C.white,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 16,
   },
-  emptyPreview: {
-    minHeight: 230,
-    borderRadius: 18,
+  thumb: {
+    borderWidth: 2,
+    borderColor: "transparent",
+    borderRadius: 10,
+    overflow: "hidden",
+  },
+  textAction: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  progress: {
+    height: 3,
     backgroundColor: C.blush,
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 12,
-    padding: 24,
+    borderRadius: 2,
+    overflow: "hidden",
   },
-  mediaIcon: {
-    width: 64,
-    height: 64,
-    backgroundColor: C.white,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 4,
-  },
-  mediaTitle: {
-    fontSize: 17,
-    fontWeight: "500",
-    color: C.ink,
-    textAlign: "center",
-  },
+  progressFill: { height: 3, backgroundColor: C.primary },
 });
