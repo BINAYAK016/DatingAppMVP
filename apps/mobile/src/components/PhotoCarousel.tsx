@@ -1,41 +1,98 @@
 import React, { useRef, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { C, IconButton, PrivateImage } from "./ui";
-export function PhotoCarousel({
-  items,
-  onOpen,
-}: {
+type Props = {
   items: { id: string }[];
   onOpen: (id: string) => void;
-}) {
+};
+export function PhotoCarousel({ items, onOpen }: Props) {
+  // A different ordered collection must never retain another photo's selection.
+  return items.length ? (
+    <CarouselFrames
+      key={items.map((item) => item.id).join(":")}
+      items={items}
+      onOpen={onOpen}
+    />
+  ) : null;
+}
+function CarouselFrames({ items, onOpen }: Props) {
   const [width, setWidth] = useState(340),
     [index, setIndex] = useState(0);
   const scroll = useRef<ScrollView>(null);
+  const measuredWidth = useRef(340),
+    selection = useRef(0),
+    target = useRef<number | null>(0);
   const move = (next: number) => {
-    setIndex(next);
-    scroll.current?.scrollTo({ x: next * width, animated: true });
+    const selected = Math.max(0, Math.min(items.length - 1, next));
+    selection.current = selected;
+    target.current = selected;
+    setIndex(selected);
+    scroll.current?.scrollTo({ x: selected * width, animated: true });
+  };
+  const settle = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    // Ignore queued momentum from the ScrollView replaced by a width change.
+    if (
+      width !== measuredWidth.current ||
+      Math.abs(event.nativeEvent.layoutMeasurement.width - width) > 1
+    )
+      return;
+    const offset = event.nativeEvent.contentOffset.x;
+    if (target.current !== null) {
+      if (Math.abs(offset - target.current * width) > 1) return;
+      target.current = null;
+    }
+    const selected = Math.max(
+      0,
+      Math.min(items.length - 1, Math.round(offset / width)),
+    );
+    selection.current = selected;
+    setIndex(selected);
   };
   return (
     <View
-      onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
+      onLayout={(event) => {
+        const next = event.nativeEvent.layout.width;
+        if (next > 0 && next !== measuredWidth.current) {
+          measuredWidth.current = next;
+          target.current = selection.current;
+          setWidth(next);
+        }
+      }}
       style={styles.frame}
     >
       <ScrollView
+        key={width}
         ref={scroll}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
-        onMomentumScrollEnd={(event) =>
-          setIndex(
-            Math.max(
-              0,
-              Math.min(
-                items.length - 1,
-                Math.round(event.nativeEvent.contentOffset.x / width),
-              ),
-            ),
-          )
-        }
+        onContentSizeChange={() => {
+          if (width !== measuredWidth.current) return;
+          target.current = selection.current;
+          // Resnap after the resized photo frames have actually been laid out.
+          scroll.current?.scrollTo({
+            x: selection.current * width,
+            animated: false,
+          });
+        }}
+        onScrollBeginDrag={() => {
+          target.current = null;
+        }}
+        onTouchStart={() => {
+          target.current = null;
+        }}
+        onMomentumScrollEnd={settle}
+        onScroll={Platform.OS === "web" ? settle : undefined}
+        scrollEventThrottle={16}
       >
         {items.map((item, i) => (
           <Pressable
