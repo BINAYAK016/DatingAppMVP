@@ -5,6 +5,17 @@ test("email signup verifies through local mail and saves all five onboarding ste
   request,
 }) => {
   test.setTimeout(90000);
+  // Preserve the actual Mailpit/account journey for the later auth phase while
+  // the default local product now enters the separate fictional demo selector.
+  await page.route("**/v1/demo/config", (route) =>
+    route.fulfill({
+      json: {
+        enabled: false,
+        version: 1,
+        groups: { men: 10, women: 10, lgbtq: 10 },
+      },
+    }),
+  );
   await page.setViewportSize({ width: 360, height: 640 });
   page.on("pageerror", (error) =>
     console.error("Auth browser error:", error.message),

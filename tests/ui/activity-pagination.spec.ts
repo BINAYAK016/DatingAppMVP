@@ -35,10 +35,7 @@ const head = {
 async function openActivity(page: Page) {
   await page.goto("/");
   await page
-    .getByRole("button", { name: "Explore demo accounts", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "Try Aarav demo account", exact: true })
+    .getByRole("button", { name: "Enter as Aarav", exact: true })
     .click();
   await page.getByRole("tab", { name: "Chat", exact: false }).click();
   await page

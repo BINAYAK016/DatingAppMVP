@@ -5,10 +5,10 @@ test("a card drag records a Pass, Undo restores it, and a tap opens its profile"
   request,
 }) => {
   const accounts = await (
-    await request.get("http://localhost:4100/v1/auth/demo")
+    await request.get("http://localhost:4100/v1/demo/users?group=men&limit=6")
   ).json();
   let accountName = "";
-  for (const account of accounts) {
+  for (const account of accounts.items) {
     const session = await (
       await request.post("http://localhost:4100/v1/auth/demo", {
         data: { id: account.id },
@@ -30,11 +30,8 @@ test("a card drag records a Pass, Undo restores it, and a tap opens its profile"
   ).not.toBe("");
   await page.goto("/");
   await page
-    .getByRole("button", { name: "Explore demo accounts", exact: true })
-    .click();
-  await page
     .getByRole("button", {
-      name: `Try ${accountName} demo account`,
+      name: `Enter as ${accountName}`,
       exact: true,
     })
     .click();

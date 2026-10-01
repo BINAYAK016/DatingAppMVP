@@ -33,6 +33,7 @@ function person(id: string, name: string): Person {
   };
 }
 const host = person(hostId, "Synthetic Host");
+host.gender = "Man";
 const partner = person(matchId, "Synthetic Match");
 const decoy = person(otherId, "Synthetic Other Match");
 const definition = (mechanic: GameDefinitionV2["mechanic"]) =>
@@ -179,6 +180,25 @@ async function fixture(
       });
     if (method !== "GET")
       mutations.push({ path, body: request.postDataJSON() });
+    if (path === "/demo/config")
+      return fulfill(route, {
+        enabled: true,
+        version: 1,
+        groups: { men: 1, women: 0, lgbtq: 0 },
+      });
+    if (path === "/demo/users")
+      return fulfill(route, {
+        items: [
+          {
+            ...host,
+            demo_group: "men",
+            orientation: "Straight",
+            pronouns: "he/him",
+            looking_for: ["Women"],
+          },
+        ],
+        nextCursor: null,
+      });
     if (path === "/auth/config")
       return fulfill(route, {
         google: false,
@@ -344,10 +364,7 @@ async function fixture(
   });
   await page.goto("/");
   await page
-    .getByRole("button", { name: "Explore demo accounts", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: `Try ${host.name} demo account`, exact: true })
+    .getByRole("button", { name: `Enter as ${host.name}`, exact: true })
     .click();
   await expect(
     page.getByRole("tab", { name: "Discover", exact: false }),
@@ -943,7 +960,7 @@ for (const status of [503, 404, 401]) {
       if (status === 401)
         await expect(
           page.getByRole("button", {
-            name: "Explore demo accounts",
+            name: `Enter as ${host.name}`,
             exact: true,
           }),
         ).toBeVisible();

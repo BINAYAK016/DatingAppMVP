@@ -1,20 +1,110 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+import type { State } from "../../apps/mobile/src/lib/types";
+
+// Real authentication is retained for the later account phase. These cases
+// explicitly select that UI without changing the server's shared demo mode.
+const normalConfig = {
+  enabled: false,
+  version: 1,
+  groups: { men: 10, women: 10, lgbtq: 10 },
+};
+test.beforeEach(async ({ page }) => {
+  await page.route("**/v1/demo/config", (route) =>
+    route.fulfill({ json: normalConfig }),
+  );
+});
+const completedNormalAccount: State = {
+  me: {
+    id: "81000000-0000-4000-8000-000000000001",
+    name: "Synthetic Account",
+    age: 29,
+    city: "Kathmandu",
+    bio: "Synthetic auth-recovery fixture",
+    intent: "Serious relationship",
+    interests: ["Art"],
+    prompt: "A quiet coffee and a walk.",
+    gender: "Woman",
+    color: "#F2D7CC",
+    demo: false,
+    languages: ["Nepali"],
+    hobbies: [],
+    profession: "",
+    education: "",
+    lifestyle: {},
+    email: "synthetic-auth@example.test",
+    email_verified_at: "2026-10-02T08:00:00Z",
+    adult_declared_at: "2026-10-02T08:00:00Z",
+    onboarded_at: "2026-10-02T08:00:00Z",
+    onboarding_step: 5,
+    birth_date: "1997-04-01",
+    paused: false,
+    notifications: false,
+    posts_visible: true,
+    stories_visible: true,
+    messages_enabled: true,
+    interactions_enabled: true,
+    data_saver: false,
+    preferences: {
+      cities: [],
+      genders: [],
+      intents: [],
+      minAge: 21,
+      maxAge: 35,
+    },
+  },
+  features: { gamesV2: true },
+  matches: [],
+  discover: [],
+  undoId: null,
+  feed: [],
+  stories: [],
+  notifications: [],
+  games: [],
+};
+async function mockNormalSession(
+  page: Page,
+  unavailableState: () => boolean = () => false,
+) {
+  // Every endpoint for these two store/routing cases is intercepted; no server
+  // user, credential, fixture match or external provider request is created.
+  await page.route("**/v1/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/v1/demo/config")
+      return route.fulfill({ json: normalConfig });
+    if (path === "/v1/auth/config")
+      return route.fulfill({
+        json: { google: false, localMail: true, otpConfigured: true },
+      });
+    if (["/v1/auth/login", "/v1/auth/register"].includes(path))
+      return route.fulfill({ json: { token: "synthetic-auth-session" } });
+    if (path === "/v1/state") {
+      if (unavailableState()) return route.abort();
+      return route.fulfill({ json: completedNormalAccount });
+    }
+    if (path === "/v1/logout") return route.fulfill({ json: { ok: true } });
+    return route.fulfill({
+      status: 404,
+      json: { message: "No synthetic fixture for that action." },
+    });
+  });
+}
 
 test("successful authentication with an unavailable state request has explicit retry recovery", async ({
   page,
 }) => {
   let offline = true;
-  await page.route("**/v1/state", async (route) => {
-    if (offline) await route.abort();
-    else await route.continue();
-  });
+  await mockNormalSession(page, () => offline);
   await page.goto("/");
   await page
-    .getByRole("button", { name: "Explore demo accounts", exact: true })
+    .getByRole("button", { name: "I already have an account", exact: true })
     .click();
   await page
-    .getByRole("button", { name: "Try Aarav demo account", exact: true })
-    .click();
+    .getByLabel("Email", { exact: true })
+    .fill("synthetic-auth@example.test");
+  await page
+    .getByLabel("Password · at least 10 characters", { exact: true })
+    .fill("synthetic-fixture-password");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(
     page.getByText("Let’s reconnect", { exact: true }),
   ).toBeVisible();
@@ -34,6 +124,7 @@ test("successful authentication with an unavailable state request has explicit r
 test("signup validates email and adult consent before issuing an account request", async ({
   page,
 }) => {
+  await mockNormalSession(page);
   const registerRequests: string[] = [];
   page.on("request", (request) => {
     if (
@@ -74,6 +165,7 @@ test("signup validates email and adult consent before issuing an account request
 test("signing out returns to Welcome and clears the retained signup fields", async ({
   page,
 }) => {
+  await mockNormalSession(page);
   page.on("pageerror", (error) =>
     console.error("Auth browser error:", error.message),
   );
@@ -86,10 +178,13 @@ test("signing out returns to Welcome and clears the retained signup fields", asy
     .getByLabel("Password · at least 10 characters", { exact: true })
     .fill("unsaved-synthetic-password");
   await page
-    .getByRole("button", { name: "Explore demo accounts", exact: true })
+    .getByText(
+      "I am 18 or older and agree to the beta terms, privacy policy and community rules.",
+      { exact: true },
+    )
     .click();
   await page
-    .getByRole("button", { name: "Try Aarav demo account", exact: true })
+    .getByRole("button", { name: "Create account", exact: true })
     .click();
   await page.getByRole("tab", { name: "Profile", exact: false }).click();
   await page.getByLabel("Profile settings", { exact: true }).click();
@@ -98,7 +193,7 @@ test("signing out returns to Welcome and clears the retained signup fields", asy
   );
   await page
     .getByRole("button", {
-      name: "Switch demo account / sign out",
+      name: "Sign out",
       exact: true,
     })
     .click();

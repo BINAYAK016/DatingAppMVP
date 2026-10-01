@@ -36,19 +36,28 @@ test("two matches explicitly become ready, invite, accept and reveal a live game
     });
   });
   try {
-    await guest.goto("http://localhost:8081/");
-    await guest
-      .getByRole("button", { name: "Explore demo accounts", exact: true })
+    // Preserve the seeded Aarav/Anaya Games 2.0 invitation. Rohan/Nisha are
+    // mutually matched and have no open game in the restored demo baseline.
+    await page
+      .getByRole("button", { name: "Switch demo user", exact: true })
       .click();
+    await page
+      .getByRole("button", { name: "Enter as Rohan", exact: true })
+      .click();
+    await expect(
+      page.getByText("DEMO MODE · Rohan", { exact: true }).last(),
+    ).toBeVisible();
+    await guest.goto("http://localhost:8081/");
+    await guest.getByRole("button", { name: "Women", exact: true }).click();
     await guest
-      .getByRole("button", { name: "Try Anaya demo account", exact: true })
+      .getByRole("button", { name: "Enter as Nisha", exact: true })
       .click();
     await expect(
       guest.getByRole("tab", { name: "Discover", exact: false }),
     ).toBeVisible();
     for (const [client, name, target] of [
-      [page, "Anaya", "10000000-0000-4000-8000-000000000002"],
-      [guest, "Aarav", "10000000-0000-4000-8000-000000000001"],
+      [page, "Nisha", "10000000-0000-4000-8000-000000000005"],
+      [guest, "Rohan", "10000000-0000-4000-8000-000000000004"],
     ] as const) {
       await test.step(`Open games and explicitly mark ready with ${name}`, async () => {
         await client.getByRole("tab", { name: "Chat", exact: false }).click();
@@ -80,7 +89,7 @@ test("two matches explicitly become ready, invite, accept and reveal a live game
     await guest
       .getByRole("button", { name: "This or that · invited", exact: true })
       .click();
-    await becomeReady(guest, "10000000-0000-4000-8000-000000000001");
+    await becomeReady(guest, "10000000-0000-4000-8000-000000000004");
     await expect(
       guest.getByRole("button", { name: "Accept invitation", exact: true }),
     ).toBeEnabled();
@@ -160,10 +169,7 @@ test.beforeEach(async ({ page }) => {
   });
   await page.goto("/");
   await page
-    .getByRole("button", { name: "Explore demo accounts", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "Try Aarav demo account", exact: true })
+    .getByRole("button", { name: "Enter as Aarav", exact: true })
     .click();
   await expect(
     page.getByRole("tab", { name: "Discover", exact: false }),

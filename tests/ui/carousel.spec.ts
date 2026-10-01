@@ -105,6 +105,29 @@ test("carousel keeps the fifth photo aligned through rotation and resets changed
   await page.route("**/v1/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     const method = route.request().method();
+    if (path === "/v1/demo/config")
+      return route.fulfill({
+        json: {
+          enabled: true,
+          version: 1,
+          groups: { men: 1, women: 0, lgbtq: 0 },
+        },
+      });
+    if (path === "/v1/demo/users")
+      return route.fulfill({
+        json: {
+          items: [
+            {
+              ...person,
+              demo_group: "men",
+              orientation: "Straight",
+              pronouns: "he/him",
+              looking_for: ["Women"],
+            },
+          ],
+          nextCursor: null,
+        },
+      });
     if (path === "/v1/auth/demo")
       return route.fulfill({
         json:
@@ -132,11 +155,8 @@ test("carousel keeps the fifth photo aligned through rotation and resets changed
   });
   await page.goto("/");
   await page
-    .getByRole("button", { name: "Explore demo accounts", exact: true })
-    .click();
-  await page
     .getByRole("button", {
-      name: "Try Synthetic Aarav demo account",
+      name: "Enter as Synthetic Aarav",
       exact: true,
     })
     .click();

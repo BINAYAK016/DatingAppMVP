@@ -9,10 +9,7 @@ const actor = "10000000-0000-4000-8000-000000000001";
 async function demo(page: Page) {
   await page.goto("/");
   await page
-    .getByRole("button", { name: "Explore demo accounts", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "Try Aarav demo account", exact: true })
+    .getByRole("button", { name: "Enter as Aarav", exact: true })
     .click();
   await expect(
     page.getByRole("tab", { name: "Discover", exact: false }),
@@ -248,10 +245,7 @@ test("likes respond before the network, roll back on failure, and comments stay 
   });
   await page.goto("/");
   await page
-    .getByRole("button", { name: "Explore demo accounts", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "Try Aarav demo account", exact: true })
+    .getByRole("button", { name: "Enter as Aarav", exact: true })
     .click();
   await page.getByRole("tab", { name: "Sangai", exact: false }).click();
   const like = page.getByRole("button", { name: "Like post", exact: true });
@@ -311,10 +305,7 @@ async function fixtureFeed(page: Page, request: APIRequestContext) {
   await page.route("**/v1/state", (route) => route.fulfill({ json: state }));
   await page.goto("/");
   await page
-    .getByRole("button", { name: "Explore demo accounts", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "Try Aarav demo account", exact: true })
+    .getByRole("button", { name: "Enter as Aarav", exact: true })
     .click();
   await page.getByRole("tab", { name: "Sangai", exact: false }).click();
   return post;
@@ -339,9 +330,12 @@ test("an expired session leaves a protected composer without a draft navigation 
   });
   await page.getByRole("button", { name: "Post", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "Continue with email", exact: true }),
+    page.getByRole("button", { name: "Enter as Aarav", exact: true }),
   ).toBeVisible();
-  await expect(page).toHaveURL(/\/welcome$/);
+  await expect(page).toHaveURL(/\/demo$/);
+  await expect(
+    page.getByLabel("What’s on your mind?", { exact: true }),
+  ).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 

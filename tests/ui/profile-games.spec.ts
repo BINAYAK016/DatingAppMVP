@@ -67,14 +67,11 @@ async function demo(page: Page, transform?: (state: any) => any) {
       await route.fulfill({ response, json: transform(await response.json()) });
     });
   await page.goto("/");
-  await page
-    .getByRole("button", { name: "Explore demo accounts", exact: true })
-    .click();
   const state = page.waitForResponse(
     (response) => response.url().endsWith("/v1/state") && response.ok(),
   );
   await page
-    .getByRole("button", { name: "Try Aarav demo account", exact: true })
+    .getByRole("button", { name: "Enter as Aarav", exact: true })
     .click();
   const value = await (await state).json();
   await expect(

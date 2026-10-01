@@ -2,14 +2,11 @@ import { expect, test, type Page } from "@playwright/test";
 
 async function openDemoChat(page: Page) {
   await page.goto("/");
-  await page
-    .getByRole("button", { name: "Explore demo accounts", exact: true })
-    .click();
   const state = page.waitForResponse(
     (r) => r.url().endsWith("/v1/state") && r.ok(),
   );
   await page
-    .getByRole("button", { name: "Try Aarav demo account", exact: true })
+    .getByRole("button", { name: "Enter as Aarav", exact: true })
     .click();
   const data = await (await state).json();
   const person = data.matches.find((p: any) => p.name === "Anaya");

@@ -1,10 +1,10 @@
 import { expect, test } from "@playwright/test";
 
-test("signup can reach demo accounts after the first request fails", async ({
+test("demo entry can retry the first profile request and enter without signup", async ({
   page,
 }) => {
   let demoRequests = 0;
-  await page.route("**/v1/auth/demo", async (route) => {
+  await page.route("**/v1/demo/users?*", async (route) => {
     if (route.request().method() === "GET" && demoRequests++ === 0) {
       await route.abort();
       return;
@@ -12,14 +12,20 @@ test("signup can reach demo accounts after the first request fails", async ({
     await route.continue();
   });
 
-  await page.goto("/");
-  await page.getByRole("button", { name: "Continue with email" }).click();
-  await expect(page.getByText("Make yourself at home")).toBeVisible();
-  await page.getByRole("button", { name: "Explore demo accounts" }).click();
-  await expect(page.getByText("Choose a demo account")).toBeVisible();
+  await page.goto("/welcome");
   await expect(
-    page.getByRole("button", { name: "Try Aarav demo account" }),
+    page.getByText("Choose a profile", { exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Try Aarav demo account" }).click();
-  await expect(page.getByText("Discover", { exact: true }).first()).toBeVisible();
+  await page
+    .getByRole("button", { name: "Retry loading demos", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Enter as Aarav", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Enter as Aarav", exact: true })
+    .click();
+  await expect(
+    page.getByText("Discover", { exact: true }).first(),
+  ).toBeVisible();
 });
