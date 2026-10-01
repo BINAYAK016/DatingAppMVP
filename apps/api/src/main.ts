@@ -655,16 +655,24 @@ export async function bootstrap() {
   });
   app.use(json({ limit: "32kb" }));
   const counters = new Map<string, { count: number; until: number }>();
+  const credentialRoutes = new Set([
+    "/v1/auth/login",
+    "/v1/auth/register",
+    "/v1/auth/google",
+    "/v1/auth/forgot",
+    "/v1/auth/reset",
+  ]);
   app.use(async (req: AuthRequest, res: Response, next: any) => {
     res.setHeader("Cache-Control", "no-store");
     try {
       if (!req.path.startsWith("/v1")) return next();
-      const verification = req.path.startsWith("/v1/verification/");
+      const ratePath = req.path.toLowerCase().replace(/\/+$/, "");
+      const verification = ratePath.startsWith("/v1/verification/");
       const scope = verification
-        ? req.path.endsWith("/send")
+        ? ratePath.endsWith("/send")
           ? "otp-send"
           : "otp-verify"
-        : req.path.startsWith("/v1/auth")
+        : req.method === "POST" && credentialRoutes.has(ratePath)
           ? "auth"
           : "api";
       const key = `${req.ip}:${scope}`;

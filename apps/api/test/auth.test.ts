@@ -320,3 +320,88 @@ test("password recovery uses one-time codes, hides address existence and invalid
     503,
   );
 });
+
+test("metadata and fictional demo traffic have separate quotas from credentials and OTP", async () => {
+  const throttlePort = port + 1;
+  const throttleApi = `http://127.0.0.1:${throttlePort}/v1`;
+  const child = spawn(process.execPath, ["dist/main.js"], {
+    cwd: resolve("."),
+    env: {
+      ...process.env,
+      NODE_ENV: "test",
+      PORT: String(throttlePort),
+      DATABASE_URL: connection.toString(),
+      ENABLE_DEMO: "false",
+      ADMIN_KEY: "synthetic-auth-test-admin-key",
+      SMTP_HOST: "",
+      OTP_HASH_SECRET: randomBytes(32).toString("hex"),
+      GOOGLE_CLIENT_ID: "",
+    },
+    stdio: "ignore",
+  });
+  let spawnError: Error | undefined;
+  child.once("error", (error) => {
+    spawnError = error;
+  });
+  const exit = new Promise<void>((done) => child.once("close", () => done()));
+  const status = async (route: string, body?: unknown) => {
+    const response = await fetch(throttleApi + route, {
+      method: body === undefined ? "GET" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    await response.arrayBuffer();
+    return response.status;
+  };
+  try {
+    let healthy = false;
+    for (let i = 0; i < 200 && !healthy; i++) {
+      if (spawnError) throw spawnError;
+      try {
+        healthy = (await fetch(`http://127.0.0.1:${throttlePort}/health`)).ok;
+      } catch {}
+      if (!healthy) await new Promise((done) => setTimeout(done, 100));
+    }
+    assert.ok(healthy, "Isolated throttle server did not become healthy");
+    const fictionalDemo = { id: randomUUID() };
+    for (let i = 0; i < 41; i++) {
+      assert.equal(await status("/auth/config"), 200);
+      assert.equal(await status("/auth/demo"), 200);
+      assert.equal(await status("/auth/demo", fictionalDemo), 403);
+    }
+    const credentials = {
+      email: "no-such-throttle-fixture@example.test",
+      password: "synthetic-throttle-password",
+    };
+    for (let i = 0; i < 40; i++)
+      assert.equal(await status("/auth/login", credentials), 401);
+    for (const route of [
+      "login",
+      "register",
+      "google",
+      "forgot",
+      "reset",
+      "LOGIN/",
+    ])
+      assert.equal(await status("/auth/" + route, {}), 429);
+    assert.equal(await status("/auth/config"), 200);
+    assert.equal(await status("/auth/demo", fictionalDemo), 403);
+    for (let i = 0; i < 10; i++)
+      assert.equal(await status("/verification/send", {}), 401);
+    assert.equal(await status("/verification/send", {}), 429);
+    assert.equal(await status("/verification/SEND/", {}), 429);
+    for (let i = 0; i < 30; i++)
+      assert.equal(
+        await status("/verification/confirm", { code: "000000" }),
+        401,
+      );
+    assert.equal(
+      await status("/verification/confirm", { code: "000000" }),
+      429,
+    );
+    assert.equal(await status("/auth/config"), 200);
+  } finally {
+    child.kill();
+    await exit;
+  }
+});
