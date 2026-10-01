@@ -84,6 +84,45 @@ export async function tx<T>(fn: (db: PoolClient) => Promise<T>): Promise<T> {
     db.release();
   }
 }
+// Pure projections share one permission snapshot without serializing unrelated
+// social writes. Callers that mutate (including conversation read receipts) must
+// continue using tx until narrower mutation locks have been race-tested.
+export async function readTx<T>(
+  fn: (db: PoolClient) => Promise<T>,
+): Promise<T> {
+  const db = await pool.connect();
+  try {
+    await db.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+    const result = await fn(db);
+    await db.query("COMMIT");
+    return result;
+  } catch (error) {
+    await db.query("ROLLBACK");
+    throw error;
+  } finally {
+    db.release();
+  }
+}
+// Expressions are trusted server-side aliases/placeholders, never user input.
+// Keep this predicate aligned with matched(): self access, current mutual match,
+// ready accounts, demo isolation, suspension and either direction of block.
+export function matchVisibilitySql(actor: string, target: string) {
+  return `(${actor}=${target} OR EXISTS (
+    SELECT 1 FROM connections visibility_connection
+    JOIN users visibility_actor ON visibility_actor.id=${actor}
+    JOIN users visibility_target ON visibility_target.id=${target}
+    WHERE visibility_connection.a=LEAST(${actor},${target})
+      AND visibility_connection.b=GREATEST(${actor},${target})
+      AND visibility_connection.state='matched'
+      AND NOT visibility_actor.suspended AND NOT visibility_target.suspended
+      AND visibility_actor.demo=visibility_target.demo
+      AND (visibility_actor.demo OR (visibility_actor.email_verified_at IS NOT NULL AND visibility_actor.onboarded_at IS NOT NULL))
+      AND (visibility_target.demo OR (visibility_target.email_verified_at IS NOT NULL AND visibility_target.onboarded_at IS NOT NULL))
+      AND NOT EXISTS (SELECT 1 FROM blocks visibility_block
+        WHERE (visibility_block.actor=${actor} AND visibility_block.target=${target})
+           OR (visibility_block.actor=${target} AND visibility_block.target=${actor}))
+  ))`;
+}
 export async function matched(db: DB, a: string, b: string): Promise<boolean> {
   if (a === b) return true;
   return !!(await one(

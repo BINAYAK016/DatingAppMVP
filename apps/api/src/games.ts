@@ -9,6 +9,7 @@ import { z } from "zod";
 import { DB, one, requireMatch, rows, tx } from "./db";
 import { gameCatalog, text } from "./validation";
 import { notify } from "./social";
+import { projectGameV2 } from "./game-v2";
 
 export async function readiness(db: DB, actor: string, target: string) {
   await requireMatch(db, actor, target);
@@ -50,6 +51,7 @@ async function requireReady(db: DB, a: string, b: string) {
     );
 }
 export function projectGame(g: any, actor: string) {
+  if (g.version === 2) return projectGameV2(g, actor);
   const state =
     ["active", "invited"].includes(g.state) && g.expired ? "expired" : g.state;
   const complete = state === "complete";
@@ -89,6 +91,8 @@ async function load(db: DB, actor: string, id: string) {
   );
   if (!g || ![g.host, g.guest].includes(actor))
     throw new NotFoundException("Game unavailable.");
+  if (g.version === 2)
+    throw new ConflictException("Use Games 2.0 to continue this game.");
   await requireMatch(db, g.host, g.guest);
   return g;
 }

@@ -77,6 +77,10 @@ before(async () => {
       PORT: String(port),
       DATABASE_URL: url.toString(),
       ENABLE_DEMO: "true",
+      // This validation/privacy suite intentionally exceeds ten post attempts
+      // per minute. Dedicated security tests exercise limiter boundaries; keep
+      // the application's default quota unchanged and raise only this child.
+      RATE_POST_PER_MINUTE: "100",
       ADMIN_KEY: "test-admin-private-key",
       UPLOAD_DIR: uploads,
     },

@@ -21,7 +21,7 @@ export async function conversation(
     await requireMatch(db, actor, target);
     const items = await rows(
       db,
-      `SELECT * FROM (
+      `SELECT t.*,to_char(t.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_created_at FROM (
       SELECT id,created_at,'message' AS type FROM messages WHERE (sender=$1 AND recipient=$2) OR (sender=$2 AND recipient=$1)
       UNION ALL SELECT id,created_at,'snap' FROM snaps WHERE ((sender=$1 AND recipient=$2) OR (sender=$2 AND recipient=$1)) AND expires_at>now()
       UNION ALL SELECT id,created_at,'game' FROM games WHERE (host=$1 AND guest=$2) OR (host=$2 AND guest=$1)
@@ -62,7 +62,13 @@ export async function conversation(
           actor,
         );
       else value = await one(db, "SELECT * FROM plans WHERE id=$1", [item.id]);
-      timeline.push({ ...value, type: item.type });
+      // Preserve the union query's exact ordering key through per-type
+      // hydration, whose pg Date conversion otherwise truncates microseconds.
+      timeline.push({
+        ...value,
+        type: item.type,
+        created_at: item.cursor_created_at,
+      });
     }
     await db.query(
       "UPDATE messages SET read_at=now() WHERE recipient=$1 AND sender=$2 AND read_at IS NULL AND id=ANY($3::uuid[])",

@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { Pool } from "pg";
 import { randomUUID } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 
 test("upgrade preserves legacy pairs and circle data, migrates one-sided consent once, and rejects checksum drift", async () => {
@@ -93,7 +93,9 @@ test("upgrade preserves legacy pairs and circle data, migrates one-sided consent
     assert.equal(
       (await db.query("SELECT count(*)::int AS n FROM schema_migrations"))
         .rows[0].n,
-      7,
+      1 +
+        readdirSync("src/migrations").filter((file) => file.endsWith(".sql"))
+          .length,
     );
     assert.deepEqual(
       (

@@ -23,10 +23,9 @@ import { Request, Response, json } from "express";
 import helmet from "helmet";
 import { ZodError, z } from "zod";
 import { randomUUID, timingSafeEqual } from "node:crypto";
-import { createReadStream, readFileSync } from "node:fs";
-import { stat } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { pool, migrate, one, rows, tx } from "./db";
+import { pool, migrate, one, rows, tx, readTx } from "./db";
 import {
   authenticate,
   demoAccounts,
@@ -38,20 +37,52 @@ import {
 import * as social from "./social";
 import * as discovery from "./discovery";
 import * as games from "./games";
+import * as gamesV2 from "./game-v2";
 import * as identity from "./identity";
 import * as moments from "./moments";
 import { exportAccount } from "./account-export";
 import * as interactions from "./interactions";
-import { authorizedMedia, cleanup, upload, removeMediaFiles } from "./media";
+import {
+  cleanup,
+  upload,
+  reserveUpload,
+  queueMediaDeletion,
+  drainMediaDeletions,
+  sendAuthorizedMedia,
+} from "./media";
+import {
+  requestScope,
+  enforceIpLimit,
+  enforceActorLimit,
+  actionForRoute,
+  RateLimitExceeded,
+  purgeRateLimits,
+} from "./rate-limit";
 import { seed } from "./seed";
 import { dispatchPush } from "./push";
 import { text, uuid } from "./validation";
+import { metricsSnapshot, requestMetrics } from "./observability";
 type AuthRequest = Request & { actor: string };
 
 @Controller()
 class ApiController {
   @Get("health") health() {
     return { status: "ok", app: "Sangai local beta", ai: false };
+  }
+  @Get("ready") async readinessHealth(@Res() res: Response) {
+    try {
+      await pool.query("SELECT 1");
+      return res.json({ status: "ready" });
+    } catch {
+      return res.status(503).json({ status: "unavailable" });
+    }
+  }
+  @Get("v1/admin/metrics") async metrics() {
+    const jobs = await one(
+      pool,
+      "SELECT count(*)::int AS pending,count(*) FILTER(WHERE next_attempt_at<=now())::int AS due,count(*) FILTER(WHERE last_error IS NOT NULL)::int AS retrying FROM media_deletion_jobs",
+    );
+    return { ...metricsSnapshot(), mediaDeletionJobs: jobs };
   }
   @Get("policies") policies(@Res() res: Response) {
     res
@@ -155,8 +186,59 @@ class ApiController {
     if (before) z.iso.datetime({ offset: true }).parse(before);
     if (beforeId) uuid.parse(beforeId);
     if (scope) z.enum(["all", "mine"]).parse(scope);
-    return tx((db) =>
+    return readTx((db) =>
       social.feed(db, r.actor, before, beforeId, scope === "mine"),
+    );
+  }
+  @Get("v1/matches") matchesPage(
+    @Req() r: AuthRequest,
+    @Query("afterName") name?: string,
+    @Query("afterId") id?: string,
+    @Query("limit") limit?: string,
+  ) {
+    if (name !== undefined) z.string().max(100).parse(name);
+    if (id) uuid.parse(id);
+    return social.matchesPage(
+      r.actor,
+      name,
+      id,
+      limit === undefined
+        ? 30
+        : z.coerce.number().int().min(1).max(50).parse(limit),
+    );
+  }
+  @Get("v1/stories") storiesPage(
+    @Req() r: AuthRequest,
+    @Query("before") before?: string,
+    @Query("beforeId") id?: string,
+    @Query("limit") limit?: string,
+  ) {
+    if (before) z.iso.datetime({ offset: true }).parse(before);
+    if (id) uuid.parse(id);
+    return social.storiesPage(
+      r.actor,
+      before,
+      id,
+      limit === undefined
+        ? 30
+        : z.coerce.number().int().min(1).max(50).parse(limit),
+    );
+  }
+  @Get("v1/notifications") notificationsPage(
+    @Req() r: AuthRequest,
+    @Query("before") before?: string,
+    @Query("beforeId") id?: string,
+    @Query("limit") limit?: string,
+  ) {
+    if (before) z.iso.datetime({ offset: true }).parse(before);
+    if (id) uuid.parse(id);
+    return social.notificationsPage(
+      r.actor,
+      before,
+      id,
+      limit === undefined
+        ? 30
+        : z.coerce.number().int().min(1).max(50).parse(limit),
     );
   }
   @Patch("v1/profile") profile(@Req() r: AuthRequest, @Body() b: unknown) {
@@ -324,7 +406,7 @@ class ApiController {
     @Req() r: AuthRequest,
     @Param("id") id: string,
   ) {
-    return tx((db) => moments.postDetail(db, r.actor, uuid.parse(id)));
+    return readTx((db) => moments.postDetail(db, r.actor, uuid.parse(id)));
   }
   @Get("v1/saved-posts") saved(@Req() r: AuthRequest) {
     return moments.saved(r.actor);
@@ -449,6 +531,32 @@ class ApiController {
   ) {
     return games.invite(r.actor, uuid.parse(t), text(40).parse(b.kind));
   }
+  @Get("v1/game-catalog") gameCatalog(
+    @Req() r: AuthRequest,
+    @Query("target") target?: string,
+  ) {
+    return gamesV2.catalog(r.actor, target ? uuid.parse(target) : undefined);
+  }
+  @Post("v1/games/:target/invite") gameInviteV2(
+    @Req() r: AuthRequest,
+    @Param("target") target: string,
+    @Body() body: unknown,
+  ) {
+    return gamesV2.invite(r.actor, uuid.parse(target), body);
+  }
+  @Get("v1/game/:id") gameReadV2(
+    @Req() r: AuthRequest,
+    @Param("id") id: string,
+  ) {
+    return gamesV2.read(r.actor, uuid.parse(id));
+  }
+  @Post("v1/game/:id/action") gameActionV2(
+    @Req() r: AuthRequest,
+    @Param("id") id: string,
+    @Body() body: unknown,
+  ) {
+    return gamesV2.action(r.actor, uuid.parse(id), body);
+  }
   @Post("v1/game/:id/answer") gameAnswer(
     @Req() r: AuthRequest,
     @Param("id") id: string,
@@ -480,15 +588,32 @@ class ApiController {
         target: uuid,
         reason: text(300),
         context: z.string().max(500).optional(),
+        gameId: uuid.optional(),
       })
       .parse(b);
     return tx(async (db) => {
       const id = randomUUID();
       if (!(await one(db, "SELECT 1 FROM users WHERE id=$1", [d.target])))
         throw new BadRequestException();
+      let context = d.context || "";
+      if (d.gameId) {
+        const game = await one(
+          db,
+          "SELECT id,host,guest,kind,state FROM games WHERE id=$1 AND (host=$2 OR guest=$2)",
+          [d.gameId, r.actor],
+        );
+        if (
+          !game ||
+          (game.host === r.actor ? game.guest : game.host) !== d.target
+        )
+          throw new BadRequestException(
+            "That game is not part of your conversation.",
+          );
+        context = `game:${game.id}; kind:${game.kind}; state:${game.state}`;
+      }
       await db.query(
         "INSERT INTO reports(id,reporter,target,reason,context) VALUES($1,$2,$3,$4,$5)",
-        [id, r.actor, d.target, d.reason, d.context || ""],
+        [id, r.actor, d.target, d.reason, context],
       );
       return { id };
     });
@@ -515,14 +640,21 @@ class ApiController {
   ) {
     if (b.confirm !== "DELETE")
       throw new BadRequestException("Confirmation required.");
-    return tx(async (db) => {
+    const result = await tx(async (db) => {
       const files = await rows(db, "SELECT path FROM media WHERE owner=$1", [
         r.actor,
       ]);
+      await queueMediaDeletion(
+        db,
+        files.map((file) => file.path),
+      );
       await db.query("DELETE FROM users WHERE id=$1", [r.actor]);
-      for (const f of files) await removeMediaFiles(f.path);
       return { ok: true };
     });
+    await drainMediaDeletions().catch(() =>
+      console.error("Media deletion drain deferred; durable jobs retained"),
+    );
+    return result;
   }
   @Post("v1/media")
   @UseInterceptors(
@@ -539,33 +671,7 @@ class ApiController {
     @Query("thumbnail") thumbnail: string,
     @Res() res: Response,
   ) {
-    const m = await authorizedMedia(r.actor, uuid.parse(id), thumbnail === "1");
-    const info = await stat(m.path);
-    res.set({
-      "Content-Type": m.mime,
-      "Cache-Control": "private, no-store",
-      "Accept-Ranges": "bytes",
-      "Cross-Origin-Resource-Policy": "cross-origin",
-    });
-    const range = r.headers.range;
-    if (range) {
-      const parsed = /^bytes=(\d+)-(\d*)$/.exec(range);
-      if (!parsed) return res.status(416).end();
-      const start = Number(parsed[1]),
-        end = Math.min(
-          parsed[2] ? Number(parsed[2]) : info.size - 1,
-          info.size - 1,
-        );
-      if (start > end || start >= info.size) return res.status(416).end();
-      res.status(206).set({
-        "Content-Range": `bytes ${start}-${end}/${info.size}`,
-        "Content-Length": String(end - start + 1),
-      });
-      createReadStream(m.path, { start, end }).pipe(res);
-    } else {
-      res.set("Content-Length", String(info.size));
-      createReadStream(m.path).pipe(res);
-    }
+    return sendAuthorizedMedia(r.actor, uuid.parse(id), thumbnail === "1", res);
   }
   @Get("v1/admin/reports") adminReports() {
     return rows(
@@ -652,50 +758,19 @@ export async function bootstrap() {
           approvedOrigins.includes(origin),
       ),
     credentials: false,
+    exposedHeaders: ["Retry-After", "X-Request-ID"],
   });
   app.use(json({ limit: "32kb" }));
-  const counters = new Map<string, { count: number; until: number }>();
-  const credentialRoutes = new Set([
-    "/v1/auth/login",
-    "/v1/auth/register",
-    "/v1/auth/google",
-    "/v1/auth/forgot",
-    "/v1/auth/reset",
-  ]);
+  app.use(requestMetrics);
   app.use(async (req: AuthRequest, res: Response, next: any) => {
     res.setHeader("Cache-Control", "no-store");
     try {
       const routePath = req.path.toLowerCase().replace(/\/+$/, "");
       if (!routePath.startsWith("/v1")) return next();
-      const verification = routePath.startsWith("/v1/verification/");
-      const scope = verification
-        ? routePath.endsWith("/send")
-          ? "otp-send"
-          : "otp-verify"
-        : req.method === "POST" && credentialRoutes.has(routePath)
-          ? "auth"
-          : "api";
-      const key = `${req.ip}:${scope}`;
-      const now = Date.now();
-      let c = counters.get(key);
-      if (!c || c.until < now) {
-        c = { count: 0, until: now + 60000 };
-        counters.set(key, c);
-      }
-      const max =
-        scope === "otp-send"
-          ? 10
-          : scope === "otp-verify"
-            ? 30
-            : scope === "auth"
-              ? 40
-              : 600;
-      if (++c.count > max)
-        return res
-          .status(429)
-          .json({ message: "Please slow down and try again shortly." });
-      if (counters.size > 10000)
-        for (const [k, v] of counters) if (v.until < now) counters.delete(k);
+      await enforceIpLimit(
+        req.ip || "unknown",
+        requestScope(req.method, routePath),
+      );
       if (routePath.startsWith("/v1/admin")) {
         const expected = process.env.ADMIN_KEY || "";
         const actual = String(req.headers["x-admin-key"] || "");
@@ -739,8 +814,17 @@ export async function bootstrap() {
             "Verify your email and complete the adult declaration before adding photos.",
           );
       }
+      const action = actionForRoute(req.method, routePath);
+      if (action) await enforceActorLimit(req.actor, action);
+      if (req.method === "POST" && routePath === "/v1/media") {
+        const release = reserveUpload(req.actor);
+        res.once("finish", release);
+        res.once("close", release);
+      }
       next();
     } catch (e) {
+      if (e instanceof RateLimitExceeded)
+        res.setHeader("Retry-After", e.retryAfterSeconds);
       res.status(e instanceof HttpException ? e.getStatus() : 500).json({
         message: e instanceof HttpException ? e.message : "Request failed.",
       });
@@ -754,6 +838,8 @@ export async function bootstrap() {
           .status(400)
           .json({ message: error.issues.map((i) => i.message).join("; ") });
       const status = error instanceof HttpException ? error.getStatus() : 500;
+      if (error instanceof RateLimitExceeded)
+        res.setHeader("Retry-After", error.retryAfterSeconds);
       if (status === 500)
         console.error("API failure", error.code || error.name);
       res.status(status).json({
@@ -764,7 +850,12 @@ export async function bootstrap() {
   });
   await app.listen(Number(process.env.PORT || 4100), "0.0.0.0");
   const timer = setInterval(
-    () => cleanup().catch(() => console.error("Cleanup failed")),
+    () =>
+      Promise.all([
+        cleanup(),
+        purgeRateLimits(),
+        gamesV2.reconcileExpiredGamesV2(),
+      ]).catch(() => console.error("Maintenance failed")),
     60000,
   );
   timer.unref();

@@ -7,19 +7,21 @@ import {
 import {
   DB,
   matched,
+  matchVisibilitySql,
   one,
   pool,
-  profile,
   publicFields,
+  readTx,
   requireMatch,
   rows,
   tx,
 } from "./db";
 import { gameCatalog, profileInput, text, uuid } from "./validation";
 import { z } from "zod";
-import { projectPost } from "./moments";
+import { projectPosts } from "./moments";
 import { candidates, lastUndo } from "./discovery";
 import { accountReady, privateProfileFields } from "./identity";
+import { gamesV2Enabled } from "./game-v2";
 
 export async function notify(
   db: DB,
@@ -76,17 +78,187 @@ export async function feed(
 ) {
   const candidates = await rows(
     db,
-    `SELECT p.*,m.kind FROM posts p LEFT JOIN media m ON m.id=p.media_id JOIN users u ON u.id=p.author WHERE (NOT $4::boolean OR p.author=$1) AND NOT u.suspended AND (p.author=$1 OR u.posts_visible) AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.actor=$1 AND b.target=p.author) OR (b.actor=p.author AND b.target=$1)) AND ($2::timestamptz IS NULL OR (p.created_at,p.id)<($2::timestamptz,COALESCE($3::uuid,'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid))) AND (p.author=$1 OR EXISTS (SELECT 1 FROM connections c WHERE c.a=LEAST($1::uuid,p.author) AND c.b=GREATEST($1::uuid,p.author) AND c.state='matched')) ORDER BY p.created_at DESC,p.id DESC LIMIT 30`,
+    `SELECT p.*,m.kind,to_char(p.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at FROM posts p LEFT JOIN media m ON m.id=p.media_id JOIN users u ON u.id=p.author WHERE (NOT $4::boolean OR p.author=$1) AND NOT u.suspended AND (p.author=$1 OR u.posts_visible) AND ($2::timestamptz IS NULL OR (p.created_at,p.id)<($2::timestamptz,COALESCE($3::uuid,'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid))) AND ${matchVisibilitySql("$1::uuid", "p.author")} ORDER BY p.created_at DESC,p.id DESC LIMIT 30`,
     [actor, before || null, beforeId || null, ownOnly],
   );
-  const out = [];
-  for (const p of candidates)
-    if (await matched(db, actor, p.author))
-      out.push(await projectPost(db, actor, p));
-  return out;
+  return projectPosts(db, actor, candidates);
+}
+async function matchRows(
+  db: DB,
+  actor: string,
+  afterName?: string,
+  afterId?: string,
+  limit?: number,
+) {
+  return rows(
+    db,
+    `SELECT ${publicFields} FROM users u WHERE u.id<>$1
+      AND ${matchVisibilitySql("$1::uuid", "u.id")}
+      AND ($2::text IS NULL OR (u.name,u.id)>($2::text,$3::uuid))
+    ORDER BY u.name,u.id LIMIT $4`,
+    [actor, afterName ?? null, afterId ?? null, limit ?? null],
+  );
+}
+async function projectMatches(db: DB, actor: string, people: any[]) {
+  if (!people.length) return [];
+  const ids = people.map((p) => p.id);
+  const unread = await rows(
+    db,
+    "SELECT sender,count(*)::int AS unread FROM messages WHERE recipient=$1 AND sender=ANY($2::uuid[]) AND read_at IS NULL GROUP BY sender",
+    [actor, ids],
+  );
+  const previews = await rows(
+    db,
+    `SELECT DISTINCT ON (other_id) other_id,
+      CASE WHEN media_id IS NOT NULL THEN 'Photo or video'
+           WHEN post_id IS NOT NULL THEN 'Shared moment' ELSE body END AS body
+    FROM messages CROSS JOIN LATERAL (
+      SELECT CASE WHEN sender=$1 THEN recipient ELSE sender END AS other_id
+    ) other
+    WHERE (sender=$1 OR recipient=$1) AND other_id=ANY($2::uuid[])
+    ORDER BY other_id,created_at DESC,id DESC`,
+    [actor, ids],
+  );
+  const unreadById = new Map(unread.map((m) => [m.sender, m.unread]));
+  const previewById = new Map(previews.map((m) => [m.other_id, m.body]));
+  return people.map((p) => ({
+    ...p,
+    unread: unreadById.get(p.id) || 0,
+    preview: previewById.get(p.id) || "You chose each other. Say hello.",
+  }));
+}
+async function storyRows(
+  db: DB,
+  actor: string,
+  limit: number,
+  before?: string,
+  beforeId?: string,
+) {
+  return rows(
+    db,
+    `SELECT s.*,m.kind,to_char(s.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_created_at
+    FROM stories s LEFT JOIN media m ON m.id=s.media_id
+    JOIN users u ON u.id=s.author
+    WHERE s.expires_at>now() AND NOT u.suspended
+      AND (s.author=$1 OR u.stories_visible)
+      AND ${matchVisibilitySql("$1::uuid", "s.author")}
+      AND ($2::timestamptz IS NULL OR (s.created_at,s.id)<($2::timestamptz,$3::uuid))
+    ORDER BY s.created_at DESC,s.id DESC LIMIT $4`,
+    [actor, before ?? null, beforeId ?? null, limit],
+  );
+}
+async function projectStories(db: DB, stories: any[]) {
+  if (!stories.length) return [];
+  const people = await rows(
+    db,
+    `SELECT ${publicFields} FROM users WHERE id=ANY($1::uuid[]) AND NOT suspended`,
+    [Array.from(new Set(stories.map((s) => s.author)))],
+  );
+  const peopleById = new Map(people.map((p) => [p.id, p]));
+  return stories.map(({ cursor_created_at, ...s }) => ({
+    ...s,
+    author: peopleById.get(s.author),
+  }));
+}
+async function notificationRows(
+  db: DB,
+  actor: string,
+  limit: number,
+  before?: string,
+  beforeId?: string,
+) {
+  return rows(
+    db,
+    `SELECT n.*,to_char(n.created_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_created_at
+    FROM notifications n WHERE n.recipient=$1 AND n.actor<>$1 AND n.kind<>'request'
+      AND ${matchVisibilitySql("$1::uuid", "n.actor")}
+      AND ($2::timestamptz IS NULL OR (n.created_at,n.id)<($2::timestamptz,$3::uuid))
+    ORDER BY n.created_at DESC,n.id DESC LIMIT $4`,
+    [actor, before ?? null, beforeId ?? null, limit],
+  );
+}
+function pageLimit(limit: number) {
+  return z.number().int().min(1).max(50).parse(limit);
+}
+function validateTimeCursor(before?: string, beforeId?: string) {
+  if ((before === undefined) !== (beforeId === undefined))
+    throw new BadRequestException("Use both cursor fields.");
+  if (before !== undefined) z.iso.datetime({ offset: true }).parse(before);
+  if (beforeId !== undefined) uuid.parse(beforeId);
+}
+function timePage(items: any[], limit: number) {
+  const selected = items.slice(0, limit);
+  const page = selected.map(({ cursor_created_at, ...item }) => item);
+  const hasMore = items.length > limit;
+  const last = selected.at(-1);
+  return {
+    items: page,
+    hasMore,
+    nextCursor:
+      hasMore && last
+        ? {
+            before:
+              last.cursor_created_at || new Date(last.created_at).toISOString(),
+            beforeId: last.id,
+          }
+        : null,
+  };
+}
+export async function matchesPage(
+  actor: string,
+  afterName?: string,
+  afterId?: string,
+  limit = 30,
+) {
+  pageLimit(limit);
+  if ((afterName === undefined) !== (afterId === undefined))
+    throw new BadRequestException("Use both cursor fields.");
+  if (afterName !== undefined) z.string().max(80).parse(afterName);
+  if (afterId !== undefined) uuid.parse(afterId);
+  return readTx(async (db) => {
+    const found = await matchRows(db, actor, afterName, afterId, limit + 1);
+    const hasMore = found.length > limit;
+    const page = found.slice(0, limit);
+    const last = page.at(-1);
+    return {
+      items: await projectMatches(db, actor, page),
+      hasMore,
+      nextCursor:
+        hasMore && last ? { afterName: last.name, afterId: last.id } : null,
+    };
+  });
+}
+export async function storiesPage(
+  actor: string,
+  before?: string,
+  beforeId?: string,
+  limit = 30,
+) {
+  pageLimit(limit);
+  validateTimeCursor(before, beforeId);
+  return readTx(async (db) => {
+    const found = await storyRows(db, actor, limit + 1, before, beforeId);
+    const page = timePage(found, limit);
+    return { ...page, items: await projectStories(db, page.items) };
+  });
+}
+export async function notificationsPage(
+  actor: string,
+  before?: string,
+  beforeId?: string,
+  limit = 30,
+) {
+  pageLimit(limit);
+  validateTimeCursor(before, beforeId);
+  return readTx(async (db) =>
+    timePage(
+      await notificationRows(db, actor, limit + 1, before, beforeId),
+      limit,
+    ),
+  );
 }
 export async function state(actor: string) {
-  return tx(async (db) => {
+  return readTx(async (db) => {
     const me = await one(
       db,
       `SELECT ${publicFields},${privateProfileFields} FROM users WHERE id=$1`,
@@ -107,59 +279,24 @@ export async function state(actor: string) {
         stories: [],
         notifications: [],
         games: gameCatalog,
+        features: { gamesV2: gamesV2Enabled() },
       };
     const discover = await candidates(db, actor);
-    const matches = await rows(
-      db,
-      `SELECT ${publicFields} FROM users u WHERE u.id<>$1 AND NOT u.suspended AND u.demo=$2 AND (u.demo OR (u.email_verified_at IS NOT NULL AND u.onboarded_at IS NOT NULL))
-      AND EXISTS(SELECT 1 FROM connections c WHERE c.a=LEAST($1::uuid,u.id) AND c.b=GREATEST($1::uuid,u.id) AND c.state='matched')
-      AND NOT EXISTS(SELECT 1 FROM blocks b WHERE (b.actor=$1 AND b.target=u.id) OR (b.actor=u.id AND b.target=$1)) ORDER BY u.name,u.id`,
-      [actor, me.demo],
-    );
-    const storyRows = await rows(
-      db,
-      `SELECT s.*,m.kind FROM stories s LEFT JOIN media m ON m.id=s.media_id JOIN users u ON u.id=s.author WHERE s.expires_at>now() AND (s.author=$1 OR u.stories_visible) ORDER BY s.created_at DESC LIMIT 200`,
-      [actor],
-    );
-    const stories = [];
-    for (const s of storyRows)
-      if (await matched(db, actor, s.author))
-        stories.push({ ...s, author: await profile(db, s.author) });
-    const notifications = await rows(
-      db,
-      `SELECT n.* FROM notifications n JOIN users source ON source.id=n.actor WHERE n.recipient=$1 AND n.kind<>'request' AND NOT source.suspended AND EXISTS(SELECT 1 FROM connections c WHERE c.a=LEAST(n.recipient,n.actor) AND c.b=GREATEST(n.recipient,n.actor) AND c.state='matched') AND NOT EXISTS(SELECT 1 FROM blocks WHERE (actor=$1 AND target=n.actor) OR (actor=n.actor AND target=$1)) ORDER BY n.created_at DESC LIMIT 50`,
-      [actor],
+    const matches = await projectMatches(db, actor, await matchRows(db, actor));
+    const stories = await projectStories(db, await storyRows(db, actor, 200));
+    const notifications = (await notificationRows(db, actor, 50)).map(
+      ({ cursor_created_at, ...n }) => n,
     );
     return {
       me,
-      matches: await Promise.all(
-        matches.map(async (p) => ({
-          ...p,
-          unread: Number(
-            (
-              await one(
-                db,
-                "SELECT count(*) AS n FROM messages WHERE sender=$1 AND recipient=$2 AND read_at IS NULL",
-                [p.id, actor],
-              )
-            ).n,
-          ),
-          preview:
-            (
-              await one(
-                db,
-                "SELECT CASE WHEN media_id IS NOT NULL THEN 'Photo or video' WHEN post_id IS NOT NULL THEN 'Shared moment' ELSE body END AS body FROM messages WHERE (sender=$1 AND recipient=$2) OR (sender=$2 AND recipient=$1) ORDER BY created_at DESC,id DESC LIMIT 1",
-                [actor, p.id],
-              )
-            )?.body || "You chose each other. Say hello.",
-        })),
-      ),
+      matches,
       discover,
       undoId: await lastUndo(db, actor),
       feed: await feed(db, actor),
       stories,
       notifications,
       games: gameCatalog,
+      features: { gamesV2: gamesV2Enabled() },
     };
   });
 }

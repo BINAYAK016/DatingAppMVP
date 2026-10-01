@@ -1,7 +1,8 @@
-import { rows, one, tx } from "./db";
+import { rows, one, readTx } from "./db";
 import { privateProfileFields } from "./identity";
+import { gameExportV2 } from "./game-v2";
 export async function exportAccount(actor: string) {
-  return tx(async (db) => ({
+  return readTx(async (db) => ({
     profile: await one(
       db,
       `SELECT id,name,city,bio,intent,interests,prompt,gender,languages,hobbies,profession,education,lifestyle,avatar_id,${privateProfileFields},created_at FROM users WHERE id=$1`,
@@ -45,10 +46,25 @@ export async function exportAccount(actor: string) {
       "SELECT id,recipient,caption,media_id,created_at,expires_at,opened_at FROM snaps WHERE sender=$1",
       [actor],
     ),
-    games: await rows(
-      db,
-      "SELECT id,host,guest,kind,state,created_at,answers->$1 AS my_answers,guesses->$1 AS my_guesses FROM games WHERE host=$1::uuid OR guest=$1::uuid",
-      [actor],
+    games: (
+      await rows(
+        db,
+        "SELECT * FROM games WHERE host=$1::uuid OR guest=$1::uuid",
+        [actor],
+      )
+    ).map((game) =>
+      game.version === 2
+        ? gameExportV2(game, actor)
+        : {
+            id: game.id,
+            host: game.host,
+            guest: game.guest,
+            kind: game.kind,
+            state: game.state,
+            created_at: game.created_at,
+            my_answers: game.answers?.[actor] ?? null,
+            my_guesses: game.guesses?.[actor] ?? null,
+          },
     ),
     dates: await rows(db, "SELECT * FROM plans WHERE host=$1 OR guest=$1", [
       actor,
