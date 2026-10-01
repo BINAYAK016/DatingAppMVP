@@ -27,6 +27,11 @@ export async function projectPost(db: DB, actor: string, p: any) {
   for (const r of reactions) if (await matched(db, actor, r.actor)) likes++;
   return {
     ...p,
+    media: await rows(
+      db,
+      "SELECT pm.media_id AS id,m.kind,pm.position FROM post_media pm JOIN media m ON m.id=pm.media_id WHERE pm.post_id=$1 ORDER BY pm.position",
+      [p.id],
+    ),
     author: await profile(db, p.author),
     comments: visible
       .filter((c) => !c.parent_id || ids.has(c.parent_id))

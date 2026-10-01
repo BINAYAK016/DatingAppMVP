@@ -53,24 +53,59 @@ try {
   assert.equal(match.status, 206);
   assert.equal((await match.arrayBuffer()).byteLength, 100);
   assert.equal(match.headers.get("content-type"), "video/mp4");
+  const poster = await fetch(api + "/media/" + media.id + "?thumbnail=1", {
+    headers: { Authorization: "Bearer " + tokens[1] },
+  });
+  assert.equal(poster.status, 200);
+  assert.equal(poster.headers.get("content-type"), "image/jpeg");
+  assert.ok((await poster.arrayBuffer()).byteLength > 100);
   const outsider = await fetch(api + "/media/" + media.id, {
     headers: { Authorization: "Bearer " + tokens[2] },
   });
   assert.equal(outsider.status, 404);
+  assert.equal(
+    (
+      await fetch(api + "/media/" + media.id + "?thumbnail=1", {
+        headers: { Authorization: "Bearer " + tokens[2] },
+      })
+    ).status,
+    404,
+  );
 } finally {
   await call("/posts/" + post.id, 0, undefined, "DELETE");
 }
+assert.equal(
+  (
+    await fetch(api + "/media/" + media.id + "?thumbnail=1", {
+      headers: { Authorization: "Bearer " + tokens[1] },
+    })
+  ).status,
+  404,
+);
+const snapForm = new FormData();
+snapForm.append(
+  "file",
+  new Blob([await readFile(process.argv[2])], { type: "video/mp4" }),
+  "synthetic-snap.mp4",
+);
+const snapUploaded = await fetch(api + "/media", {
+  method: "POST",
+  headers: { Authorization: "Bearer " + tokens[0] },
+  body: snapForm,
+});
+assert.equal(snapUploaded.status, 201);
+const snapMedia = await snapUploaded.json();
 const snap = await call("/snaps/10000000-0000-4000-8000-000000000002", 0, {
-  mediaId: media.id,
+  mediaId: snapMedia.id,
   caption: "Synthetic video snap",
 });
 const opened = await call("/snaps/" + snap.id + "/open", 1, {});
 assert.equal(opened.kind, "video");
 await call("/snaps/" + snap.id + "/close", 1, {});
-const closed = await fetch(api + "/media/" + media.id, {
+const closed = await fetch(api + "/media/" + snapMedia.id, {
   headers: { Authorization: "Bearer " + tokens[1] },
 });
 assert.equal(closed.status, 404);
 console.log(
-  "PASS: Docker FFmpeg video upload/transcode, authenticated range playback, outsider denial and video snap closure.",
+  "PASS: Docker video transcode, private poster/range playback, outsider/deletion denial and video snap closure.",
 );

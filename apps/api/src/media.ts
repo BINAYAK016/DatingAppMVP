@@ -13,6 +13,10 @@ import { matched, one, pool, tx } from "./db";
 import { eligibility } from "./discovery";
 const exec = promisify(execFile);
 export const uploadDir = resolve(process.env.UPLOAD_DIR || "uploads");
+export async function removeMediaFiles(path: string) {
+  await unlink(path).catch(() => {});
+  if (path.endsWith(".mp4")) await unlink(path + ".jpg").catch(() => {});
+}
 export async function upload(actor: string, file: Express.Multer.File) {
   if (!file || file.size > 20 * 1024 * 1024)
     throw new BadRequestException("Choose a photo or a video up to 20 MB.");
@@ -92,8 +96,23 @@ export async function upload(actor: string, file: Express.Multer.File) {
         ],
         { timeout: 90000, maxBuffer: 1024 * 1024 },
       );
+      await exec(
+        "ffmpeg",
+        [
+          "-nostdin",
+          "-y",
+          "-i",
+          path,
+          "-frames:v",
+          "1",
+          "-vf",
+          "scale=480:480:force_original_aspect_ratio=decrease",
+          path + ".jpg",
+        ],
+        { timeout: 15000, maxBuffer: 1024 * 1024 },
+      );
     } catch {
-      await unlink(path).catch(() => {});
+      await removeMediaFiles(path);
       throw new BadRequestException(
         "Video must be valid, at most 30 seconds, and supported by the beta encoder.",
       );
@@ -126,8 +145,12 @@ export async function upload(actor: string, file: Express.Multer.File) {
   );
   return { id, kind: isVideo ? "video" : "image" };
 }
-export async function authorizedMedia(actor: string, id: string) {
-  return tx(async (db) => {
+export async function authorizedMedia(
+  actor: string,
+  id: string,
+  thumbnail = false,
+) {
+  const media = await tx(async (db) => {
     const m = await one(db, "SELECT * FROM media WHERE id=$1", [id]);
     if (!m) throw new NotFoundException();
     if (m.owner === actor) return m;
@@ -143,12 +166,20 @@ export async function authorizedMedia(actor: string, id: string) {
     }
     const visible = await one(
       db,
-      `SELECT 1 WHERE EXISTS(SELECT 1 FROM users WHERE id=$1 AND avatar_id=$2) OR EXISTS(SELECT 1 FROM profile_media WHERE user_id=$1 AND media_id=$2) OR EXISTS(SELECT 1 FROM posts p JOIN users u ON u.id=p.author WHERE p.author=$1 AND p.media_id=$2 AND u.posts_visible) OR EXISTS(SELECT 1 FROM stories s JOIN users u ON u.id=s.author WHERE s.author=$1 AND s.media_id=$2 AND s.expires_at>now() AND u.stories_visible) OR EXISTS(SELECT 1 FROM messages WHERE sender=$1 AND recipient=$3 AND media_id=$2) OR EXISTS(SELECT 1 FROM snaps WHERE recipient=$3 AND sender=$1 AND media_id=$2 AND view_until>now() AND expires_at>now())`,
+      `SELECT 1 WHERE EXISTS(SELECT 1 FROM users WHERE id=$1 AND avatar_id=$2) OR EXISTS(SELECT 1 FROM profile_media WHERE user_id=$1 AND media_id=$2) OR EXISTS(SELECT 1 FROM posts p JOIN users u ON u.id=p.author WHERE p.author=$1 AND (p.media_id=$2 OR EXISTS(SELECT 1 FROM post_media pm WHERE pm.post_id=p.id AND pm.media_id=$2)) AND u.posts_visible) OR EXISTS(SELECT 1 FROM stories s JOIN users u ON u.id=s.author WHERE s.author=$1 AND s.media_id=$2 AND s.expires_at>now() AND u.stories_visible) OR EXISTS(SELECT 1 FROM messages WHERE sender=$1 AND recipient=$3 AND media_id=$2) OR EXISTS(SELECT 1 FROM snaps WHERE recipient=$3 AND sender=$1 AND media_id=$2 AND view_until>now() AND expires_at>now())`,
       [m.owner, id, actor],
     );
     if (!visible) throw new NotFoundException("Media unavailable.");
     return m;
   });
+  if (!thumbnail) return media;
+  if (media.kind !== "video") return media;
+  try {
+    await stat(media.path + ".jpg");
+  } catch {
+    throw new NotFoundException("Preview unavailable.");
+  }
+  return { ...media, path: media.path + ".jpg", mime: "image/jpeg" };
 }
 export async function cleanup() {
   await pool.query("DELETE FROM sessions WHERE expires_at<now()");
@@ -157,7 +188,7 @@ export async function cleanup() {
     "DELETE FROM snaps WHERE expires_at<now() OR view_until<now()",
   );
   const stale = await pool.query(
-    `DELETE FROM media m WHERE created_at<now()-interval '24 hours' AND NOT EXISTS(SELECT 1 FROM users WHERE avatar_id=m.id) AND NOT EXISTS(SELECT 1 FROM profile_media WHERE media_id=m.id) AND NOT EXISTS(SELECT 1 FROM posts WHERE media_id=m.id) AND NOT EXISTS(SELECT 1 FROM stories WHERE media_id=m.id) AND NOT EXISTS(SELECT 1 FROM snaps WHERE media_id=m.id) AND NOT EXISTS(SELECT 1 FROM messages WHERE media_id=m.id) RETURNING path`,
+    `DELETE FROM media m WHERE created_at<now()-interval '24 hours' AND NOT EXISTS(SELECT 1 FROM users WHERE avatar_id=m.id) AND NOT EXISTS(SELECT 1 FROM profile_media WHERE media_id=m.id) AND NOT EXISTS(SELECT 1 FROM posts WHERE media_id=m.id) AND NOT EXISTS(SELECT 1 FROM post_media WHERE media_id=m.id) AND NOT EXISTS(SELECT 1 FROM stories WHERE media_id=m.id) AND NOT EXISTS(SELECT 1 FROM snaps WHERE media_id=m.id) AND NOT EXISTS(SELECT 1 FROM messages WHERE media_id=m.id) RETURNING path`,
   );
-  for (const m of stale.rows) await unlink(m.path).catch(() => {});
+  for (const m of stale.rows) await removeMediaFiles(m.path);
 }

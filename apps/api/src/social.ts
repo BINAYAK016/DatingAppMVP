@@ -223,16 +223,58 @@ export async function disconnect(
 }
 export async function createPost(actor: string, body: unknown) {
   const p = z
-    .object({ body: z.string().trim().max(2000), mediaId: uuid.nullish() })
-    .refine((v) => v.body || v.mediaId)
+    .object({
+      body: z.string().trim().max(2000),
+      mediaId: uuid.nullish(),
+      mediaIds: z.array(uuid).max(6).optional(),
+      clientId: uuid.optional(),
+    })
+    .refine((v) => v.body || v.mediaId || v.mediaIds?.length)
+    .refine((v) => !v.mediaId || !v.mediaIds, "Choose one media format.")
     .parse(body);
+  const ids = p.mediaIds || (p.mediaId ? [p.mediaId] : []);
+  if (new Set(ids).size !== ids.length)
+    throw new BadRequestException("Choose each photo only once.");
   return tx(async (db) => {
-    await ownMedia(db, actor, p.mediaId);
+    if (p.clientId) {
+      const prior = await one(
+        db,
+        "SELECT id,body FROM posts WHERE author=$1 AND client_id=$2",
+        [actor, p.clientId],
+      );
+      if (prior) {
+        const attached = await rows(
+          db,
+          "SELECT media_id FROM post_media WHERE post_id=$1 ORDER BY position",
+          [prior.id],
+        );
+        if (
+          prior.body !== p.body ||
+          JSON.stringify(attached.map((m) => m.media_id)) !==
+            JSON.stringify(ids)
+        )
+          throw new BadRequestException(
+            "That retry belongs to a different post.",
+          );
+        return { id: prior.id };
+      }
+    }
+    for (const id of ids) {
+      await ownMedia(db, actor, id);
+      const media = await one(db, "SELECT kind FROM media WHERE id=$1", [id]);
+      if (ids.length > 1 && media.kind !== "image")
+        throw new BadRequestException("Choose up to six photos, or one video.");
+    }
     const id = randomUUID();
     await db.query(
-      "INSERT INTO posts(id,author,body,media_id) VALUES($1,$2,$3,$4)",
-      [id, actor, p.body, p.mediaId || null],
+      "INSERT INTO posts(id,author,body,media_id,client_id) VALUES($1,$2,$3,$4,$5)",
+      [id, actor, p.body, ids[0] || null, p.clientId || null],
     );
+    for (const [position, mediaId] of ids.entries())
+      await db.query(
+        "INSERT INTO post_media(post_id,media_id,position) VALUES($1,$2,$3)",
+        [id, mediaId, position],
+      );
     return { id };
   });
 }

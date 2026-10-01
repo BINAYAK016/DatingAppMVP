@@ -23,6 +23,11 @@ export async function exportAccount(actor: string) {
       [actor],
     ),
     posts: await rows(db, "SELECT * FROM posts WHERE author=$1", [actor]),
+    postMedia: await rows(
+      db,
+      "SELECT pm.post_id,pm.media_id,pm.position FROM post_media pm JOIN posts p ON p.id=pm.post_id WHERE p.author=$1 ORDER BY pm.post_id,pm.position",
+      [actor],
+    ),
     stories: await rows(db, "SELECT * FROM stories WHERE author=$1", [actor]),
     comments: await rows(db, "SELECT * FROM comments WHERE author=$1", [actor]),
     saved: await rows(

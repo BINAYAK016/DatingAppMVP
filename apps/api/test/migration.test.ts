@@ -36,6 +36,16 @@ test("upgrade preserves legacy pairs and circle data, migrates one-sided consent
       "INSERT INTO notifications(id,recipient,actor,kind,body) VALUES($1,$2,$3,'request','Legacy sender')",
       [randomUUID(), ids[1], ids[0]],
     );
+    const media = randomUUID(),
+      post = randomUUID();
+    await db.query(
+      "INSERT INTO media(id,owner,kind,path,mime) VALUES($1,$2,'image','fixture','image/jpeg')",
+      [media, ids[0]],
+    );
+    await db.query(
+      "INSERT INTO posts(id,author,body,media_id) VALUES($1,$2,'Legacy photo',$3)",
+      [post, ids[0], media],
+    );
     const migrate = () =>
       spawnSync(
         process.execPath,
@@ -83,7 +93,16 @@ test("upgrade preserves legacy pairs and circle data, migrates one-sided consent
     assert.equal(
       (await db.query("SELECT count(*)::int AS n FROM schema_migrations"))
         .rows[0].n,
-      6,
+      7,
+    );
+    assert.deepEqual(
+      (
+        await db.query(
+          "SELECT media_id,position FROM post_media WHERE post_id=$1",
+          [post],
+        )
+      ).rows,
+      [{ media_id: media, position: 0 }],
     );
     await db.query(
       "UPDATE schema_migrations SET checksum='tampered' WHERE name='schema.sql'",
