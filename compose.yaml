@@ -37,6 +37,8 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       MAIL_FROM: ${MAIL_FROM:-Sangai <beta@sangai.invalid>}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      OTP_HASH_SECRET: ${OTP_HASH_SECRET:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
     ports:
       - "127.0.0.1:4100:4100"
     volumes:

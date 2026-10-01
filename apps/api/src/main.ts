@@ -24,7 +24,7 @@ import helmet from "helmet";
 import { ZodError, z } from "zod";
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import { createReadStream, readFileSync } from "node:fs";
-import { stat, unlink } from "node:fs/promises";
+import { stat } from "node:fs/promises";
 import { join } from "node:path";
 import { pool, migrate, one, rows, tx } from "./db";
 import {
@@ -42,7 +42,7 @@ import * as identity from "./identity";
 import * as moments from "./moments";
 import { exportAccount } from "./account-export";
 import * as interactions from "./interactions";
-import { authorizedMedia, cleanup, upload } from "./media";
+import { authorizedMedia, cleanup, upload, removeMediaFiles } from "./media";
 import { seed } from "./seed";
 import { dispatchPush } from "./push";
 import { text, uuid } from "./validation";
@@ -520,7 +520,7 @@ class ApiController {
         r.actor,
       ]);
       await db.query("DELETE FROM users WHERE id=$1", [r.actor]);
-      for (const f of files) await unlink(f.path).catch(() => {});
+      for (const f of files) await removeMediaFiles(f.path);
       return { ok: true };
     });
   }
@@ -536,9 +536,10 @@ class ApiController {
   @Get("v1/media/:id") async getMedia(
     @Req() r: AuthRequest,
     @Param("id") id: string,
+    @Query("thumbnail") thumbnail: string,
     @Res() res: Response,
   ) {
-    const m = await authorizedMedia(r.actor, uuid.parse(id));
+    const m = await authorizedMedia(r.actor, uuid.parse(id), thumbnail === "1");
     const info = await stat(m.path);
     res.set({
       "Content-Type": m.mime,
@@ -633,8 +634,23 @@ export async function bootstrap() {
       },
     }),
   );
+  const approvedOrigins = (process.env.CORS_ORIGINS || "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
   app.enableCors({
-    origin: /^http:\/\/(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?$/,
+    origin: (
+      origin: string | undefined,
+      callback: (error: Error | null, allowed: boolean) => void,
+    ) =>
+      callback(
+        null,
+        !origin ||
+          /^http:\/\/(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?$/.test(
+            origin,
+          ) ||
+          approvedOrigins.includes(origin),
+      ),
     credentials: false,
   });
   app.use(json({ limit: "32kb" }));
@@ -643,14 +659,29 @@ export async function bootstrap() {
     res.setHeader("Cache-Control", "no-store");
     try {
       if (!req.path.startsWith("/v1")) return next();
-      const key = `${req.ip}:${req.path.startsWith("/v1/auth") ? "auth" : "api"}`;
+      const verification = req.path.startsWith("/v1/verification/");
+      const scope = verification
+        ? req.path.endsWith("/send")
+          ? "otp-send"
+          : "otp-verify"
+        : req.path.startsWith("/v1/auth")
+          ? "auth"
+          : "api";
+      const key = `${req.ip}:${scope}`;
       const now = Date.now();
       let c = counters.get(key);
       if (!c || c.until < now) {
         c = { count: 0, until: now + 60000 };
         counters.set(key, c);
       }
-      const max = req.path.startsWith("/v1/auth") ? 40 : 600;
+      const max =
+        scope === "otp-send"
+          ? 10
+          : scope === "otp-verify"
+            ? 30
+            : scope === "auth"
+              ? 40
+              : 600;
       if (++c.count > max)
         return res
           .status(429)
