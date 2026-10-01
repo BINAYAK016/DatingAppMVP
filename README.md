@@ -8,7 +8,9 @@ The redesign audit, confirmed decisions and implementation roadmap are in [the a
 
 The [1 October frontend audit and redesign](docs/ui-redesign.md) records the earlier visual release (`f3f9978`): portrait-led discovery, match moments, conversations, feed, profiles, games and date planning. That release preserved backend contracts. Demo portraits are bundled fictional artwork with [documented provenance and prompts](apps/mobile/assets/demo/README.md).
 
-The current [product polish](docs/product-polish-audit.md) adds six-digit email verification/reset, clearer auth recovery, ordered multi-photo posts, upload feedback, story playback/navigation and focused profile/game/date recovery. These changes include a minimal additive [post-media contract](docs/post-media.md) and authentication fixes; matching, match-only audiences and game consent remain intact. Follow the [authentication setup](docs/authentication.md) before starting Docker. Real Google sign-in and external email delivery still require your provider configuration and end-to-end verification.
+The earlier [product polish](docs/product-polish-audit.md) added six-digit email verification/reset, clearer auth recovery, ordered multi-photo posts, upload feedback, story playback/navigation and focused profile/game/date recovery. Those changes include a minimal additive [post-media contract](docs/post-media.md) and authentication fixes; matching, match-only audiences and game consent remain intact. Follow the [authentication setup](docs/authentication.md) before starting Docker. Real Google sign-in and external email delivery still require your provider configuration and end-to-end verification.
+
+The [1 October application audit](docs/full-audit-20261001.md) records the baseline defects and staged fixes. The current implementation adds [seven Games 2.0](docs/games-v2.md), [private-media and security foundations](docs/security-foundation.md), and [batched reads with cursor pages](docs/scalability-audit.md). The [capacity plan](docs/capacity-plan.md) separates the tiny local smoke measurements from future load scenarios. Final combined and native evidence belongs in [verification](docs/verification.md); source implementation alone does not establish device parity or production capacity. The preserved [Meet Me audit](docs/meet-me-audit.md) and [plan](docs/meet-me-plan.md) remain proposals, including external live verification.
 
 ## Included
 
@@ -17,11 +19,14 @@ The current [product polish](docs/product-polish-audit.md) adds six-digit email 
 - Persisted Like/Pass/Super Like gestures and buttons; hidden incoming Likes, mutual matching, safe undo and reciprocal preferences.
 - Match-only stories, one Chat camera, snaps, ordinary photo/video messages and a paged mixed conversation timeline.
 - Virtualized private feed, up to six ordered photos or one video per post, visible-video autoplay, data saver, reactions, replies, saves and sharing without audience expansion.
-- Three consented live games: This or That, Would You Rather, Two Truths & a Lie. Four more follow in the agreed next increment.
+- Seven Games 2.0: This or That, Would You Rather, Two Truths & a Lie, Guess My Answer, Compatibility Challenge, 20 Questions and Rapid Fire. Invitations allow returning later; only the invited match's explicit acceptance starts play. Ready is optional and advisory for v2 games.
+- Cursor-paged Activity with older updates and game links; additive bounded match/story pages, batched unread/message previews and feed projections. Legacy bootstrap still includes all matches and capped stories.
 - Date invitations, editable profiles/gallery, privacy settings, moderation, block/report/unmatch, export and account deletion.
 - Free + Sangai Plus **pricing previews only**: NPR 299/month or 2,870.40/year; AUD 7.99/month or 76.70/year. No checkout or paid entitlement.
 
 Circles, circle events/RSVP, the old request inbox and separate Play tab are retired. Sample accounts are visibly fictional and isolated from real-account discovery. See the [Android Studio run guide](docs/android-redesign.md) and [verification](docs/verification.md) for executed checks and remaining platform/provider validation.
+
+Games 2.0 is enabled by server `ENABLE_GAMES_V2=true` in the local configuration. For a beta rollback, set it to `false` while retaining the migrated schema and compatible API binary: new v2 invitations and non-cancel actions stop, while authorized existing-session reads and cancellation remain available. Legacy game history and the original three-game flow remain supported; their historical readiness rules differ from v2. Do not drop game data or deploy a pre-v2 binary as a rollback. See [game rollout details](docs/games-v2.md#rollout-and-rollback).
 
 ## Backend
 
@@ -87,4 +92,4 @@ API tests need the Compose PostgreSQL service; they create/drop their own unique
 
 For supplemental browser UI tests, start API and `npm run web --prefix apps/mobile`, then `npx playwright install chromium` and `npx playwright test`. With installed Chrome, set `$env:PLAYWRIGHT_CHANNEL='chrome'` to avoid downloading Chromium. The browser tests supplement native testing; the browser is not the mobile deliverable.
 
-Read [beta guide](docs/beta.md), [authentication setup](docs/authentication.md), [post-media contract](docs/post-media.md), [verification](docs/verification.md), [test plan](docs/test-plan.md), and [agent instructions](AGENTS.md).
+Read [beta guide](docs/beta.md), [authentication setup](docs/authentication.md), [post-media contract](docs/post-media.md), [full audit](docs/full-audit-20261001.md), [Games 2.0](docs/games-v2.md), [security foundation](docs/security-foundation.md), [query audit](docs/scalability-audit.md), [capacity plan](docs/capacity-plan.md), [verification](docs/verification.md), [test plan](docs/test-plan.md), and [agent instructions](AGENTS.md).
