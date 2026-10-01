@@ -28,3 +28,25 @@ jobs:
       - run: npm run lint --prefix apps/mobile
       - run: npx expo export --platform all
         working-directory: apps/mobile
+      - run: npm ci
+      - run: npm run test:session
+      - run: npx playwright install --with-deps chromium
+      - name: Critical browser recovery and game journeys
+        env:
+          DATABASE_URL: postgres://sangai:local-ci-only@localhost:5432/sangai
+          NODE_ENV: development
+          ENABLE_DEMO: "true"
+          ENABLE_GAMES_V2: "true"
+          ENABLE_PUSH: "false"
+          UPLOAD_DIR: ${{ runner.temp }}/sangai-ui-media
+        run: |
+          node apps/api/dist/main.js > "$RUNNER_TEMP/sangai-ui-api.log" 2>&1 &
+          sangai_api_pid=$!
+          node scripts/ui-preview.mjs > "$RUNNER_TEMP/sangai-ui-preview.log" 2>&1 &
+          sangai_preview_pid=$!
+          trap 'kill "$sangai_api_pid" "$sangai_preview_pid" 2>/dev/null || true' EXIT
+          for attempt in {1..40}; do
+            if curl -fsS http://localhost:4100/ready && curl -fsS http://localhost:8081/ > /dev/null; then break; fi
+            sleep 1
+          done
+          npm run test:ui -- tests/ui/demo-entry.spec.ts tests/ui/recovery.spec.ts tests/ui/games-v2.spec.ts tests/ui/activity-pagination.spec.ts

@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { router, useIsFocused, useLocalSearchParams } from "expo-router";
 import { useStore } from "../lib/store";
 import { useGameReady } from "../lib/useGameReady";
+import { GamePickerV2 } from "../components/GamePickerV2";
 import {
   Avatar,
   BottomSheet,
@@ -13,8 +14,20 @@ import {
   s,
 } from "../components/ui";
 export default function Games() {
-  const { target = "" } = useLocalSearchParams<{ target?: string }>();
-  return <GameLobby key={target} target={target} />;
+  const { target = "", kind } = useLocalSearchParams<{
+    target?: string;
+    kind?: string;
+  }>();
+  const { data, sessionKey } = useStore();
+  if (data?.features?.gamesV2)
+    return (
+      <GamePickerV2
+        key={`${sessionKey}:${target}:${kind || ""}`}
+        target={target}
+        initialKind={kind}
+      />
+    );
+  return <GameLobby key={`${sessionKey}:${target}`} target={target} />;
 }
 function GameLobby({ target }: { target: string }) {
   const st = useStore();

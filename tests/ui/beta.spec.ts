@@ -28,6 +28,13 @@ test("two matches explicitly become ready, invite, accept and reveal a live game
     viewport: { width: 412, height: 915 },
   });
   const guest = await second.newPage();
+  await guest.route("**/v1/state", async (route) => {
+    const response = await route.fetch();
+    await route.fulfill({
+      response,
+      json: { ...(await response.json()), features: { gamesV2: false } },
+    });
+  });
   try {
     await guest.goto("http://localhost:8081/");
     await guest
@@ -52,7 +59,8 @@ test("two matches explicitly become ready, invite, accept and reveal a live game
           .getByLabel("Conversation actions", { exact: true })
           .click();
         await client
-          .getByRole("button", { name: "Dating games", exact: true })
+          .getByRole("button", { name: "Play together", exact: true })
+          .last()
           .click();
         await becomeReady(client, target);
       });
@@ -142,6 +150,14 @@ test("two matches explicitly become ready, invite, accept and reveal a live game
 });
 
 test.beforeEach(async ({ page }) => {
+  // Exercise the preserved legacy rollout path; Games 2.0 has its own suite.
+  await page.route("**/v1/state", async (route) => {
+    const response = await route.fetch();
+    await route.fulfill({
+      response,
+      json: { ...(await response.json()), features: { gamesV2: false } },
+    });
+  });
   await page.goto("/");
   await page
     .getByRole("button", { name: "Explore demo accounts", exact: true })
@@ -171,7 +187,7 @@ test("four core areas, Discover landing and Chat-owned stories", async ({
   await expect(page.getByLabel("Chat camera", { exact: true })).toBeVisible();
   await page.getByLabel("Conversation actions", { exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "Dating games", exact: true }),
+    page.getByRole("button", { name: "Play together", exact: true }).last(),
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Plan a Date", exact: true }),

@@ -15,9 +15,14 @@ import {
   s,
 } from "../components/ui";
 export default function Safety() {
-  const { target, context = "profile" } = useLocalSearchParams<{
+  const {
+    target,
+    context = "profile",
+    gameId,
+  } = useLocalSearchParams<{
     target?: string;
     context?: string;
+    gameId?: string;
   }>();
   const st = useStore();
   const { request, toast } = st;
@@ -207,7 +212,12 @@ export default function Safety() {
           disabled={busy || !reason.trim()}
           onPress={() =>
             void act(async () => {
-              await request("/reports", { target, reason, context });
+              await request("/reports", {
+                target,
+                reason,
+                context,
+                ...(gameId ? { gameId } : {}),
+              });
               setReason("");
               setReportOpen(false);
               toast("Report received. You can track it below.");

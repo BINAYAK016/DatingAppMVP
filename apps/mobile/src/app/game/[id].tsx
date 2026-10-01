@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useStore } from "../../lib/store";
+import { GameRoomV2 } from "../../components/GameRoomV2";
 import { useGameReady } from "../../lib/useGameReady";
 import { useReducedMotion } from "../../lib/useReducedMotion";
 import { findConversationGame } from "../../lib/gameHistory";
@@ -29,15 +30,19 @@ import {
   s,
 } from "../../components/ui";
 export default function Game() {
-  const { id, target, ready, created_at } = useLocalSearchParams<{
+  const { id, target, ready, created_at, version } = useLocalSearchParams<{
     id: string;
     target: string;
     ready?: string;
     created_at?: string;
+    version?: string;
   }>();
+  const { sessionKey } = useStore();
+  if (version === "2")
+    return <GameRoomV2 key={`${sessionKey}:${id}`} id={id} target={target} />;
   return (
     <Session
-      key={id}
+      key={`${sessionKey}:${id}`}
       id={id}
       target={target}
       createdAt={created_at}

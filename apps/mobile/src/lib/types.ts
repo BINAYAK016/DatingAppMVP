@@ -57,6 +57,7 @@ export type GameDefinition = {
   questions: { q: string; options: string[] }[];
 };
 export type State = {
+  features?: { gamesV2: boolean };
   me: Person & {
     email: string;
     email_verified_at: string | null;
@@ -90,6 +91,8 @@ export type State = {
     kind: string;
     read: boolean;
     created_at: string;
+    resource_type?: string | null;
+    resource_id?: string | null;
   }[];
   games: GameDefinition[];
 };

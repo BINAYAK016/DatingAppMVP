@@ -8,8 +8,14 @@ import React, {
 } from "react";
 import { AppState, Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
-import { File } from "expo-file-system";
 import { State } from "./types";
+import { clearGameDrafts } from "./gameDrafts";
+import { clearGameConversations } from "./gameChatBridge";
+import {
+  readSessionCredentials,
+  writeSessionCredentials,
+  clearSessionCredentials,
+} from "./sessionCredentials";
 const DEFAULT_URL =
   process.env.EXPO_PUBLIC_API_URL ||
   (Platform.OS === "android"
@@ -24,6 +30,9 @@ type Store = {
   notice: string;
   sessionError: string;
   sessionLoading: boolean;
+  sessionKey: number;
+  storageWarning: boolean;
+  clearSavedSignIn: () => Promise<void>;
   setUrl: (v: string) => void;
   toast: (s: string) => void;
   request: <T = any>(
@@ -34,11 +43,6 @@ type Store = {
   refresh: () => Promise<void>;
   signIn: (path: string, body: unknown) => Promise<void>;
   signOut: () => Promise<void>;
-  upload: (asset: {
-    uri: string;
-    mimeType?: string | null;
-    type?: string | null;
-  }) => Promise<{ id: string; kind: string }>;
 };
 const Context = createContext<Store>(null as unknown as Store);
 export const useStore = () => useContext(Context);
@@ -51,9 +55,22 @@ export function Provider({ children }: { children: React.ReactNode }) {
     [notice, setNotice] = useState("");
   const [sessionError, setSessionError] = useState("");
   const [sessionLoading, setSessionLoading] = useState(false);
+  const [sessionKey, setSessionKey] = useState(0);
+  const [storageWarning, setStorageWarning] = useState(false);
+  const credentialWrites = useRef<Promise<unknown>>(Promise.resolve());
+  const persistCredentials = useCallback((write: () => Promise<void>) => {
+    const pending = credentialWrites.current.catch(() => {}).then(write);
+    credentialWrites.current = pending;
+    return pending;
+  }, []);
   const refreshSequence = useRef(0);
   const tokenRef = useRef<string | null>(null);
+  const urlRef = useRef(DEFAULT_URL);
   const epoch = useRef(0);
+  const accountRef = useRef<string | undefined>(undefined);
+  const reads = useRef(new Map<string, Promise<any>>());
+  const refreshFlight = useRef<Promise<void> | null>(null);
+  const refreshQueued = useRef(false);
   const toast = useCallback((s: string) => setNotice(s), []);
   useEffect(() => {
     if (!notice) return;
@@ -61,114 +78,248 @@ export function Provider({ children }: { children: React.ReactNode }) {
     return () => clearTimeout(t);
   }, [notice]);
   useEffect(() => {
+    let mounted = true;
     (async () => {
-      if (Platform.OS !== "web") {
-        setUrlValue(
-          (await SecureStore.getItemAsync("sangai-server")) || DEFAULT_URL,
-        );
-        const restored = await SecureStore.getItemAsync("sangai-session");
-        tokenRef.current = restored;
-        setToken(restored);
-      }
-      setReady(true);
-    })();
-  }, []);
-  const saveToken = useCallback(async (t: string | null) => {
-    epoch.current++;
-    tokenRef.current = t;
-    setToken(t);
-    setData(null);
-    setSessionError("");
-    if (Platform.OS !== "web") {
-      if (t) await SecureStore.setItemAsync("sangai-session", t);
-      else await SecureStore.deleteItemAsync("sangai-session");
-    }
-  }, []);
-  const setUrl = (s: string) => {
-    const value = s.trim().replace(/\/$/, "");
-    setUrlValue(value);
-    if (Platform.OS !== "web")
-      void SecureStore.setItemAsync("sangai-server", value);
-  };
-  const request = useCallback(
-    async <T = any,>(
-      path: string,
-      body?: unknown,
-      method?: string,
-    ): Promise<T> => {
-      const controller = new AbortController(),
-        timer = setTimeout(() => controller.abort(), 15000);
-      const requestToken = tokenRef.current;
       try {
-        const response = await fetch(url + "/v1" + path, {
-          method: method || (body === undefined ? "GET" : "POST"),
-          headers: {
-            "Content-Type": "application/json",
-            ...(requestToken
-              ? { Authorization: "Bearer " + requestToken }
-              : {}),
-          },
-          body: body === undefined ? undefined : JSON.stringify(body),
-          signal: controller.signal,
-        });
-        const result = await response.json();
-        if (!response.ok) {
-          if (
-            response.status === 401 &&
-            requestToken &&
-            requestToken === tokenRef.current
-          ) {
-            await saveToken(null);
-            setData(null);
-          }
-          const error = new Error(
-            result.message || "Could not complete that action.",
-          ) as Error & { status: number };
-          error.status = response.status;
-          throw error;
-        }
-        return result;
-      } catch (e: any) {
-        if (
-          e.name === "AbortError" ||
-          e.message === "Network request failed" ||
-          e.message === "Failed to fetch"
-        )
-          throw new Error(
-            "Cannot reach the beta server. Check Docker and the server address.",
+        if (Platform.OS !== "web") {
+          const server =
+            (await SecureStore.getItemAsync("sangai-server")) || DEFAULT_URL;
+          const restored = await readSessionCredentials(
+            SecureStore,
+            server,
+            DEFAULT_URL,
           );
-        throw e;
+          if (!mounted) return;
+          urlRef.current = server;
+          setUrlValue(server);
+          tokenRef.current = restored;
+          setToken(tokenRef.current);
+        }
+      } catch {
+        if (mounted)
+          toast("Could not restore your saved sign-in. Please sign in again.");
       } finally {
-        clearTimeout(timer);
+        if (mounted) setReady(true);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [toast]);
+  const saveToken = useCallback(
+    async (t: string | null) => {
+      const started = epoch.current,
+        server = urlRef.current;
+      if (t && Platform.OS !== "web") {
+        await persistCredentials(async () => {
+          if (started !== epoch.current || server !== urlRef.current)
+            throw new Error("Your session changed. Please sign in again.");
+          await writeSessionCredentials(SecureStore, server, t);
+        });
+        if (started !== epoch.current || server !== urlRef.current)
+          throw new Error("Your session changed. Please sign in again.");
+      }
+      if (t) setStorageWarning(false);
+      epoch.current++;
+      setSessionKey((value) => value + 1);
+      reads.current.clear();
+      if (!t || t !== tokenRef.current) {
+        const previousAccount = accountRef.current;
+        accountRef.current = undefined;
+        clearGameConversations(previousAccount);
+        void clearGameDrafts(previousAccount).catch(() =>
+          toast(
+            "Could not clear saved game drafts. Please retry signing out before closing the app.",
+          ),
+        );
+      }
+      tokenRef.current = t;
+      setToken(t);
+      setData(null);
+      setSessionError("");
+      if (!t && Platform.OS !== "web") {
+        try {
+          await persistCredentials(async () => {
+            await clearSessionCredentials(SecureStore);
+          });
+          setStorageWarning(false);
+        } catch {
+          setStorageWarning(true);
+        }
       }
     },
-    [url, saveToken],
+    [toast, persistCredentials],
   );
-  const refresh = useCallback(async () => {
-    if (!tokenRef.current) return;
-    const started = epoch.current;
-    const sequence = ++refreshSequence.current;
-    setSessionLoading(true);
+  const setUrl = (s: string) => {
+    const value = s.trim().replace(/\/$/, "");
     try {
-      const next = await request<State>("/state");
-      if (started === epoch.current && sequence === refreshSequence.current) {
-        setData(next);
-        setSessionError("");
-      }
-    } catch (e: any) {
-      if (started === epoch.current && sequence === refreshSequence.current) {
-        setSessionError(e.message);
-        toast(e.message);
-      }
-    } finally {
-      if (sequence === refreshSequence.current) setSessionLoading(false);
+      const parsed = new URL(value);
+      if (
+        !["http:", "https:"].includes(parsed.protocol) ||
+        parsed.username ||
+        parsed.password ||
+        parsed.search ||
+        parsed.hash ||
+        parsed.pathname !== "/"
+      )
+        throw new Error();
+    } catch {
+      toast("Enter a server address such as http://10.0.2.2:4100.");
+      return;
     }
+    if (value === urlRef.current) return;
+    urlRef.current = value;
+    // A bearer token belongs to its server and must never follow an address change.
+    void saveToken(null);
+    setUrlValue(value);
+    if (Platform.OS !== "web")
+      void persistCredentials(() =>
+        SecureStore.setItemAsync("sangai-server", value),
+      ).catch(() =>
+        toast("Server changed for this session. Could not save the address."),
+      );
+  };
+  const request = useCallback(
+    <T = any,>(path: string, body?: unknown, method?: string): Promise<T> => {
+      const started = epoch.current,
+        server = urlRef.current;
+      const requestToken = tokenRef.current;
+      const verb = method || (body === undefined ? "GET" : "POST");
+      const key = `${started}:${server}:${path}`;
+      if (verb !== "GET") reads.current.clear();
+      if (verb === "GET" && reads.current.has(key))
+        return reads.current.get(key)!;
+      const run = async (): Promise<T> => {
+        const controller = new AbortController(),
+          timer = setTimeout(() => controller.abort(), 15000);
+        try {
+          const response = await fetch(server + "/v1" + path, {
+            method: verb,
+            headers: {
+              "Content-Type": "application/json",
+              ...(requestToken
+                ? { Authorization: "Bearer " + requestToken }
+                : {}),
+            },
+            body: body === undefined ? undefined : JSON.stringify(body),
+            signal: controller.signal,
+          });
+          let result: any;
+          try {
+            result = await response.json();
+          } catch {
+            result = null;
+          }
+          if (!response.ok) {
+            if (
+              response.status === 401 &&
+              started === epoch.current &&
+              server === urlRef.current &&
+              requestToken &&
+              requestToken === tokenRef.current
+            ) {
+              await saveToken(null);
+              setData(null);
+            }
+            const error = new Error(
+              result?.message ||
+                "Could not complete that action. Please try again.",
+            ) as Error & { status: number; retryAfter?: number };
+            error.status = response.status;
+            error.retryAfter =
+              Number(response.headers.get("Retry-After")) || undefined;
+            throw error;
+          }
+          if (result === null)
+            throw new Error(
+              "The server response could not load. Please try again.",
+            );
+          if (
+            started !== epoch.current ||
+            server !== urlRef.current ||
+            requestToken !== tokenRef.current
+          ) {
+            const error = new Error(
+              "Your session changed. Please reopen this screen.",
+            );
+            error.name = "SessionChangedError";
+            throw error;
+          }
+          return result;
+        } catch (e: any) {
+          if (
+            e.name === "AbortError" ||
+            e.message === "Network request failed" ||
+            e.message === "Failed to fetch"
+          )
+            throw new Error(
+              "Cannot reach the beta server. Check Docker and the server address.",
+            );
+          throw e;
+        } finally {
+          clearTimeout(timer);
+        }
+      };
+      const pending = run();
+      if (verb === "GET") {
+        reads.current.set(key, pending);
+        void pending
+          .finally(() => {
+            if (reads.current.get(key) === pending) reads.current.delete(key);
+          })
+          .catch(() => {});
+      }
+      return pending;
+    },
+    [saveToken],
+  );
+  const refresh = useCallback((): Promise<void> => {
+    if (!tokenRef.current) return Promise.resolve();
+    if (refreshFlight.current) {
+      refreshQueued.current = true;
+      return refreshFlight.current;
+    }
+    const run = async () => {
+      do {
+        refreshQueued.current = false;
+        const started = epoch.current;
+        const sequence = ++refreshSequence.current;
+        setSessionLoading(true);
+        try {
+          const next = await request<State>("/state");
+          if (
+            started === epoch.current &&
+            sequence === refreshSequence.current
+          ) {
+            accountRef.current = next.me.id;
+            setData(next);
+            setSessionError("");
+          }
+        } catch (e: any) {
+          if (
+            started === epoch.current &&
+            sequence === refreshSequence.current
+          ) {
+            setSessionError(e.message);
+            if (e.name !== "SessionChangedError") toast(e.message);
+          }
+        } finally {
+          if (sequence === refreshSequence.current) setSessionLoading(false);
+        }
+      } while (refreshQueued.current && tokenRef.current);
+    };
+    const pending = run().finally(() => {
+      refreshFlight.current = null;
+    });
+    refreshFlight.current = pending;
+    return pending;
   }, [request, toast]);
   useEffect(() => {
     if (!token) return;
     const first = setTimeout(() => void refresh(), 0);
     const t = setInterval(() => {
-      if (AppState.currentState === "active") void refresh();
+      if (AppState.currentState === "active" && !refreshFlight.current)
+        void refresh();
     }, 12000);
     const listener = AppState.addEventListener("change", (state) => {
       if (state === "active") void refresh();
@@ -197,29 +348,6 @@ export function Provider({ children }: { children: React.ReactNode }) {
       setData(null);
     }
   };
-  const upload = async (asset: {
-    uri: string;
-    mimeType?: string | null;
-    type?: string | null;
-  }) => {
-    const form = new FormData();
-    const video = asset.type === "video";
-    if (Platform.OS === "web") {
-      const blob = await (await fetch(asset.uri)).blob();
-      form.append("file", blob, video ? "moment.mp4" : "moment.jpg");
-    } else {
-      // SDK 57 uses Expo's standards-based fetch; URI descriptor objects are not blobs.
-      form.append("file", new File(asset.uri));
-    }
-    const response = await fetch(url + "/v1/media", {
-      method: "POST",
-      headers: { Authorization: "Bearer " + tokenRef.current },
-      body: form,
-    });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.message || "Upload failed.");
-    return result as { id: string; kind: string };
-  };
   return (
     <Context.Provider
       value={{
@@ -231,13 +359,15 @@ export function Provider({ children }: { children: React.ReactNode }) {
         notice,
         sessionError,
         sessionLoading,
+        sessionKey,
+        storageWarning,
+        clearSavedSignIn: () => saveToken(null),
         setUrl,
         toast,
         request,
         refresh,
         signIn,
         signOut,
-        upload,
       }}
     >
       {children}

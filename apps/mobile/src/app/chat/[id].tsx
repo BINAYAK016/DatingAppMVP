@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   AppState,
+  FlatList,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -16,6 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { ConversationItem } from "../../components/ConversationItem";
 import { StoryPlayer } from "../../components/StoryPlayer";
 import { useStore } from "../../lib/store";
+import { consumeGameConversation } from "../../lib/gameChatBridge";
 import {
   Avatar,
   Button,
@@ -31,6 +33,10 @@ import {
 export default function Chat() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const st = useStore();
+  return <ChatScreen key={`${id}:${st.sessionKey}`} id={id} />;
+}
+function ChatScreen({ id }: { id: string }) {
+  const st = useStore();
   const { request } = st;
   const [chat, setChat] = useState<any>(null),
     [error, setError] = useState(""),
@@ -41,7 +47,12 @@ export default function Chat() {
   const [history, setHistory] = useState<any[]>([]);
   const [more, setMore] = useState(true);
   const [loadingHistory, setLoadingHistory] = useState(false);
-  const conversationScroll = useRef<ScrollView>(null);
+  const bodyRef = useRef(body);
+  useEffect(() => {
+    bodyRef.current = body;
+  }, [body]);
+  const account = st.data?.me.id;
+  const conversationScroll = useRef<FlatList<any>>(null);
   const followNewest = useRef(true);
   const userScrolling = useRef(false);
   const followEnd = useCallback(() => {
@@ -63,27 +74,75 @@ export default function Chat() {
       100;
   };
   const pending = useRef<{ text: string; id: string } | null>(null);
+  const loadSequence = useRef(0);
+  const accessGeneration = useRef(0);
+  const loadFailures = useRef(0);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  const invalidateAccess = useCallback((e: any) => {
+    if (![401, 403, 404].includes(e.status) && e.name !== "SessionChangedError")
+      return;
+    accessGeneration.current++;
+    setChat(null);
+    setHistory([]);
+    setSnap(null);
+    setBody("");
+    pending.current = null;
+    setAttachments(false);
+  }, []);
   const load = useCallback(async () => {
+    const sequence = ++loadSequence.current;
     try {
-      setChat(await request(`/chat/${id}`));
+      const next = await request(`/chat/${id}`);
+      if (!mounted.current || sequence !== loadSequence.current) return false;
+      setChat(next);
       setError("");
+      loadFailures.current = 0;
+      return true;
     } catch (e: any) {
+      if (!mounted.current || sequence !== loadSequence.current) return false;
+      loadFailures.current++;
       setError(e.message);
-      setChat(null);
-      setHistory([]);
+      invalidateAccess(e);
+      return false;
     }
-  }, [id, request]);
+  }, [id, request, invalidateAccess]);
   useFocusEffect(
     useCallback(() => {
-      const first = setTimeout(() => void load(), 0);
-      const t = setInterval(() => {
-        if (AppState.currentState === "active") void load();
-      }, 3000);
-      return () => {
-        clearTimeout(first);
-        clearInterval(t);
+      if (account && !bodyRef.current.trim()) {
+        const starter = consumeGameConversation(account, id, st.url);
+        if (starter) setBody(starter);
+      }
+      let alive = true,
+        generation = 0;
+      let timer: ReturnType<typeof setTimeout>;
+      const poll = async (current: number) => {
+        if (AppState.currentState === "active") await load();
+        if (alive && current === generation)
+          timer = setTimeout(
+            () => void poll(current),
+            Math.min(30000, 3000 * 2 ** Math.min(loadFailures.current, 3)),
+          );
       };
-    }, [load]),
+      timer = setTimeout(() => void poll(generation), 0);
+      const listener = AppState.addEventListener("change", (state) => {
+        if (state === "active") {
+          clearTimeout(timer);
+          void poll(++generation);
+        }
+      });
+      return () => {
+        alive = false;
+        generation++;
+        clearTimeout(timer);
+        listener.remove();
+      };
+    }, [load, account, id, st.url]),
   );
   const close = useCallback(async () => {
     if (snap) {
@@ -132,6 +191,19 @@ export default function Chat() {
     }
   };
   const [options, setOptions] = useState(false);
+  const timeline = chat
+    ? [
+        ...new Map(
+          [...history, ...(chat?.timeline || [])].map((item: any) => [
+            item.id,
+            item,
+          ]),
+        ).values(),
+      ].sort(
+        (a: any, b: any) =>
+          a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id),
+      )
+    : [];
   return (
     <SafeAreaView
       edges={["top", "bottom"]}
@@ -177,8 +249,88 @@ export default function Chat() {
             onPress={() => setOptions(true)}
           />
         </View>
-        <ScrollView
+        {chat && (
+          <View
+            style={{
+              paddingHorizontal: 20,
+              paddingVertical: 8,
+              borderBottomWidth: 1,
+              borderColor: C.line,
+            }}
+          >
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Play together"
+              onPress={() =>
+                router.push({ pathname: "/games", params: { target: id } })
+              }
+              style={[
+                s.row,
+                { minHeight: 40, justifyContent: "space-between" },
+              ]}
+            >
+              <View style={s.row}>
+                <Icon
+                  name="game-controller-outline"
+                  size={20}
+                  color={C.primary}
+                />
+                <Text style={s.link}>Play together</Text>
+              </View>
+              <Text style={s.small}>Quick Play</Text>
+            </Pressable>
+          </View>
+        )}
+        <FlatList
           ref={conversationScroll}
+          data={timeline}
+          keyExtractor={(item) => item.id}
+          initialNumToRender={20}
+          maxToRenderPerBatch={15}
+          windowSize={7}
+          maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+          renderItem={({ item }) => (
+            <ConversationItem
+              item={item}
+              target={id}
+              reload={load}
+              updateGame={(next) => {
+                setHistory((old) =>
+                  old.map((item) =>
+                    item.id === next.id ? { ...item, ...next } : item,
+                  ),
+                );
+                setChat(
+                  (old: any) =>
+                    old && {
+                      ...old,
+                      timeline: old.timeline.map((item: any) =>
+                        item.id === next.id ? { ...item, ...next } : item,
+                      ),
+                    },
+                );
+              }}
+              openSnap={async (snapId) => {
+                const generation = accessGeneration.current;
+                try {
+                  const opened = await request(`/snaps/${snapId}/open`, {});
+                  if (
+                    !mounted.current ||
+                    generation !== accessGeneration.current
+                  )
+                    return;
+                  setSnap({
+                    ...opened,
+                    id: snapId,
+                  });
+                } catch (e: any) {
+                  invalidateAccess(e);
+                  st.toast(e.message);
+                }
+                void load();
+              }}
+            />
+          )}
           onScrollBeginDrag={() => {
             userScrolling.current = true;
           }}
@@ -203,104 +355,105 @@ export default function Chat() {
           contentContainerStyle={styles.messages}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
-        >
-          {error ? (
+          ListHeaderComponent={
             <>
-              <Empty
-                icon="chatbubble-outline"
-                title="Let’s try that again"
-                body="Your conversation couldn’t load. Check your connection and try again."
-              />
-              <Button title="Retry" onPress={() => void load()} />
-            </>
-          ) : chat ? (
-            <>
-              {!chat.timeline.length && !history.length && (
-                <View style={styles.hello}>
-                  <View
-                    style={[
-                      s.row,
-                      { justifyContent: "center", marginBottom: 16 },
-                    ]}
-                  >
-                    <Avatar person={st.data?.me || {}} size={56} />
-                    <Icon name="heart-outline" color={C.primary} size={20} />
-                    <Avatar person={chat.person} size={56} />
+              {error && !chat ? (
+                <>
+                  <Empty
+                    icon="chatbubble-outline"
+                    title="Let’s try that again"
+                    body="Your conversation couldn’t load. Check your connection and try again."
+                  />
+                  <Button title="Retry" onPress={() => void load()} />
+                </>
+              ) : chat ? (
+                <>
+                  {!!error && (
+                    <View style={{ gap: 8, paddingVertical: 12 }}>
+                      <Text accessibilityRole="alert" style={s.small}>
+                        Connection interrupted. Your conversation is still here.
+                      </Text>
+                      <Button
+                        title="Reconnect"
+                        secondary
+                        onPress={() => void load()}
+                      />
+                    </View>
+                  )}
+                  {!chat.timeline.length && !history.length && (
+                    <View style={styles.hello}>
+                      <View
+                        style={[
+                          s.row,
+                          { justifyContent: "center", marginBottom: 16 },
+                        ]}
+                      >
+                        <Avatar person={st.data?.me || {}} size={56} />
+                        <Icon
+                          name="heart-outline"
+                          color={C.primary}
+                          size={20}
+                        />
+                        <Avatar person={chat.person} size={56} />
+                      </View>
+                      <Text style={[s.h2, { textAlign: "center" }]}>
+                        A little hello goes a long way
+                      </Text>
+                      <Text
+                        style={[s.body, { textAlign: "center", marginTop: 8 }]}
+                      >
+                        You chose each other. Start with something that feels
+                        like you.
+                      </Text>
+                    </View>
+                  )}
+                  {chat.hasMore && more && (
+                    <View style={{ paddingVertical: 16 }}>
+                      <Button
+                        title={
+                          loadingHistory ? "Loading…" : "Earlier conversation"
+                        }
+                        secondary
+                        disabled={loadingHistory}
+                        onPress={async () => {
+                          const generation = accessGeneration.current;
+                          followNewest.current = false;
+                          setLoadingHistory(true);
+                          try {
+                            const first = history[0] || chat.timeline[0];
+                            const result = await request(
+                              `/chat/${id}?before=${encodeURIComponent(first.created_at)}&beforeId=${first.id}`,
+                            );
+                            if (
+                              !mounted.current ||
+                              generation !== accessGeneration.current
+                            )
+                              return;
+                            setHistory((old) => [...result.timeline, ...old]);
+                            setMore(result.hasMore);
+                          } catch (e: any) {
+                            invalidateAccess(e);
+                            st.toast(e.message);
+                          } finally {
+                            if (mounted.current) setLoadingHistory(false);
+                          }
+                        }}
+                      />
+                    </View>
+                  )}
+                </>
+              ) : (
+                <View style={{ gap: 14, paddingTop: 24 }}>
+                  <Skeleton width="70%" height={54} />
+                  <View style={{ alignItems: "flex-end" }}>
+                    <Skeleton width="66%" height={74} />
                   </View>
-                  <Text style={[s.h2, { textAlign: "center" }]}>
-                    A little hello goes a long way
-                  </Text>
-                  <Text style={[s.body, { textAlign: "center", marginTop: 8 }]}>
-                    You chose each other. Start with something that feels like
-                    you.
-                  </Text>
+                  <Skeleton width="78%" height={54} />
                 </View>
               )}
-              {chat.hasMore && more && (
-                <View style={{ paddingVertical: 16 }}>
-                  <Button
-                    title={loadingHistory ? "Loading…" : "Earlier conversation"}
-                    secondary
-                    disabled={loadingHistory}
-                    onPress={async () => {
-                      followNewest.current = false;
-                      setLoadingHistory(true);
-                      try {
-                        const first = history[0] || chat.timeline[0];
-                        const result = await request(
-                          `/chat/${id}?before=${encodeURIComponent(first.created_at)}&beforeId=${first.id}`,
-                        );
-                        setHistory((old) => [...result.timeline, ...old]);
-                        setMore(result.hasMore);
-                      } catch (e: any) {
-                        st.toast(e.message);
-                      } finally {
-                        setLoadingHistory(false);
-                      }
-                    }}
-                  />
-                </View>
-              )}
-              {[
-                ...new Map(
-                  [...history, ...chat.timeline].map((m: any) => [m.id, m]),
-                ).values(),
-              ]
-                .sort(
-                  (a: any, b: any) =>
-                    a.created_at.localeCompare(b.created_at) ||
-                    a.id.localeCompare(b.id),
-                )
-                .map((item: any) => (
-                  <ConversationItem
-                    key={item.id}
-                    item={item}
-                    target={id}
-                    reload={load}
-                    openSnap={async (snapId) => {
-                      try {
-                        setSnap({
-                          ...(await request(`/snaps/${snapId}/open`, {})),
-                          id: snapId,
-                        });
-                      } catch (e: any) {
-                        st.toast(e.message);
-                      }
-                      void load();
-                    }}
-                  />
-                ))}
             </>
-          ) : (
-            <View style={{ gap: 14, paddingTop: 24 }}>
-              <Skeleton width="70%" height={54} />
-              <View style={{ alignItems: "flex-end" }}>
-                <Skeleton width="66%" height={74} />
-              </View>
-              <Skeleton width="78%" height={54} />
-            </View>
-          )}
-        </ScrollView>
+          }
+        />
         {chat && (
           <View style={styles.composer}>
             <IconButton
@@ -373,7 +526,7 @@ export default function Chat() {
             }}
           />
           <Button
-            title="Dating games"
+            title="Play together"
             secondary
             icon="dice-outline"
             onPress={() => {

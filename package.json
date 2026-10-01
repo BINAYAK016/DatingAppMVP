@@ -7,7 +7,9 @@
     "mobile": "npm start --prefix apps/mobile",
     "android": "npm run android --prefix apps/mobile",
     "check": "npm run typecheck --prefix apps/api && npm run typecheck --prefix apps/mobile",
-    "test": "npm test --prefix apps/api"
+    "test": "npm test --prefix apps/api",
+    "test:ui": "playwright test",
+    "test:session": "node apps/api/node_modules/tsx/dist/cli.mjs --test tests/session-credentials.test.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

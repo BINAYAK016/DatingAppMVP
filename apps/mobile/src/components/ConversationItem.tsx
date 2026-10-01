@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Animated,
   Platform,
@@ -11,21 +11,68 @@ import { router } from "expo-router";
 import { Button, C, Icon, Media, s } from "./ui";
 import { useStore } from "../lib/store";
 import { useReducedMotion } from "../lib/useReducedMotion";
+import { randomUUID } from "expo-crypto";
+import { GameSessionV2 } from "../lib/gameV2";
 export function ConversationItem({
   item: m,
   target,
   reload,
   openSnap,
+  updateGame,
 }: {
   item: any;
   target: string;
-  reload: () => Promise<void>;
+  reload: () => Promise<void | boolean>;
   openSnap: (id: string) => void;
+  updateGame?: (session: GameSessionV2) => void;
 }) {
   const st = useStore(),
     mine = m.sender === st.data?.me.id;
   const reducedMotion = useReducedMotion();
   const [appearance] = useState(() => new Animated.Value(1));
+  const [gameBusy, setGameBusy] = useState(false);
+  const mounted = useRef(true),
+    acting = useRef(false),
+    sessionKey = useRef(st.sessionKey);
+  useEffect(() => {
+    mounted.current = true;
+    sessionKey.current = st.sessionKey;
+    return () => {
+      mounted.current = false;
+    };
+  }, [st.sessionKey]);
+  const gameAction = async (action: "accept" | "decline") => {
+    if (acting.current) return;
+    const startedSession = st.sessionKey;
+    const current = () =>
+      mounted.current && startedSession === sessionKey.current;
+    acting.current = true;
+    setGameBusy(true);
+    try {
+      const next = await st.request<GameSessionV2>(`/game/${m.id}/action`, {
+        clientId: randomUUID(),
+        expectedRevision: m.revision,
+        action,
+        payload: {},
+      });
+      if (!current()) return;
+      updateGame?.(next);
+      const refreshed = await reload();
+      if (!current() || refreshed === false) return;
+      if (action === "accept" && next.state === "active")
+        router.push({
+          pathname: "/game/[id]",
+          params: { id: next.id, target, version: "2" },
+        });
+    } catch (e: any) {
+      if (!current()) return;
+      st.toast(e.message);
+      await reload();
+    } finally {
+      acting.current = false;
+      if (current()) setGameBusy(false);
+    }
+  };
   useEffect(() => {
     if (
       reducedMotion ||
@@ -115,7 +162,7 @@ export function ConversationItem({
       </Pressable>
     );
   if (m.type === "game") {
-    const def = st.data?.games.find((g) => g.id === m.kind);
+    const def = m.definition || st.data?.games.find((g) => g.id === m.kind);
     return (
       <Pressable
         accessibilityRole="button"
@@ -124,7 +171,12 @@ export function ConversationItem({
         onPress={() =>
           router.push({
             pathname: "/game/[id]",
-            params: { id: m.id, target, created_at: m.created_at },
+            params: {
+              id: m.id,
+              target,
+              created_at: m.created_at,
+              ...(m.version === 2 ? { version: "2" } : {}),
+            },
           })
         }
       >
@@ -137,6 +189,11 @@ export function ConversationItem({
           </Text>
         </View>
         <Text style={s.h2}>{def?.title || "Previous game"}</Text>
+        {m.version === 2 && (
+          <Text style={[s.small, { marginTop: 8 }]}>
+            {def?.durationMinutes} min · 2 players
+          </Text>
+        )}
         <Text style={[s.body, { marginTop: 8 }]}>
           {m.state === "invited"
             ? m.guest === st.data?.me.id
@@ -148,6 +205,29 @@ export function ConversationItem({
                 ? "Your game is in progress."
                 : `Game ${m.state}`}
         </Text>
+        {m.version === 2 &&
+          m.state === "invited" &&
+          m.guest === st.data?.me.id && (
+            <View style={{ gap: 10, marginTop: 16 }}>
+              <Button
+                title={gameBusy ? "Opening…" : "Accept & play"}
+                disabled={gameBusy}
+                onPress={(event?: any) => {
+                  event?.stopPropagation?.();
+                  void gameAction("accept");
+                }}
+              />
+              <Button
+                title="Maybe later"
+                secondary
+                disabled={gameBusy}
+                onPress={(event?: any) => {
+                  event?.stopPropagation?.();
+                  void gameAction("decline");
+                }}
+              />
+            </View>
+          )}
         <View
           style={[s.row, { marginTop: 16, justifyContent: "space-between" }]}
         >

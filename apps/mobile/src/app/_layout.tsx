@@ -8,10 +8,10 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { Provider, useStore } from "../lib/store";
-import { C, humanMessage } from "../components/ui";
+import { C, humanMessage, Button } from "../components/ui";
 import { useReducedMotion } from "../lib/useReducedMotion";
 function Shell() {
-  const { notice, token, ready } = useStore();
+  const { notice, token, ready, storageWarning, clearSavedSignIn } = useStore();
   const pathname = usePathname();
   const segments = useSegments();
   const group = segments[0];
@@ -58,6 +58,30 @@ function Shell() {
           }}
         />
       </Stack>
+      {!token && storageWarning && (
+        <View
+          style={{
+            position: "absolute",
+            bottom: insets.bottom + 20,
+            left: 20,
+            right: 20,
+            padding: 16,
+            borderRadius: 16,
+            backgroundColor: C.peach,
+            zIndex: 101,
+            gap: 12,
+          }}
+        >
+          <Text accessibilityRole="alert" style={{ color: C.ink }}>
+            Signed out here. This device could not clear the saved sign-in.
+            Retry before closing the app.
+          </Text>
+          <Button
+            title="Clear saved sign-in"
+            onPress={() => void clearSavedSignIn()}
+          />
+        </View>
+      )}
       {!!notice && (
         <View
           pointerEvents="none"

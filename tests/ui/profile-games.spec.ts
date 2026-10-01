@@ -92,7 +92,7 @@ async function conversationAction(page: Page, name: string) {
   await page
     .getByRole("button", { name: "Conversation actions", exact: true })
     .click();
-  await page.getByRole("button", { name, exact: true }).click();
+  await page.getByRole("button", { name, exact: true }).last().click();
 }
 
 // Failure fixtures stay in the browser; these tests never change real profile,
@@ -491,7 +491,10 @@ test("two-truths answers cannot be edited during submission and failure preserve
 test("ready status waits for consent request and keeps game invitations disabled", async ({
   page,
 }) => {
-  const state = await demo(page);
+  const state = await demo(page, (state) => ({
+    ...state,
+    features: { gamesV2: false },
+  }));
   const person = state.matches.find((p: any) => p.name === "Anaya");
   let release!: () => void;
   const waiting = new Promise<void>((resolve) => {
@@ -507,7 +510,7 @@ test("ready status waits for consent request and keeps game invitations disabled
     } else await route.fulfill({ json: { self: false, partner: false } });
   });
   await openChat(page);
-  await conversationAction(page, "Dating games");
+  await conversationAction(page, "Play together");
   await page
     .getByRole("button", { name: "I’m Ready to play", exact: true })
     .click();
@@ -531,18 +534,24 @@ test("Activity offers mark-all only for unread updates and disables it while sav
   page,
 }) => {
   let read = true;
-  await demo(page, (state) => ({
-    ...state,
-    notifications: [
-      {
-        id: "synthetic-update",
-        kind: "game",
-        body: "Synthetic game update",
-        read,
-        created_at: "2026-10-01T00:00:00Z",
+  await page.route("**/v1/notifications?*", (route) =>
+    route.fulfill({
+      json: {
+        items: [
+          {
+            id: "synthetic-update",
+            kind: "game",
+            body: "Synthetic game update",
+            read,
+            created_at: "2026-10-01T00:00:00Z",
+          },
+        ],
+        hasMore: false,
+        nextCursor: null,
       },
-    ],
-  }));
+    }),
+  );
+  await demo(page);
   await page.getByRole("tab", { name: "Chat", exact: false }).click();
   await page
     .getByRole("button", { name: "Open activity", exact: true })
@@ -554,6 +563,12 @@ test("Activity offers mark-all only for unread updates and disables it while sav
     page.getByRole("button", { name: "Mark updates as read", exact: true }),
   ).toHaveCount(0);
   read = false;
+  // Reopen the focused Activity page; bootstrap state no longer supplies its
+  // paged collection and cannot be used to refresh this fixture.
+  await page.getByRole("button", { name: "Go back", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Open activity", exact: true })
+    .click();
   let release!: () => void;
   const waiting = new Promise<void>((resolve) => {
     release = resolve;
