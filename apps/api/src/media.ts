@@ -128,21 +128,27 @@ export async function upload(actor: string, file: Express.Multer.File) {
         .jpeg({ quality: 82 })
         .toFile(path);
     } catch {
+      await removeMediaFiles(path);
       throw new BadRequestException(
         "Choose a valid image under 40 megapixels.",
       );
     }
   }
-  await pool.query(
-    "INSERT INTO media(id,owner,kind,path,mime) VALUES($1,$2,$3,$4,$5)",
-    [
-      id,
-      actor,
-      isVideo ? "video" : "image",
-      path,
-      isVideo ? "video/mp4" : "image/jpeg",
-    ],
-  );
+  try {
+    await pool.query(
+      "INSERT INTO media(id,owner,kind,path,mime) VALUES($1,$2,$3,$4,$5)",
+      [
+        id,
+        actor,
+        isVideo ? "video" : "image",
+        path,
+        isVideo ? "video/mp4" : "image/jpeg",
+      ],
+    );
+  } catch (error) {
+    await removeMediaFiles(path);
+    throw error;
+  }
   return { id, kind: isVideo ? "video" : "image" };
 }
 export async function authorizedMedia(

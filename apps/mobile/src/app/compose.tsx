@@ -67,7 +67,10 @@ export default function Compose() {
   const captionLimit = kind === "snap" ? 140 : kind === "story" ? 300 : 2000;
   const updateDraft = () => setClientId(randomUUID());
   usePreventRemove(
-    !sent && !leaving && (busy || !!body.trim() || !!assets.length),
+    !!st.token &&
+      !sent &&
+      !leaving &&
+      (busy || !!body.trim() || !!assets.length),
     ({ data }) => {
       pendingAction.current = data.action;
       setDiscard(true);

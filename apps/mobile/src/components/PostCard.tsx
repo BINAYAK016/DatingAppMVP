@@ -72,17 +72,33 @@ export function PostCard({
     if (busyRef.current) return;
     busyRef.current = true;
     setBusy(true);
+    const hideUnavailable = () => {
+      setDeleted(true);
+      setOpen(false);
+      setSharing(false);
+      setPhoto(false);
+    };
+    let saved = false;
     try {
       await fn();
-      setUpdated({ source, value: await st.request(`/posts/${post.id}`) });
+      saved = true;
+      try {
+        setUpdated({ source, value: await st.request(`/posts/${post.id}`) });
+      } catch (e: any) {
+        if ([404, 410].includes(e.status)) hideUnavailable();
+        else st.toast("Saved. This moment couldn’t refresh yet.");
+      }
       await st.refresh();
     } catch (e: any) {
-      setUpdated(null);
-      if ([403, 404, 410].includes(e.status)) {
-        setDeleted(true);
-        setOpen(false);
-        setSharing(false);
-        setPhoto(false);
+      // A failed read must not undo a mutation already confirmed by the server.
+      if (!saved) setUpdated({ source, value: post });
+      if (!saved && [403, 404, 410].includes(e.status)) {
+        try {
+          // Paused interactions and a recipient's access do not revoke ours.
+          setUpdated({ source, value: await st.request(`/posts/${post.id}`) });
+        } catch (visibility: any) {
+          if ([404, 410].includes(visibility.status)) hideUnavailable();
+        }
       }
       st.toast(e.message);
     } finally {

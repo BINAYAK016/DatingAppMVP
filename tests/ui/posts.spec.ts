@@ -1,4 +1,9 @@
-import { expect, test, type Page } from "@playwright/test";
+import {
+  expect,
+  test,
+  type APIRequestContext,
+  type Page,
+} from "@playwright/test";
 import { randomUUID } from "node:crypto";
 const actor = "10000000-0000-4000-8000-000000000001";
 async function demo(page: Page) {
@@ -133,6 +138,15 @@ test("photo selection, removal, crop, ordering and retry publish one private car
     await expect(
       page.getByText("2 / 2", { exact: true }).first(),
     ).toBeVisible();
+    const secondPhoto = page
+      .getByRole("button", { name: "View full photo 2", exact: true })
+      .first();
+    await expect
+      .poll(async () => Math.abs((await secondPhoto.boundingBox())!.x - 20))
+      .toBeLessThanOrEqual(2);
+    await expect(
+      secondPhoto.getByLabel("Shared photo", { exact: true }),
+    ).toBeVisible();
     await page.screenshot({ path: "artifacts/post-carousel-412.png" });
   } finally {
     if (postId)
@@ -252,10 +266,14 @@ test("likes respond before the network, roll back on failure, and comments stay 
   await expect(
     page.getByLabel("A little thought…", { exact: true }),
   ).toBeVisible();
-  await expect.poll(async () => {
-    const box = await page.getByRole("button", { name: "Send reply", exact: true }).boundingBox();
-    return box ? box.y + box.height : Infinity;
-  }).toBeLessThanOrEqual(780);
+  await expect
+    .poll(async () => {
+      const box = await page
+        .getByRole("button", { name: "Send reply", exact: true })
+        .boundingBox();
+      return box ? box.y + box.height : Infinity;
+    })
+    .toBeLessThanOrEqual(780);
   await page.screenshot({ path: "artifacts/post-comments-360.png" });
   await page.getByRole("button", { name: "Close sheet", exact: true }).click();
   await page.getByRole("button", { name: "Post options", exact: true }).click();
@@ -266,5 +284,128 @@ test("likes respond before the network, roll back on failure, and comments stay 
     page.getByText("Hidden for this visit.", { exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Undo hide", exact: true }).click();
+  await expect(page.getByText(post.body, { exact: true })).toBeVisible();
+});
+
+async function fixtureFeed(page: Page, request: APIRequestContext) {
+  const login = await request.post("http://localhost:4100/v1/auth/demo", {
+    data: { id: actor },
+  });
+  const token = (await login.json()).token;
+  const state = await (
+    await request.get("http://localhost:4100/v1/state", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+  ).json();
+  const post = {
+    id: randomUUID(),
+    author: state.matches[0],
+    body: "Synthetic interaction recovery check",
+    created_at: new Date().toISOString(),
+    liked: false,
+    likes: 0,
+    saved: false,
+    comments: [],
+  };
+  state.feed = [post];
+  await page.route("**/v1/state", (route) => route.fulfill({ json: state }));
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Explore demo accounts", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Try Aarav demo account", exact: true })
+    .click();
+  await page.getByRole("tab", { name: "Sangai", exact: false }).click();
+  return post;
+}
+
+test("an expired session leaves a protected composer without a draft navigation loop", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await demo(page);
+  await page
+    .getByLabel("What’s on your mind?", { exact: true })
+    .fill("Synthetic expired-session draft");
+  await page.route("**/v1/posts", (route) => {
+    if (route.request().method() === "POST")
+      return route.fulfill({
+        status: 401,
+        json: { message: "Session expired." },
+      });
+    return route.continue();
+  });
+  await page.getByRole("button", { name: "Post", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Continue with email", exact: true }),
+  ).toBeVisible();
+  await expect(page).toHaveURL(/\/welcome$/);
+  expect(errors).toEqual([]);
+});
+
+test("paused interactions and a share recipient's denied access keep a visible post", async ({
+  page,
+  request,
+}) => {
+  const post = await fixtureFeed(page, request);
+  let detailReads = 0;
+  await page.route(`**/v1/posts/${post.id}`, (route) => {
+    detailReads++;
+    return route.fulfill({ json: post });
+  });
+  await page.route(`**/v1/posts/${post.id}/react`, (route) =>
+    route.fulfill({
+      status: 403,
+      json: { message: "This author paused interactions." },
+    }),
+  );
+  const like = page.getByRole("button", { name: "Like post", exact: true });
+  await like.click();
+  await expect(like).toBeEnabled();
+  await expect(like).toHaveAttribute("aria-pressed", "false");
+  await expect(page.getByText(post.body, { exact: true })).toBeVisible();
+  await expect.poll(() => detailReads).toBe(1);
+  await page.route(`**/v1/posts/${post.id}/share`, (route) =>
+    route.fulfill({
+      status: 404,
+      json: { message: "This match cannot see this moment." },
+    }),
+  );
+  await page
+    .getByRole("button", { name: "Share privately", exact: true })
+    .click();
+  await page
+    .getByRole("button", {
+      name: `Share with ${post.author.name}`,
+      exact: true,
+    })
+    .click();
+  await expect.poll(() => detailReads).toBe(2);
+  await page.getByRole("button", { name: "Close sheet", exact: true }).click();
+  await expect(page.getByText(post.body, { exact: true })).toBeVisible();
+});
+
+test("a confirmed Like survives a failed detail refresh", async ({
+  page,
+  request,
+}) => {
+  const post = await fixtureFeed(page, request);
+  await page.route(`**/v1/posts/${post.id}/react`, (route) => {
+    post.liked = true;
+    post.likes = 1;
+    return route.fulfill({ json: { ok: true } });
+  });
+  await page.route(`**/v1/posts/${post.id}`, (route) =>
+    route.fulfill({ status: 503, json: { message: "Synthetic read failure" } }),
+  );
+  const like = page.getByRole("button", { name: "Like post", exact: true });
+  await like.click();
+  await expect(like).toBeEnabled();
+  await expect(like).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    page.getByText("Saved. This moment couldn’t refresh yet.", { exact: true }),
+  ).toBeVisible();
   await expect(page.getByText(post.body, { exact: true })).toBeVisible();
 });
