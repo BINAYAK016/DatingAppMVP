@@ -23,15 +23,17 @@ Sangai uses one Expo / React Native codebase for Android and iOS. This local APK
    & 'D:\CodexBuild\SangaiBeta\AndroidSdk\emulator\emulator.exe' -avd SangaiBeta
    ```
 
-3. Drag the delivered `Sangai-ui-polish-beta-x86_64.apk` onto the running emulator, then open **Sangai Beta**. Alternatively:
+3. Drag `Sangai-product-polish-beta-x86_64.apk` onto the running emulator, then open **Sangai Beta**. Alternatively:
 
    ```powershell
-   & 'D:\CodexBuild\SangaiBeta\AndroidSdk\platform-tools\adb.exe' install -r 'C:\Users\Dell\Documents\Codex\2026-09-28\u\outputs\Sangai-ui-polish-beta-x86_64.apk'
+   & 'D:\CodexBuild\SangaiBeta\AndroidSdk\platform-tools\adb.exe' install -r 'C:\Users\Dell\Documents\Codex\2026-09-28\u\outputs\Sangai-product-polish-beta-x86_64.apk'
    ```
 
-Use a clearly labeled fictional demo account to explore immediately. To exercise signup, create an email/password account and read its local verification message at `http://localhost:8025`. This is a captured development email, not external delivery. Complete the adult declaration and all five profile steps. Real accounts do not discover fictional demo accounts.
+Use a clearly labeled fictional demo account to explore immediately. To exercise signup, create an email/password account and enter the six-digit code from its local verification message at `http://localhost:8025`. This is a captured development email, not external delivery. Complete the adult declaration and all five profile steps. Real accounts do not discover fictional demo accounts. See [authentication setup](authentication.md) for local configuration, Google OAuth registration and the deferred external SMTP setup.
 
-Tap **Explore demo accounts** on Welcome, Sign up or Log in, then choose **Try Aarav demo account**. If an old session is already open, use Profile → Profile settings → Sign out first. The [October UI audit](ui-redesign.md) describes the current layouts and verification.
+The final product-polish APK at application source `a3a0551` built, passed signature verification and was installed and exercised in the emulator. Its checksum and exact coverage are in the current [verification record](verification.md). It includes its JavaScript bundle and runs without Metro.
+
+Tap **Explore demo accounts** on Welcome, Sign up or Log in, then choose **Try Aarav demo account**. If an old session is already open, use Profile → Profile settings → Sign out first. The [product polish audit](product-polish-audit.md) records this increment; [October UI audit](ui-redesign.md) describes the preceding layouts.
 
 ## Build and run from Android Studio
 
@@ -63,11 +65,11 @@ The APK is under `app\build\outputs\apk\release\app-release.apk`. Regenerate nat
 ## What to try
 
 - **Discover:** swipe or use Pass / Like / Super Like; undo a decision before matching. A second positive swipe is required before chat opens. Incoming likes remain hidden.
-- **Chat:** choose an existing match, send a message, then open `+` for ordinary media, games and Plan a Date. The camera and match-only stories live here.
+- **Chat:** choose an existing match, send a message, then open `+` for ordinary media, games and Plan a Date. The camera opens from Chat for snaps; match-only stories autoplay with progress, tap navigation and hold-to-pause.
 - **Games:** open two accounts on separate clients, select each other, and mark both ready. Invite, explicitly accept, then play. Three games are available; four follow in the next agreed increment.
-- **Sangai:** share a library photo/video or text moment with matches, comment, save, or share with someone already authorized to see it.
+- **Sangai:** share up to six library photos, one video or a text moment with matches, comment, save, or share with someone already authorized to see it.
 - **Profile:** edit sections/gallery, open My moments or Saved moments, adjust privacy, and preview Free / Plus pricing. Purchases remain unavailable.
 
 For two simultaneous clients, use a second emulator or the secondary browser preview at `http://localhost:8081` after starting `npm run web --prefix apps/mobile -- --host localhost` from the repository root.
 
-Google sign-in needs registered OAuth clients and a rebuilt app. External email needs configured SMTP and HTTPS. Native iOS still needs a Mac/device or EAS environment and runtime testing; an iOS bundle export is not an iOS device test. See `verification.md` for the exact completed checks.
+Google sign-in needs registered OAuth clients and a rebuilt app. External email needs configured SMTP and HTTPS. External SMTP credentials are deferred, and Google/external email remain unverified end-to-end. Follow [authentication setup](authentication.md). Native iOS still needs a Mac/device or EAS environment and runtime testing; an iOS bundle export is not an iOS device test. See [verification](verification.md) for the exact completed checks and remaining native permission/offline coverage.
