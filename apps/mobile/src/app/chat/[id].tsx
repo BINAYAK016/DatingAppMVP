@@ -14,6 +14,7 @@ import {
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ConversationItem } from "../../components/ConversationItem";
+import { StoryPlayer } from "../../components/StoryPlayer";
 import { useStore } from "../../lib/store";
 import {
   Avatar,
@@ -25,7 +26,6 @@ import {
   Icon,
   PrivateImage,
   Skeleton,
-  Media,
   s,
 } from "../../components/ui";
 export default function Chat() {
@@ -334,7 +334,7 @@ export default function Chat() {
                 onPress={() =>
                   router.push({
                     pathname: "/compose",
-                    params: { kind: "snap", target: id },
+                    params: { kind: "snap", target: id, camera: "photo" },
                   })
                 }
               />
@@ -346,7 +346,7 @@ export default function Chat() {
                 onPress={() =>
                   router.push({
                     pathname: "/compose",
-                    params: { kind: "snap", target: id },
+                    params: { kind: "snap", target: id, camera: "photo" },
                   })
                 }
               />
@@ -440,14 +440,16 @@ export default function Chat() {
               onPress={() => void close()}
             />
           </View>
-          {snap && (
+          {snap && chat && (
             <View style={styles.snapContent}>
               {snap.kind === "video" ? (
-                <Media
-                  id={snap.mediaId}
-                  kind={snap.kind}
-                  style={styles.snapPhoto}
-                  allowFullscreen={Platform.OS !== "android"}
+                <StoryPlayer
+                  item={{
+                    id: snap.id,
+                    media_id: snap.mediaId,
+                    kind: snap.kind,
+                    body: "",
+                  }}
                 />
               ) : (
                 <PrivateImage
