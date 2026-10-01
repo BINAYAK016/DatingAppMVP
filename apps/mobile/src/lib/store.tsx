@@ -248,9 +248,10 @@ export function Provider({ children }: { children: React.ReactNode }) {
           return result;
         } catch (e: any) {
           if (
-            e.name === "AbortError" ||
-            e.message === "Network request failed" ||
-            e.message === "Failed to fetch"
+            e?.name === "AbortError" ||
+            /fetch failed|failed to fetch|network request failed|ConnectException|ECONNREFUSED/i.test(
+              String(e?.message || ""),
+            )
           )
             throw new Error(
               "Cannot reach the beta server. Check Docker and the server address.",

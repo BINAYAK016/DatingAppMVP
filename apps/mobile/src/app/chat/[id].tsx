@@ -11,6 +11,7 @@ import {
   TextInput,
   StyleSheet,
   View,
+  ViewToken,
 } from "react-native";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -53,13 +54,69 @@ function ChatScreen({ id }: { id: string }) {
   }, [body]);
   const account = st.data?.me.id;
   const conversationScroll = useRef<FlatList<any>>(null);
+  const accessGeneration = useRef(0);
+  const mounted = useRef(true),
+    focused = useRef(false);
   const followNewest = useRef(true);
   const userScrolling = useRef(false);
+  const [followSentId, setFollowSentId] = useState<string | null>(null);
+  const sentFollow = useRef<{
+    id: string;
+    generation: number;
+    ready: boolean;
+  } | null>(null);
+  const cancelSentFollow = useCallback(() => {
+    sentFollow.current = null;
+    if (mounted.current) setFollowSentId(null);
+  }, []);
+  const [sentViewability] = useState(() => ({
+    viewAreaCoveragePercentThreshold: 1,
+  }));
+  const trackVisibleSent = useCallback(
+    ({ viewableItems }: { viewableItems: ViewToken<any>[] }) => {
+      const intent = sentFollow.current;
+      if (
+        mounted.current &&
+        focused.current &&
+        intent?.ready &&
+        intent.generation === accessGeneration.current &&
+        viewableItems.some(
+          (item) => item.isViewable && item.item.id === intent.id,
+        )
+      ) {
+        followNewest.current = true;
+        cancelSentFollow();
+      }
+    },
+    [cancelSentFollow],
+  );
   const followEnd = useCallback(() => {
-    if (!followNewest.current || userScrolling.current) return;
+    const generation = accessGeneration.current;
+    if (
+      (!sentFollow.current?.ready && !followNewest.current) ||
+      userScrolling.current
+    )
+      return;
     requestAnimationFrame(() => {
-      if (followNewest.current && !userScrolling.current)
+      // Wait for the committed list and its anchor/layout work. Content growth
+      // is allowed to change ordinary follow state, but cannot cancel a send.
+      requestAnimationFrame(() => {
+        if (
+          !mounted.current ||
+          !focused.current ||
+          AppState.currentState !== "active" ||
+          generation !== accessGeneration.current ||
+          userScrolling.current
+        )
+          return;
+        const explicit =
+          sentFollow.current?.ready &&
+          sentFollow.current.generation === generation;
+        if (!explicit && !followNewest.current) return;
         conversationScroll.current?.scrollToEnd({ animated: false });
+        // Keep the explicit intent through virtualized cell measurement. The
+        // viewability callback clears it only when the actual sent row appears.
+      });
     });
   }, []);
   const trackScroll = (nativeEvent: {
@@ -67,6 +124,7 @@ function ChatScreen({ id }: { id: string }) {
     layoutMeasurement: { height: number };
     contentOffset: { y: number };
   }) => {
+    if (sentFollow.current?.ready) return;
     followNewest.current =
       nativeEvent.contentSize.height -
         nativeEvent.layoutMeasurement.height -
@@ -75,45 +133,74 @@ function ChatScreen({ id }: { id: string }) {
   };
   const pending = useRef<{ text: string; id: string } | null>(null);
   const loadSequence = useRef(0);
-  const accessGeneration = useRef(0);
   const loadFailures = useRef(0);
-  const mounted = useRef(true);
   useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
     };
   }, []);
-  const invalidateAccess = useCallback((e: any) => {
-    if (![401, 403, 404].includes(e.status) && e.name !== "SessionChangedError")
-      return;
-    accessGeneration.current++;
-    setChat(null);
-    setHistory([]);
-    setSnap(null);
-    setBody("");
-    pending.current = null;
-    setAttachments(false);
-  }, []);
+  const invalidateAccess = useCallback(
+    (e: any) => {
+      if (
+        ![401, 403, 404].includes(e.status) &&
+        e.name !== "SessionChangedError"
+      )
+        return;
+      accessGeneration.current++;
+      cancelSentFollow();
+      setChat(null);
+      setHistory([]);
+      setSnap(null);
+      setBody("");
+      pending.current = null;
+      setAttachments(false);
+    },
+    [cancelSentFollow],
+  );
   const load = useCallback(async () => {
     const sequence = ++loadSequence.current;
+    const generation = accessGeneration.current;
     try {
       const next = await request(`/chat/${id}`);
-      if (!mounted.current || sequence !== loadSequence.current) return false;
+      if (
+        !mounted.current ||
+        sequence !== loadSequence.current ||
+        generation !== accessGeneration.current
+      )
+        return false;
       setChat(next);
       setError("");
       loadFailures.current = 0;
       return true;
     } catch (e: any) {
-      if (!mounted.current || sequence !== loadSequence.current) return false;
+      if (
+        !mounted.current ||
+        sequence !== loadSequence.current ||
+        generation !== accessGeneration.current
+      )
+        return false;
       loadFailures.current++;
       setError(e.message);
       invalidateAccess(e);
       return false;
     }
   }, [id, request, invalidateAccess]);
+  useEffect(() => {
+    const intent = sentFollow.current;
+    if (
+      !intent ||
+      intent.id !== followSentId ||
+      intent.generation !== accessGeneration.current ||
+      !chat?.timeline.some((item: any) => item.id === intent.id)
+    )
+      return;
+    intent.ready = true;
+    followEnd();
+  }, [chat, followSentId, followEnd]);
   useFocusEffect(
     useCallback(() => {
+      focused.current = true;
       if (account) {
         const starter = consumeGameConversation(account, id, st.url);
         if (starter && !bodyRef.current.trim()) setBody(starter);
@@ -137,12 +224,14 @@ function ChatScreen({ id }: { id: string }) {
         }
       });
       return () => {
+        focused.current = false;
+        cancelSentFollow();
         alive = false;
         generation++;
         clearTimeout(timer);
         listener.remove();
       };
-    }, [load, account, id, st.url]),
+    }, [load, account, id, st.url, cancelSentFollow]),
   );
   const close = useCallback(async () => {
     if (snap) {
@@ -168,6 +257,7 @@ function ChatScreen({ id }: { id: string }) {
   }, [snap, close]);
   const send = async () => {
     if (busy || !body.trim()) return;
+    const generation = accessGeneration.current;
     setBusy(true);
     const message = body.trim();
     if (!pending.current || pending.current.text !== message)
@@ -176,18 +266,29 @@ function ChatScreen({ id }: { id: string }) {
         id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
       };
     try {
-      await request(`/chat/${id}`, {
+      const sent = await request<{ id: string }>(`/chat/${id}`, {
         body: message,
         clientId: pending.current.id,
       });
+      if (!mounted.current || generation !== accessGeneration.current) return;
       pending.current = null;
       setBody("");
       followNewest.current = true;
+      sentFollow.current = { id: sent.id, generation, ready: false };
+      setFollowSentId(sent.id);
       await load();
     } catch (e: any) {
-      st.toast(e.message + " Your draft is still here.");
+      if (mounted.current && generation === accessGeneration.current) {
+        const revoked =
+          [401, 403, 404].includes(e.status) ||
+          e.name === "SessionChangedError";
+        if (revoked) invalidateAccess(e);
+        st.toast(
+          revoked ? e.message : e.message + " Your draft is still here.",
+        );
+      }
     } finally {
-      setBusy(false);
+      if (mounted.current) setBusy(false);
     }
   };
   const [options, setOptions] = useState(false);
@@ -288,7 +389,11 @@ function ChatScreen({ id }: { id: string }) {
           initialNumToRender={20}
           maxToRenderPerBatch={15}
           windowSize={7}
-          maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+          viewabilityConfig={sentViewability}
+          onViewableItemsChanged={trackVisibleSent}
+          maintainVisibleContentPosition={
+            followSentId ? undefined : { minIndexForVisible: 0 }
+          }
           renderItem={({ item }) => (
             <ConversationItem
               item={item}
@@ -332,6 +437,7 @@ function ChatScreen({ id }: { id: string }) {
             />
           )}
           onScrollBeginDrag={() => {
+            cancelSentFollow();
             userScrolling.current = true;
           }}
           onScroll={({ nativeEvent }) => {
@@ -343,6 +449,7 @@ function ChatScreen({ id }: { id: string }) {
             userScrolling.current = false;
           }}
           onMomentumScrollBegin={() => {
+            cancelSentFollow();
             userScrolling.current = true;
           }}
           onMomentumScrollEnd={({ nativeEvent }) => {
@@ -417,6 +524,7 @@ function ChatScreen({ id }: { id: string }) {
                         disabled={loadingHistory}
                         onPress={async () => {
                           const generation = accessGeneration.current;
+                          cancelSentFollow();
                           followNewest.current = false;
                           setLoadingHistory(true);
                           try {

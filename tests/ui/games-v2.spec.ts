@@ -548,6 +548,90 @@ test("an acknowledged-on-server action retries its original id and payload after
   expect(api.unexpected).toEqual([]);
 });
 
+test("the native Android fetch error is readable while the last authorized game and selected answer survive recovery", async ({
+  page,
+}) => {
+  const game = session(definition("choices"));
+  const api = await fixture(page, { initial: game });
+  await openRoom(page, game);
+  await page
+    .getByRole("button", {
+      name: game.definition.questions[0].options[0].label,
+      exact: true,
+    })
+    .click();
+  const lock = page.getByRole("button", {
+    name: "Lock in my answer",
+    exact: true,
+  });
+  await expect(lock).toBeEnabled();
+  const draftChoice = () =>
+    page.evaluate(
+      (id) => {
+        const saved = sessionStorage.getItem(
+          `sangai.game-draft.v2.${id.account}.${id.game}`,
+        );
+        return saved ? JSON.parse(saved).data.form.choice : null;
+      },
+      { account: hostId, game: gameId },
+    );
+  await expect.poll(draftChoice).toBe("0");
+  await page.evaluate((id) => {
+    const original = window.fetch;
+    const scope = window as Window & { __sangaiOriginalFetch?: typeof fetch };
+    scope.__sangaiOriginalFetch = original;
+    window.fetch = (input, init) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url;
+      if (
+        new URL(url, location.href).pathname === `/v1/game/${id}` &&
+        (init?.method || "GET") === "GET"
+      )
+        return Promise.reject(
+          new Error(
+            "fetch failed: java.net.ConnectException: Failed to connect to /10.0.2.2:4100",
+          ),
+        );
+      return original(input, init);
+    };
+  }, gameId);
+  await expect(
+    page.getByText(
+      "Cannot reach the beta server. Check Docker and the server address.",
+      { exact: true },
+    ),
+  ).toBeVisible({ timeout: 12000 });
+  await expect(
+    page.getByText(
+      /java\.net\.ConnectException|Failed to connect to \/10\.0\.2\.2:4100/,
+    ),
+  ).toHaveCount(0);
+  await expect(
+    page.getByText(game.definition.questions[0].q, { exact: true }),
+  ).toBeVisible();
+  await expect(lock).toBeEnabled();
+  await expect.poll(draftChoice).toBe("0");
+  await page.evaluate(() => {
+    const scope = window as Window & { __sangaiOriginalFetch?: typeof fetch };
+    if (scope.__sangaiOriginalFetch) window.fetch = scope.__sangaiOriginalFetch;
+    delete scope.__sangaiOriginalFetch;
+  });
+  await page.getByRole("button", { name: "Refresh game", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Refresh game", exact: true }),
+  ).toHaveCount(0);
+  await expect(lock).toBeEnabled();
+  await expect.poll(draftChoice).toBe("0");
+  expect(api.mutations.filter((m) => m.path.endsWith("/action"))).toHaveLength(
+    0,
+  );
+  expect(api.unexpected).toEqual([]);
+});
+
 test("an unavailable game clears its private draft and reopening cannot resurrect it", async ({
   page,
 }) => {

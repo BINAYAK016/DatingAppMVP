@@ -198,3 +198,213 @@ test("slow foreground polls share one GET instead of accumulating parallel reque
     page.getByText("Synthetic slow network", { exact: true }),
   ).toBeVisible();
 });
+
+test("refresh preserves an older conversation position and explicit Send reveals the new message after layout growth", async ({
+  page,
+}) => {
+  const { data, person, open } = await openDemoChat(page);
+  const remembered = Array.from(
+    { length: 28 },
+    (_, index) =>
+      `Synthetic remembered moment ${index + 1}: we talked about our favourite places, a weekend walk and the little things that made us laugh together.`,
+  );
+  const timeline: any[] = remembered.map((body, index) => ({
+    id: `synthetic-scroll-message-${index}`,
+    type: "message",
+    sender: index % 2 ? data.me.id : person.id,
+    body,
+    created_at: new Date(Date.UTC(2026, 0, 1, 0, index)).toISOString(),
+  }));
+  timeline.push({
+    id: "synthetic-scroll-game",
+    type: "game",
+    version: 2,
+    kind: "this-or-that",
+    state: "complete",
+    complete: true,
+    definition: {
+      title: "A completed game about small choices and the stories behind them",
+      durationMinutes: "2–3",
+    },
+    created_at: "2026-01-01T01:00:00.000Z",
+  });
+  const newest = "Synthetic latest message before browsing older conversation";
+  timeline.push({
+    id: "synthetic-scroll-latest",
+    type: "message",
+    sender: person.id,
+    body: newest,
+    created_at: "2026-01-01T01:01:00.000Z",
+  });
+  const sent: { body: string; clientId: string }[] = [];
+  let reads = 0;
+  await page.route(`**/v1/chat/${person.id}`, async (route) => {
+    if (route.request().method() === "POST") {
+      const payload = route.request().postDataJSON();
+      sent.push(payload);
+      const message = {
+        id: "synthetic-scroll-confirmed-send",
+        type: "message",
+        sender: data.me.id,
+        body: payload.body,
+        created_at: new Date().toISOString(),
+      };
+      timeline.push(message);
+      return route.fulfill({ json: { id: message.id } });
+    }
+    reads++;
+    await route.fulfill({
+      json: { person, games: [], hasMore: false, timeline },
+    });
+  });
+  await open();
+  await expect(page.getByText(newest, { exact: true })).toBeInViewport();
+
+  // Browse with actual wheel input so the application sees the user's intent
+  // to read history. No test scrolling is performed after the later Send.
+  await page.mouse.move(200, 450);
+  await page.mouse.wheel(0, -1600);
+  await expect(page.getByText(newest, { exact: true })).not.toBeInViewport();
+  let olderBody: string | undefined;
+  for (const body of remembered.slice(0, -6)) {
+    const box = await page.getByText(body, { exact: true }).boundingBox();
+    if (box && box.y > 150 && box.y + box.height < 800) {
+      olderBody = body;
+      break;
+    }
+  }
+  expect(
+    olderBody,
+    "an older message is fully in the conversation viewport",
+  ).toBeTruthy();
+  const older = page.getByText(olderBody!, { exact: true });
+  const beforeRefresh = await older.boundingBox();
+  const readBeforeRefresh = reads;
+  timeline.push({
+    id: "synthetic-scroll-incoming",
+    type: "message",
+    sender: person.id,
+    body: "Synthetic incoming message received while you are reading history",
+    created_at: "2026-01-01T01:02:00.000Z",
+  });
+  await expect.poll(() => reads).toBeGreaterThan(readBeforeRefresh);
+  await expect(
+    page.getByText(
+      "Synthetic incoming message received while you are reading history",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await expect(older).toBeInViewport();
+  const afterRefresh = await older.boundingBox();
+  expect(Math.abs(afterRefresh!.y - beforeRefresh!.y)).toBeLessThan(4);
+
+  const message =
+    "Synthetic reply after reading older messages. " +
+    "I remembered our long walk and the stories we shared. " +
+    "Here is another thought that takes several lines in the conversation. " +
+    "The completed game above this reply also takes room on a small screen. " +
+    "This last line must appear without manually scrolling after Send.";
+  await page.getByPlaceholder("A thought, a question, a hello…").fill(message);
+  await page.getByLabel("Send message", { exact: true }).click();
+  await expect(page.getByText(message, { exact: true })).toBeInViewport();
+  expect(sent).toHaveLength(1);
+  expect(sent[0].body).toBe(message);
+  expect(sent[0].clientId).toEqual(expect.any(String));
+});
+
+test("access revoked during Send clears private data and rejects a delayed authorized refresh", async ({
+  page,
+}) => {
+  const { data, person, open } = await openDemoChat(page);
+  let reads = 0;
+  let release!: () => void;
+  let releaseAuthorized!: () => void;
+  const laterReads = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const delayedAuthorizedRead = new Promise<void>((resolve) => {
+    releaseAuthorized = resolve;
+  });
+  const authorizedSnapshot = {
+    person,
+    games: [],
+    hasMore: false,
+    timeline: [
+      {
+        id: "synthetic-send-private-message",
+        type: "message",
+        sender: data.me.id,
+        body: "Synthetic private conversation authorized before Send",
+        created_at: "2026-01-01T00:00:00.000Z",
+      },
+    ],
+  };
+  const sent: { body: string; clientId: string }[] = [];
+  await page.route(`**/v1/chat/${person.id}`, async (route) => {
+    if (route.request().method() === "POST") {
+      sent.push(route.request().postDataJSON());
+      return route.fulfill({
+        status: 403,
+        json: { message: "Synthetic access revoked during Send" },
+      });
+    }
+    if (++reads > 2) {
+      // A later poll cannot provide the revocation response needed to clear
+      // the UI. The Send response must enforce that loss of access itself.
+      await laterReads;
+      return route.abort();
+    }
+    if (reads === 2) await delayedAuthorizedRead;
+    await route.fulfill({ json: authorizedSnapshot });
+  });
+  try {
+    await open();
+    const privateMessage = page.getByText(
+      "Synthetic private conversation authorized before Send",
+      { exact: true },
+    );
+    await expect(privateMessage).toBeVisible();
+    const draft = page.getByPlaceholder("A thought, a question, a hello…");
+    await draft.fill("Synthetic draft rejected when access was revoked");
+    // Start an authorized poll before access changes, but delay its response.
+    await expect.poll(() => reads).toBe(2);
+    const rejection = page.waitForResponse(
+      (response) =>
+        response.url().endsWith(`/v1/chat/${person.id}`) &&
+        response.request().method() === "POST" &&
+        response.status() === 403,
+    );
+    await page.getByLabel("Send message", { exact: true }).click();
+    await rejection;
+    await expect(privateMessage).toHaveCount(0, { timeout: 1500 });
+    await expect(draft).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Play together", exact: true }),
+    ).toHaveCount(0);
+    await expect(page.getByText(/your draft is still here/i)).toHaveCount(0);
+
+    const lateResponse = page.waitForResponse(
+      (response) =>
+        response.url().endsWith(`/v1/chat/${person.id}`) &&
+        response.request().method() === "GET" &&
+        response.status() === 200,
+    );
+    releaseAuthorized();
+    await lateResponse;
+    // Wait until the sequential poll has consumed that old response. The next
+    // read stays held, so it cannot conceal an unauthorized resurrection.
+    await expect.poll(() => reads, { timeout: 10000 }).toBe(3);
+    await expect(privateMessage).toHaveCount(0);
+    await expect(draft).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Play together", exact: true }),
+    ).toHaveCount(0);
+    expect(sent).toHaveLength(1);
+    expect(sent[0].body).toBe(
+      "Synthetic draft rejected when access was revoked",
+    );
+  } finally {
+    releaseAuthorized();
+    release();
+  }
+});
