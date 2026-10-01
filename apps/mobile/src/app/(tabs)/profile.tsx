@@ -316,7 +316,7 @@ export default function Profile() {
                 .signOut()
                 .then(() => {
                   setSettingsOpen(false);
-                  router.replace("/");
+                  router.replace("/welcome");
                 })
                 .catch((e) => st.toast(e.message))
             }
@@ -358,7 +358,7 @@ export default function Profile() {
                   );
                   await st.signOut();
                   setSettingsOpen(false);
-                  router.replace("/");
+                  router.replace("/welcome");
                 } catch (e: any) {
                   st.toast(e.message);
                 } finally {
