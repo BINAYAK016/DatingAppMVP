@@ -2,6 +2,9 @@ import React, { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { router } from "expo-router";
 import { useStore } from "../lib/store";
+import { maskEmail, OTPInput } from "../components/OTPInput";
+import { countdownLabel, useCountdown } from "../lib/useCountdown";
+import { authMessage } from "../lib/authMessage";
 import {
   Button,
   C,
@@ -19,22 +22,32 @@ export default function Reset() {
     [password, setPassword] = useState(""),
     [sent, setSent] = useState(false),
     [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [resendAt, setResendAt] = useState<string | null>(null);
+  const seconds = useCountdown(resendAt);
   const act = async (reset: boolean) => {
+    setError("");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
+      return setError("Enter a valid email address.");
     setBusy(true);
     try {
-      await request(
+      const result = await request<{ resendAt?: string }>(
         reset ? "/auth/reset" : "/auth/forgot",
-        reset ? { email, code: code.trim(), password } : { email },
+        reset
+          ? { email: email.trim(), code: code.trim(), password }
+          : { email: email.trim() },
       );
       if (reset) {
         toast("Password updated. Sign in with your new password.");
-        router.replace("/");
+        router.replace("/welcome");
       } else {
         setSent(true);
+        setCode("");
+        setResendAt(result.resendAt || null);
         toast("If an account exists, a reset code has been sent.");
       }
     } catch (e: any) {
-      toast(e.message);
+      setError(authMessage(e));
     } finally {
       setBusy(false);
     }
@@ -46,7 +59,9 @@ export default function Reset() {
           title={
             busy ? "Please wait…" : sent ? "Update password" : "Send reset code"
           }
-          disabled={busy || (sent && (!code || password.length < 10))}
+          disabled={
+            busy || (sent && (code.length !== 6 || password.length < 10))
+          }
           onPress={() => void act(sent)}
         />
       }
@@ -79,18 +94,25 @@ export default function Reset() {
           ? "Check your inbox for a reset code, then choose a new password."
           : "Enter the email you use for Sangai. We’ll help you get back to your connections."}
       </Text>
-      <Field
-        label="Email"
-        keyboardType="email-address"
-        value={email}
-        onChangeText={setEmail}
-      />
+      {!sent && (
+        <Field
+          label="Email"
+          keyboardType="email-address"
+          value={email}
+          onChangeText={setEmail}
+        />
+      )}
       {sent && (
         <>
-          <Field
+          <Text style={s.h2}>{maskEmail(email.trim())}</Text>
+          <OTPInput
             label="Reset code from your email"
             value={code}
-            onChangeText={setCode}
+            onChange={(value) => {
+              setCode(value);
+              setError("");
+            }}
+            disabled={busy}
           />
           <Field
             label="New password · at least 10 characters"
@@ -101,7 +123,7 @@ export default function Reset() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Resend reset code"
-            disabled={busy}
+            disabled={busy || seconds > 0}
             onPress={() => void act(false)}
             style={{
               minHeight: 44,
@@ -110,9 +132,38 @@ export default function Reset() {
               marginTop: 8,
             }}
           >
-            <Text style={s.link}>Resend reset code</Text>
+            <Text style={seconds ? s.small : s.link}>
+              {seconds
+                ? `Resend in ${countdownLabel(seconds)}`
+                : "Resend reset code"}
+            </Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Use another email"
+            disabled={busy}
+            onPress={() => {
+              setSent(false);
+              setCode("");
+              setError("");
+            }}
+            style={{
+              minHeight: 44,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Text style={s.link}>Use another email</Text>
           </Pressable>
         </>
+      )}
+      {!!error && (
+        <Text
+          accessibilityRole="alert"
+          style={[s.small, { color: C.red, marginTop: 12 }]}
+        >
+          {error}
+        </Text>
       )}
       <Text style={[s.small, { marginTop: 20 }]}>
         Codes expire in 15 minutes and work once. Resetting your password signs

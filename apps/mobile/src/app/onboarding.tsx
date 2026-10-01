@@ -1,11 +1,14 @@
-import React, { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Pressable, Text, View, useWindowDimensions } from "react-native";
 import { Redirect } from "expo-router";
 import { useStore } from "../lib/store";
+import { AuthRecovery } from "../components/AuthRecovery";
+import { maskEmail, OTPInput } from "../components/OTPInput";
+import { countdownLabel, useCountdown } from "../lib/useCountdown";
+import { authMessage } from "../lib/authMessage";
 import {
   Button,
   C,
-  Field,
   Header,
   Icon,
   Loading,
@@ -21,8 +24,9 @@ import {
 } from "../components/ProfileForm";
 export default function Onboarding() {
   const st = useStore();
-  if (!st.ready || (st.token && !st.data)) return <Loading />;
-  if (!st.token || !st.data) return <Redirect href="/" />;
+  if (!st.ready) return <Loading />;
+  if (st.token && !st.data) return <AuthRecovery />;
+  if (!st.token || !st.data) return <Loading />;
   if (
     st.data.me.demo ||
     (st.data.me.email_verified_at && st.data.me.onboarded_at)
@@ -31,13 +35,50 @@ export default function Onboarding() {
   return <Setup key={st.data.me.id} />;
 }
 function Setup() {
+  const compact = useWindowDimensions().height < 740;
   const st = useStore(),
     me = st.data!.me;
+  const { request, toast } = st;
   const [draft, setDraft] = useState(() => draftFrom(me));
   const [step, setStep] = useState(Math.min(me.onboarding_step, 4));
   const [code, setCode] = useState("");
   const [sent, setSent] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [resendAt, setResendAt] = useState<string | null>(null);
+  const [verifyError, setVerifyError] = useState("");
+  const initialSend = useRef(false);
+  const seconds = useCountdown(resendAt);
+  const sendCode = useCallback(
+    async (notify = false) => {
+      setBusy(true);
+      setVerifyError("");
+      try {
+        const result = await request<{
+          sent?: boolean;
+          sending?: boolean;
+          resendAt?: string;
+        }>("/verification/send", {});
+        setSent(!result.sending);
+        setResendAt(result.resendAt || null);
+        if (result.sent) {
+          setCode("");
+          if (notify) toast("Code sent. Check your inbox.");
+        } else if (result.sending)
+          setVerifyError("Your email is being sent. Check your inbox shortly.");
+      } catch (e: any) {
+        setVerifyError(authMessage(e));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [request, toast],
+  );
+  useEffect(() => {
+    if (!me.email_verified_at && !initialSend.current) {
+      initialSend.current = true;
+      void sendCode();
+    }
+  }, [me.email_verified_at, sendCode]);
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
     try {
@@ -94,14 +135,21 @@ function Setup() {
         ) : (
           <Button
             title="Verify email"
-            disabled={busy || !code.trim()}
+            disabled={busy || code.length !== 6}
             onPress={() =>
-              void run(async () => {
-                await st.request("/verification/confirm", {
-                  code: code.trim(),
-                });
-                await st.refresh();
-              })
+              void (async () => {
+                setBusy(true);
+                setVerifyError("");
+                try {
+                  await st.request("/verification/confirm", { code });
+                  st.toast("Email verified. Let’s build your profile.");
+                  await st.refresh();
+                } catch (e: any) {
+                  setVerifyError(authMessage(e));
+                } finally {
+                  setBusy(false);
+                }
+              })()
             }
           />
         )
@@ -125,44 +173,67 @@ function Setup() {
         <>
           <View
             style={{
-              width: 80,
-              height: 80,
-              borderRadius: 24,
+              width: compact ? 56 : 80,
+              height: compact ? 56 : 80,
+              borderRadius: compact ? 18 : 24,
               backgroundColor: C.blush,
               alignItems: "center",
               justifyContent: "center",
-              marginBottom: 24,
+              marginBottom: compact ? 16 : 24,
             }}
           >
-            <Icon name="mail-outline" size={36} color={C.primary} />
+            <Icon
+              name="mail-outline"
+              size={compact ? 28 : 36}
+              color={C.primary}
+            />
           </View>
           <Text style={[s.body, { marginBottom: 8 }]}>
-            We’ll send a code to your inbox.
+            {sent
+              ? "We sent a six-digit code to"
+              : "We’ll send a six-digit code to"}
           </Text>
-          <Text style={[s.h2, { marginBottom: 24 }]}>{me.email}</Text>
-          <Text style={[s.small, { marginBottom: 24 }]}>
-            Confirm your email to start building your profile. This confirms
-            inbox access; identity verification comes later.
+          <Text style={[s.h2, { marginBottom: compact ? 16 : 24 }]}>
+            {maskEmail(me.email)}
           </Text>
-          <Button
-            title={sent ? "Resend code" : "Send verification code"}
-            disabled={busy}
-            onPress={() =>
-              void run(async () => {
-                await st.request("/verification/send", {});
-                setSent(true);
-                st.toast(
-                  "Code sent. Check your inbox or the local beta mail inbox.",
-                );
-              })
-            }
-          />
-          <View style={{ height: 32 }} />
-          <Field
-            label="Verification code"
+          <Text style={[s.small, { marginBottom: compact ? 8 : 24 }]}>
+            {compact
+              ? "Confirm your inbox to start your profile. Identity verification comes later."
+              : "Confirm your email to start building your profile. This confirms inbox access; identity verification comes later."}
+          </Text>
+          <OTPInput
             value={code}
-            onChangeText={setCode}
+            onChange={(value) => {
+              setCode(value);
+              setVerifyError("");
+            }}
+            disabled={busy}
           />
+          {!!verifyError && (
+            <Text
+              accessibilityRole="alert"
+              style={[s.small, { color: C.red, marginBottom: 16 }]}
+            >
+              {verifyError}
+            </Text>
+          )}
+          <Button
+            title={
+              busy
+                ? "Please wait…"
+                : seconds
+                  ? `Resend in ${countdownLabel(seconds)}`
+                  : sent
+                    ? "Resend code"
+                    : "Send verification code"
+            }
+            secondary
+            disabled={busy || seconds > 0}
+            onPress={() => void sendCode(true)}
+          />
+          <Text style={[s.small, { textAlign: "center", marginTop: 16 }]}>
+            Check spam, too. Codes expire after 15 minutes.
+          </Text>
         </>
       ) : (
         <>

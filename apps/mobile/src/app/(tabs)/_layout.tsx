@@ -2,13 +2,14 @@ import React from "react";
 import { Tabs, Redirect } from "expo-router";
 import { useStore } from "../../lib/store";
 import { C, Icon, Loading } from "../../components/ui";
+import { AuthRecovery } from "../../components/AuthRecovery";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 export default function Layout() {
   const { ready, token, data } = useStore();
   const insets = useSafeAreaInsets();
   if (!ready) return <Loading />;
-  if (!token) return <Redirect href="/" />;
-  if (!data) return <Loading />;
+  if (!token) return <Loading />;
+  if (!data) return <AuthRecovery />;
   if (!data.me.demo && (!data.me.email_verified_at || !data.me.onboarded_at))
     return <Redirect href="/onboarding" />;
   return (

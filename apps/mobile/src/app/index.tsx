@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
 } from "react-native";
 import { Redirect, router } from "expo-router";
 import { GoogleAuth } from "../components/GoogleAuth";
+import { AuthRecovery } from "../components/AuthRecovery";
+import { authMessage } from "../lib/authMessage";
 import { useStore } from "../lib/store";
 import { Person } from "../lib/types";
 import {
@@ -54,6 +56,22 @@ export default function Welcome() {
     [demoRetry, setDemoRetry] = useState(0),
     [settings, setSettings] = useState(false),
     [server, setServer] = useState(st.url);
+  const [formError, setFormError] = useState("");
+  const previousToken = useRef(st.token);
+  useEffect(() => {
+    const signedOut = !!previousToken.current && !st.token;
+    previousToken.current = st.token;
+    if (!signedOut) return;
+    const reset = setTimeout(() => {
+      setMode("welcome");
+      setEmail("");
+      setPassword("");
+      setAccepted(false);
+      setFormError("");
+      setSettings(false);
+    }, 0);
+    return () => clearTimeout(reset);
+  }, [st.token]);
   useEffect(() => {
     if (!st.ready) return;
     let active = true;
@@ -76,6 +94,7 @@ export default function Welcome() {
   }, [request, st.ready, demoRetry]);
   if (!st.ready) return <Loading />;
   if (st.token && st.data) return <Redirect href="/(tabs)" />;
+  if (st.token) return <AuthRecovery />;
   const openDemo = () => {
     if (mode !== "demo") setDemoReturnMode(mode);
     setMode("demo");
@@ -86,15 +105,28 @@ export default function Welcome() {
     }
   };
   const submit = async () => {
+    setFormError("");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
+      return setFormError("Enter a valid email address.");
+    if (!password || (mode === "register" && password.length < 10))
+      return setFormError(
+        mode === "register"
+          ? "Use a password with at least 10 characters."
+          : "Enter your password.",
+      );
+    if (mode === "register" && !accepted)
+      return setFormError(
+        "Confirm you’re 18 or older and accept the beta policies to continue.",
+      );
     try {
       await st.signIn(
         "/auth/" + mode,
         mode === "register"
-          ? { email, password, acceptedPolicies: accepted }
-          : { email, password },
+          ? { email: email.trim(), password, acceptedPolicies: accepted }
+          : { email: email.trim(), password },
       );
     } catch (e: any) {
-      st.toast(e.message);
+      setFormError(authMessage(e));
     }
   };
   const back = () => setMode(mode === "demo" ? demoReturnMode : "welcome");
@@ -277,6 +309,12 @@ export default function Welcome() {
                 ? "Your next connection starts with you."
                 : "A good conversation could be waiting."}
             </Text>
+            <GoogleAuth />
+            <Text
+              style={[s.small, { textAlign: "center", marginVertical: 16 }]}
+            >
+              or continue with email
+            </Text>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Explore demo accounts"
@@ -354,6 +392,14 @@ export default function Welcome() {
               disabled={st.loading}
               onPress={() => void submit()}
             />
+            {!!formError && (
+              <Text
+                accessibilityRole="alert"
+                style={[s.small, { color: C.red, marginTop: 12 }]}
+              >
+                {formError}
+              </Text>
+            )}
             <Pressable
               accessibilityRole="button"
               onPress={() =>

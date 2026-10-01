@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { Stack, router } from "expo-router";
+import { Stack, router, usePathname, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Text, View, Platform } from "react-native";
 import * as Notifications from "expo-notifications";
@@ -11,9 +11,19 @@ import { Provider, useStore } from "../lib/store";
 import { C, humanMessage } from "../components/ui";
 import { useReducedMotion } from "../lib/useReducedMotion";
 function Shell() {
-  const { notice, token } = useStore();
+  const { notice, token, ready } = useStore();
+  const pathname = usePathname();
+  const segments = useSegments();
+  const group = segments[0];
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
+  useEffect(() => {
+    const publicRoute =
+      (pathname === "/" && group !== "(tabs)") ||
+      pathname === "/welcome" ||
+      pathname === "/reset-password";
+    if (ready && !token && !publicRoute) router.replace("/welcome");
+  }, [ready, token, pathname, group]);
   useEffect(() => {
     if (Platform.OS === "web" || !token) return;
     const redirect = (response: Notifications.NotificationResponse) => {

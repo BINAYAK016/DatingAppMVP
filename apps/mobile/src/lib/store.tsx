@@ -22,6 +22,8 @@ type Store = {
   ready: boolean;
   loading: boolean;
   notice: string;
+  sessionError: string;
+  sessionLoading: boolean;
   setUrl: (v: string) => void;
   toast: (s: string) => void;
   request: <T = any>(
@@ -47,6 +49,9 @@ export function Provider({ children }: { children: React.ReactNode }) {
     [ready, setReady] = useState(false),
     [loading, setLoading] = useState(false),
     [notice, setNotice] = useState("");
+  const [sessionError, setSessionError] = useState("");
+  const [sessionLoading, setSessionLoading] = useState(false);
+  const refreshSequence = useRef(0);
   const tokenRef = useRef<string | null>(null);
   const epoch = useRef(0);
   const toast = useCallback((s: string) => setNotice(s), []);
@@ -72,6 +77,8 @@ export function Provider({ children }: { children: React.ReactNode }) {
     epoch.current++;
     tokenRef.current = t;
     setToken(t);
+    setData(null);
+    setSessionError("");
     if (Platform.OS !== "web") {
       if (t) await SecureStore.setItemAsync("sangai-session", t);
       else await SecureStore.deleteItemAsync("sangai-session");
@@ -114,7 +121,11 @@ export function Provider({ children }: { children: React.ReactNode }) {
             await saveToken(null);
             setData(null);
           }
-          throw new Error(result.message || "Could not complete that action.");
+          const error = new Error(
+            result.message || "Could not complete that action.",
+          ) as Error & { status: number };
+          error.status = response.status;
+          throw error;
         }
         return result;
       } catch (e: any) {
@@ -136,11 +147,21 @@ export function Provider({ children }: { children: React.ReactNode }) {
   const refresh = useCallback(async () => {
     if (!tokenRef.current) return;
     const started = epoch.current;
+    const sequence = ++refreshSequence.current;
+    setSessionLoading(true);
     try {
       const next = await request<State>("/state");
-      if (started === epoch.current) setData(next);
+      if (started === epoch.current && sequence === refreshSequence.current) {
+        setData(next);
+        setSessionError("");
+      }
     } catch (e: any) {
-      toast(e.message);
+      if (started === epoch.current && sequence === refreshSequence.current) {
+        setSessionError(e.message);
+        toast(e.message);
+      }
+    } finally {
+      if (sequence === refreshSequence.current) setSessionLoading(false);
     }
   }, [request, toast]);
   useEffect(() => {
@@ -208,6 +229,8 @@ export function Provider({ children }: { children: React.ReactNode }) {
         ready,
         loading,
         notice,
+        sessionError,
+        sessionLoading,
         setUrl,
         toast,
         request,
