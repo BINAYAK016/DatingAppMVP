@@ -50,9 +50,16 @@ export default function Discover() {
   const p = st.data?.discover[0];
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  // The persistent demo switch bar occupies space beyond the ordinary tabs.
+  // Reserve it so the swipe buttons remain visible on smaller phones.
+  const demoControlsHeight =
+    st.demoMode && st.data?.me.demo ? 44 + Math.min(insets.bottom, 12) : 0;
   const cardHeight = Math.min(
     650,
-    Math.max(280, height - insets.top - insets.bottom - 224),
+    Math.max(
+      280,
+      height - insets.top - insets.bottom - 224 - demoControlsHeight,
+    ),
   );
   const decide = async (action: "like" | "pass" | "super") => {
     if (!p || inFlight.current) return;
