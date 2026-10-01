@@ -5,6 +5,7 @@ test("email signup verifies through local mail and saves all five onboarding ste
   request,
 }) => {
   test.setTimeout(90000);
+  await page.setViewportSize({ width: 360, height: 640 });
   page.on("pageerror", (error) =>
     console.error("Auth browser error:", error.message),
   );
@@ -118,12 +119,71 @@ test("email signup verifies through local mail and saves all five onboarding ste
       .getByRole("button", { name: "Casual dating", exact: true })
       .click();
     await page.getByRole("button", { name: "Art", exact: true }).click();
-    await page
-      .getByRole("button", { name: "Save & continue", exact: true })
-      .click();
-    await page
-      .getByRole("button", { name: "Save & continue", exact: true })
-      .click();
+    await test.step("a long step resets scroll on continue without losing the profile draft", async () => {
+      await page
+        .getByLabel("Languages · optional, comma separated", { exact: true })
+        .fill("Nepali, English");
+      const hobbies = page.getByLabel("Hobbies · optional, comma separated", {
+        exact: true,
+      });
+      await hobbies.fill("Hiking, Coffee");
+      const offset = await hobbies.evaluate((field) => {
+        let parent = field.parentElement;
+        while (parent) {
+          const style = window.getComputedStyle(parent);
+          if (
+            /auto|scroll/.test(style.overflowY) &&
+            parent.scrollHeight > parent.clientHeight
+          ) {
+            parent.scrollTop = parent.scrollHeight;
+            return parent.scrollTop;
+          }
+          parent = parent.parentElement;
+        }
+        throw new Error("Onboarding has no scrollable form container.");
+      });
+      expect(offset).toBeGreaterThan(200);
+      await expect(
+        page.getByText("What matters to you", { exact: true }),
+      ).not.toBeInViewport();
+      const interestsSaved = page.waitForRequest(
+        (action) =>
+          action.url().endsWith("/v1/onboarding") &&
+          action.method() === "PATCH" &&
+          action.postDataJSON().step === 2,
+      );
+      await page
+        .getByRole("button", { name: "Save & continue", exact: true })
+        .click();
+      const savedDraft = (await interestsSaved).postDataJSON().data;
+      await expect(
+        page.getByText("STEP 4 OF 5", { exact: true }),
+      ).toBeInViewport();
+      await expect(
+        page.getByText("Your preferences", { exact: true }),
+      ).toBeInViewport();
+      const preferencesSaved = page.waitForRequest(
+        (action) =>
+          action.url().endsWith("/v1/onboarding") &&
+          action.method() === "PATCH" &&
+          action.postDataJSON().step === 3,
+      );
+      await page
+        .getByRole("button", { name: "Save & continue", exact: true })
+        .click();
+      expect((await preferencesSaved).postDataJSON().data).toEqual(savedDraft);
+      expect(savedDraft).toMatchObject({
+        name: "Beta Tester",
+        bio: "I enjoy coffee, art and a thoughtful conversation.",
+        intent: "Casual dating",
+        interests: ["Art"],
+        languages: ["Nepali", "English"],
+        hobbies: ["Hiking", "Coffee"],
+      });
+      await expect(
+        page.getByText("STEP 5 OF 5", { exact: true }),
+      ).toBeInViewport();
+    });
     await page
       .getByLabel("Your conversation starter", { exact: true })
       .fill("My ideal weekend includes a gallery and a long walk.");

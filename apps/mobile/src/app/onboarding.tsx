@@ -91,6 +91,7 @@ function Setup() {
   };
   return (
     <Page
+      key={me.email_verified_at ? `profile-step-${step}` : "verify-email"}
       footer={
         me.email_verified_at ? (
           <View style={{ gap: 8 }}>
