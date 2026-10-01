@@ -629,6 +629,47 @@ test("Talk about it fills the correct conversation and sends only after an expli
   expect(api.unexpected).toEqual([]);
 });
 
+test("Talk about it preserves an existing unsent conversation draft without sending either text", async ({
+  page,
+}) => {
+  const draft = "Synthetic unsent original conversation draft";
+  const prompt = "Synthetic game starter that must not replace the draft";
+  const game = session(definition("choices"), "complete", {
+    results: {
+      heading: "Synthetic shared favourites",
+      conversationPrompt: prompt,
+      agree: [],
+      different: [],
+      reveals: [],
+    },
+    view: { phase: "closed", canAct: false, round: 5, total: 5, revealed: [] },
+  });
+  const api = await fixture(page, { initial: game });
+  await openChat(page);
+  const composer = page.getByRole("textbox", {
+    name: "A thought, a question, a hello…",
+    exact: true,
+  });
+  await composer.fill(draft);
+  await page
+    .getByRole("button", {
+      name: `${game.definition.title} · complete`,
+      exact: true,
+    })
+    .click();
+  await page
+    .getByRole("button", { name: "Talk about it", exact: true })
+    .click();
+  await expect(page).toHaveURL(new RegExp(`/chat/${matchId}$`));
+  expect(
+    api.mutations.filter(
+      (m) => m.path.startsWith("/chat/") || m.path.startsWith("/messages"),
+    ),
+  ).toHaveLength(0);
+  expect(api.unexpected).toEqual([]);
+  await expect(composer).toHaveValue(draft);
+});
+
 test("an id-only game notification derives its partner and carries that game into private Safety reporting", async ({
   page,
 }) => {

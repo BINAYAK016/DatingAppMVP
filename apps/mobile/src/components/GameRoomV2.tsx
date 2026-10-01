@@ -85,7 +85,7 @@ export function GameRoomV2({ id, target }: { id: string; target?: string }) {
       return;
     }
     if (prompt) prepareGameConversation(account, partnerTarget, prompt, st.url);
-    router.replace(`/chat/${partnerTarget}`);
+    router.dismissTo(`/chat/${partnerTarget}`);
   };
   const another = () => {
     if (partnerTarget)

@@ -114,9 +114,9 @@ function ChatScreen({ id }: { id: string }) {
   }, [id, request, invalidateAccess]);
   useFocusEffect(
     useCallback(() => {
-      if (account && !bodyRef.current.trim()) {
+      if (account) {
         const starter = consumeGameConversation(account, id, st.url);
-        if (starter) setBody(starter);
+        if (starter && !bodyRef.current.trim()) setBody(starter);
       }
       let alive = true,
         generation = 0;
