@@ -6,15 +6,17 @@ This is a **local, private testing beta**, with a working NestJS API and Postgre
 
 The redesign audit, confirmed decisions and implementation roadmap are in [the audit](docs/redesign-audit.md), [plan](docs/redesign-plan.md) and [current beta guide](docs/beta.md). The product now follows **Discover → Match → Chat → Sangai → Date**.
 
-The [1 October frontend audit and redesign](docs/ui-redesign.md) covers the new portrait-led discovery, full-screen match moment, stories and conversations, editorial feed, focused profile editing, games and date planning. Backend code, API contracts, authentication/matching rules and data models are unchanged by this visual redesign. Demo portraits are bundled fictional artwork with [documented provenance and prompts](apps/mobile/assets/demo/README.md).
+The [1 October frontend audit and redesign](docs/ui-redesign.md) records the earlier visual release (`f3f9978`): portrait-led discovery, match moments, conversations, feed, profiles, games and date planning. That release preserved backend contracts. Demo portraits are bundled fictional artwork with [documented provenance and prompts](apps/mobile/assets/demo/README.md).
+
+The current [product polish](docs/product-polish-audit.md) adds six-digit email verification/reset, clearer auth recovery, ordered multi-photo posts, upload feedback, story playback/navigation and focused profile/game/date recovery. These changes include a minimal additive [post-media contract](docs/post-media.md) and authentication fixes; matching, match-only audiences and game consent remain intact. Follow the [authentication setup](docs/authentication.md) before starting Docker. Real Google sign-in and external email delivery still require your provider configuration and end-to-end verification.
 
 ## Included
 
 - Four tabs: Discover, Chat, Sangai and Profile, with warm blush/peach/lavender branding.
-- Verified-email access, password reset, five saved profile steps and declared 18+ access. Google integration requires OAuth configuration.
+- Six-digit verified-email access and password reset, resend timing, five saved profile steps and declared 18+ access. Google integration requires OAuth configuration.
 - Persisted Like/Pass/Super Like gestures and buttons; hidden incoming Likes, mutual matching, safe undo and reciprocal preferences.
 - Match-only stories, one Chat camera, snaps, ordinary photo/video messages and a paged mixed conversation timeline.
-- Virtualized private feed, visible-video autoplay, data saver, reactions, replies, saves and sharing without audience expansion.
+- Virtualized private feed, up to six ordered photos or one video per post, visible-video autoplay, data saver, reactions, replies, saves and sharing without audience expansion.
 - Three consented live games: This or That, Would You Rather, Two Truths & a Lie. Four more follow in the agreed next increment.
 - Date invitations, editable profiles/gallery, privacy settings, moderation, block/report/unmatch, export and account deletion.
 - Free + Sangai Plus **pricing previews only**: NPR 299/month or 2,870.40/year; AUD 7.99/month or 76.70/year. No checkout or paid entitlement.
@@ -23,15 +25,15 @@ Circles, circle events/RSVP, the old request inbox and separate Play tab are ret
 
 ## Backend
 
-Install Docker Desktop with Linux containers, Git and Node.js 24. From this repository:
+Install Docker Desktop with Linux containers, Git and Node.js 24. Before starting Docker, create the ignored local `.env` and a random server-only `OTP_HASH_SECRET` of at least 32 characters. This command preserves existing configuration and does not print the secret. Run it from this repository; deployment should use a secret manager. See [authentication setup](docs/authentication.md) for OTP behavior, SMTP and Google configuration.
 
 ```powershell
-Copy-Item .env.example .env
+node -e "const fs=require('fs'),c=require('crypto');let s=fs.existsSync('.env')?fs.readFileSync('.env','utf8'):fs.readFileSync('.env.example','utf8');if(!/^OTP_HASH_SECRET=.{32,}$/m.test(s)){const line='OTP_HASH_SECRET='+c.randomBytes(32).toString('hex');s=/^OTP_HASH_SECRET=/m.test(s)?s.replace(/^OTP_HASH_SECRET=.*$/m,line):s+'\n'+line+'\n';fs.writeFileSync('.env',s);}"
 docker compose up --build -d
 docker compose ps
 ```
 
-Health: <http://localhost:4100/health>. Moderator console: <http://localhost:4100/admin>. The local operator key is configured in `.env`; never put it in the mobile app. Database and media use persistent volumes. Ports bind to loopback. Local verification/reset emails appear in **Mailpit at http://localhost:8025**; they are not delivered to external inboxes. Configure real SMTP and Google OAuth as described in the beta guide for invited external testers.
+Health: <http://localhost:4100/health>. Moderator console: <http://localhost:4100/admin>. The local operator key is configured in `.env`; never put it in the mobile app. Database and media use persistent volumes. Ports bind to loopback. Local verification/reset emails appear in **Mailpit at http://localhost:8025**; they are not delivered to external inboxes. Configure real SMTP and Google OAuth using the [authentication guide](docs/authentication.md) for invited external testers.
 
 ## Android Studio
 
@@ -85,4 +87,4 @@ API tests need the Compose PostgreSQL service; they create/drop their own unique
 
 For supplemental browser UI tests, start API and `npm run web --prefix apps/mobile`, then `npx playwright install chromium` and `npx playwright test`. With installed Chrome, set `$env:PLAYWRIGHT_CHANNEL='chrome'` to avoid downloading Chromium. The browser tests supplement native testing; the browser is not the mobile deliverable.
 
-Read [beta guide](docs/beta.md), [verification](docs/verification.md), [test plan](docs/test-plan.md), and [agent instructions](AGENTS.md).
+Read [beta guide](docs/beta.md), [authentication setup](docs/authentication.md), [post-media contract](docs/post-media.md), [verification](docs/verification.md), [test plan](docs/test-plan.md), and [agent instructions](AGENTS.md).
