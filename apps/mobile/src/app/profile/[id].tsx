@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import { View } from "react-native";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { Person } from "../../lib/types";
 import { useStore } from "../../lib/store";
+import { isUnavailable } from "../../lib/screenErrors";
 import {
   BottomSheet,
   Button,
@@ -22,24 +23,40 @@ export default function Profile() {
   const [p, setPerson] = useState<Person | null>(null);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [loading, setLoading] = useState(true),
-    [failed, setFailed] = useState(false);
+    [failure, setFailure] = useState<"network" | "unavailable" | null>(null);
+  const sequence = useRef(0);
   const { request } = st;
   const load = useCallback(async () => {
+    const current = ++sequence.current;
     setLoading(true);
-    setFailed(false);
+    setPerson(null);
+    setFailure(null);
+    setOptionsOpen(false);
     try {
-      setPerson(await request<Person>(`/profiles/${id}`));
-    } catch {
-      setPerson(null);
-      setFailed(true);
+      const next = await request<Person>(`/profiles/${id}`);
+      if (sequence.current === current) {
+        setPerson(next);
+        if (!next) setFailure("unavailable");
+      }
+    } catch (e) {
+      if (sequence.current === current)
+        setFailure(isUnavailable(e) ? "unavailable" : "network");
     } finally {
-      setLoading(false);
+      if (sequence.current === current) setLoading(false);
     }
   }, [id, request]);
-  useEffect(() => {
-    const first = setTimeout(() => void load(), 0);
-    return () => clearTimeout(first);
-  }, [load]);
+  useFocusEffect(
+    useCallback(() => {
+      const first = setTimeout(() => void load(), 0);
+      return () => {
+        clearTimeout(first);
+        sequence.current++;
+        setPerson(null);
+        setLoading(true);
+        setOptionsOpen(false);
+      };
+    }, [load]),
+  );
   const isMatch = st.data?.matches.some((m) => m.id === id),
     own = st.data?.me.id === id;
   return (
@@ -69,18 +86,24 @@ export default function Profile() {
         ) : !p ? (
           <>
             <Empty
-              title="Let’s try that again"
+              title={
+                failure === "network"
+                  ? "Let’s try that again"
+                  : "Profile unavailable"
+              }
               body={
-                failed
+                failure === "network"
                   ? "We couldn’t open this profile. Check your connection and try again."
                   : "This profile is no longer available."
               }
             />
-            <Button
-              title="Retry profile"
-              secondary
-              onPress={() => void load()}
-            />
+            {failure === "network" && (
+              <Button
+                title="Retry profile"
+                secondary
+                onPress={() => void load()}
+              />
+            )}
           </>
         ) : (
           <>

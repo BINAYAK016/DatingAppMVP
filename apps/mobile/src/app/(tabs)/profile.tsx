@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Platform,
 } from "react-native";
 import { router } from "expo-router";
+import Constants from "expo-constants";
 import { useStore } from "../../lib/store";
 import { enableDeviceNotifications } from "../../lib/notifications";
 import {
@@ -28,23 +29,53 @@ import {
   ProfileHero,
   ProfileStory,
 } from "../../components/ProfilePresentation";
+type Setting =
+  | "posts_visible"
+  | "stories_visible"
+  | "messages_enabled"
+  | "interactions_enabled"
+  | "data_saver"
+  | "paused"
+  | "notifications";
 
 export default function Profile() {
   const st = useStore();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [pendingSettings, setPendingSettings] = useState<
+    Partial<Record<Setting, boolean>>
+  >({});
+  const settingsInFlight = useRef(new Set<Setting>());
+  const [pushBusy, setPushBusy] = useState(false);
+  const pushInFlight = useRef(false);
   const [deleting, setDeleting] = useState(false),
     [confirmation, setConfirmation] = useState(""),
     [busy, setBusy] = useState(false);
   if (!st.data) return <Loading />;
   const me = st.data.me;
-  const settings = async (body: unknown) => {
+  const settings = async (key: Setting, value: boolean) => {
+    if (settingsInFlight.current.has(key)) return;
+    settingsInFlight.current.add(key);
+    setPendingSettings((old) => ({ ...old, [key]: value }));
     try {
-      await st.request("/settings", body, "PATCH");
+      await st.request("/settings", { [key]: value }, "PATCH");
       await st.refresh();
     } catch (e: any) {
       st.toast(e.message);
+    } finally {
+      settingsInFlight.current.delete(key);
+      setPendingSettings((old) => {
+        const next = { ...old };
+        delete next[key];
+        return next;
+      });
     }
   };
+  const canRegisterPush =
+    Platform.OS !== "web" &&
+    !!(
+      Constants.expoConfig?.extra?.eas?.projectId ||
+      Constants.easConfig?.projectId
+    );
   const closeThen = (action: () => void) => {
     setSettingsOpen(false);
     action();
@@ -141,14 +172,22 @@ export default function Profile() {
           ] as const
         ).map(([key, label]) => (
           <View key={key} style={styles.setting}>
-            <Text style={[s.body, { flex: 1, color: C.ink }]}>{label}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={[s.body, { color: C.ink }]}>{label}</Text>
+              {pendingSettings[key] !== undefined && (
+                <Text accessibilityLiveRegion="polite" style={s.small}>
+                  Saving…
+                </Text>
+              )}
+            </View>
             <Switch
               {...(Platform.OS === "web" ? { activeThumbColor: C.white } : {})}
               thumbColor={C.white}
               accessibilityLabel={label}
-              value={me[key]}
+              value={pendingSettings[key] ?? me[key]}
+              disabled={pendingSettings[key] !== undefined}
               trackColor={{ false: C.line, true: C.primary }}
-              onValueChange={(value) => void settings({ [key]: value })}
+              onValueChange={(value) => void settings(key, value)}
             />
           </View>
         ))}
@@ -157,48 +196,75 @@ export default function Profile() {
           <View style={{ flex: 1 }}>
             <Text style={s.label}>Pause discovery</Text>
             <Text style={[s.small, { marginTop: 4 }]}>
-              Take a breather. Existing chats stay.
+              {pendingSettings.paused !== undefined
+                ? "Saving…"
+                : "Take a breather. Existing chats stay."}
             </Text>
           </View>
           <Switch
             {...(Platform.OS === "web" ? { activeThumbColor: C.white } : {})}
             thumbColor={C.white}
             accessibilityLabel="Pause discovery"
-            value={me.paused}
+            value={pendingSettings.paused ?? me.paused}
+            disabled={pendingSettings.paused !== undefined}
             trackColor={{ false: C.line, true: C.primary }}
-            onValueChange={(paused) => void settings({ paused })}
+            onValueChange={(paused) => void settings("paused", paused)}
           />
         </View>
         <View style={styles.setting}>
           <View style={{ flex: 1 }}>
             <Text style={s.label}>Notification preference</Text>
             <Text style={[s.small, { marginTop: 4 }]}>
-              Generic updates only.
+              {pendingSettings.notifications !== undefined
+                ? "Saving…"
+                : "Generic updates only."}
             </Text>
           </View>
           <Switch
             {...(Platform.OS === "web" ? { activeThumbColor: C.white } : {})}
             thumbColor={C.white}
             accessibilityLabel="Notifications"
-            value={me.notifications}
+            value={pendingSettings.notifications ?? me.notifications}
+            disabled={pendingSettings.notifications !== undefined}
             trackColor={{ false: C.line, true: C.primary }}
-            onValueChange={(notifications) => void settings({ notifications })}
+            onValueChange={(notifications) =>
+              void settings("notifications", notifications)
+            }
           />
         </View>
         <View style={{ marginVertical: 16 }}>
-          <Button
-            title="Enable push on this device"
-            secondary
-            onPress={async () => {
-              try {
-                const token = await enableDeviceNotifications();
-                await st.request("/device", { token });
-                st.toast("Device registered for notifications.");
-              } catch (e: any) {
-                st.toast(e.message);
+          {canRegisterPush ? (
+            <Button
+              title={
+                pushBusy
+                  ? "Enabling notifications…"
+                  : "Enable push on this device"
               }
-            }}
-          />
+              secondary
+              disabled={pushBusy}
+              onPress={async () => {
+                if (pushInFlight.current) return;
+                pushInFlight.current = true;
+                setPushBusy(true);
+                try {
+                  const token = await enableDeviceNotifications();
+                  await st.request("/device", { token });
+                  st.toast("Device registered for notifications.");
+                } catch (e: any) {
+                  st.toast(e.message);
+                } finally {
+                  pushInFlight.current = false;
+                  setPushBusy(false);
+                }
+              }}
+            />
+          ) : (
+            <Text style={s.small}>
+              {Platform.OS === "web"
+                ? "Device notifications are available in the mobile app when enabled. Your in-app Activity inbox works here."
+                : "Device notifications are not enabled in this beta build. Your in-app Activity inbox still works."}
+            </Text>
+          )}
         </View>
         <View style={s.divider} />
         {(

@@ -1,10 +1,12 @@
-import React from "react";
+import React, { useRef, useState } from "react";
 import { Text, View } from "react-native";
 import { Button, C, Empty, Header, Icon, Page, s } from "../components/ui";
 import { useStore } from "../lib/store";
 
 export default function Activity() {
   const st = useStore();
+  const [busy, setBusy] = useState(false);
+  const pending = useRef(false);
   const updates =
     st.data?.notifications.filter((n) => n.kind !== "request") || [];
   return (
@@ -57,17 +59,26 @@ export default function Activity() {
           body="Updates from your matches will appear here. Likes stay private until you both match."
         />
       )}
-      {!!updates.length && (
+      {updates.some((n) => !n.read) && (
         <View style={{ marginTop: 24 }}>
           <Button
-            title="Mark updates as read"
+            title={busy ? "Marking as read…" : "Mark updates as read"}
             secondary
-            onPress={() =>
-              st
-                .request("/notifications/read", {})
-                .then(st.refresh)
-                .catch((e) => st.toast(e.message))
-            }
+            disabled={busy}
+            onPress={async () => {
+              if (pending.current) return;
+              pending.current = true;
+              setBusy(true);
+              try {
+                await st.request("/notifications/read", {});
+                await st.refresh();
+              } catch (e: any) {
+                st.toast(e.message);
+              } finally {
+                pending.current = false;
+                setBusy(false);
+              }
+            }}
           />
         </View>
       )}

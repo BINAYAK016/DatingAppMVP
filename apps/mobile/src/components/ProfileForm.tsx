@@ -1,8 +1,9 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import {
   Avatar,
+  BottomSheet,
   Button,
   C,
   Chip,
@@ -63,6 +64,25 @@ export function ProfileForm({
   editing?: boolean;
 }) {
   const st = useStore();
+  const [removeId, setRemoveId] = useState<string | null>(null);
+  const [removing, setRemoving] = useState(false);
+  const removalPending = useRef(false);
+  const removeMedia = async () => {
+    if (!removeId || removalPending.current) return;
+    removalPending.current = true;
+    setRemoving(true);
+    try {
+      await st.request(`/profile/media/${removeId}`, {}, "DELETE");
+      await st.refresh();
+      setRemoveId(null);
+      st.toast("Removed from your profile.");
+    } catch (e: any) {
+      st.toast(e.message);
+    } finally {
+      removalPending.current = false;
+      setRemoving(false);
+    }
+  };
   const [preferencesTab, setPreferencesTab] = useState<
     "preferences" | "lifestyle"
   >("preferences");
@@ -204,13 +224,10 @@ export function ProfileForm({
                       <Pressable
                         accessibilityRole="button"
                         accessibilityLabel="Remove from profile"
+                        accessibilityState={{ disabled: removing }}
+                        disabled={removing}
                         style={styles.remove}
-                        onPress={() =>
-                          void st
-                            .request(`/profile/media/${m.id}`, {}, "DELETE")
-                            .then(st.refresh)
-                            .catch((e) => st.toast(e.message))
-                        }
+                        onPress={() => setRemoveId(m.id)}
                       >
                         <Icon name="close" size={18} color={C.ink} />
                       </Pressable>
@@ -232,6 +249,10 @@ export function ProfileForm({
                 />
                 <Text style={[s.small, { marginTop: 8 }]}>
                   {me.media?.length || 0} of 6 profile photos and videos
+                </Text>
+                <Text style={[s.small, { marginTop: 8 }]}>
+                  Adding, changing or removing photos and videos saves
+                  immediately.
                 </Text>
               </View>
             </>
@@ -397,6 +418,31 @@ export function ProfileForm({
           </Text>
         </>
       )}
+      <BottomSheet
+        visible={!!removeId}
+        onClose={() => {
+          if (!removing) setRemoveId(null);
+        }}
+        title="Remove from your profile?"
+      >
+        <Text style={[s.body, { marginBottom: 24 }]}>
+          This photo or video will be removed immediately. Your written changes
+          stay in this editor.
+        </Text>
+        <View style={{ gap: 12 }}>
+          <Button
+            title={removing ? "Removing…" : "Remove photo or video"}
+            disabled={removing}
+            onPress={() => void removeMedia()}
+          />
+          <Button
+            title="Keep on profile"
+            secondary
+            disabled={removing}
+            onPress={() => setRemoveId(null)}
+          />
+        </View>
+      </BottomSheet>
     </>
   );
 }

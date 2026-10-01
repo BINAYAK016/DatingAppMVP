@@ -1,9 +1,14 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
-import { router, useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams, useNavigation } from "expo-router";
+import {
+  usePreventRemove,
+  type NavigationAction,
+} from "expo-router/react-navigation";
 import { useStore } from "../lib/store";
 import {
   Button,
+  BottomSheet,
   C,
   Header,
   Icon,
@@ -28,20 +33,38 @@ function Editor() {
     me = st.data!.me;
   const { section } = useLocalSearchParams<{ section?: string }>();
   const [draft, setDraft] = useState(() => draftFrom(me));
+  const [initialDraft] = useState(() =>
+    JSON.stringify(cleanDraft(draftFrom(me))),
+  );
+  const [discardAction, setDiscardAction] = useState<NavigationAction | null>(
+    null,
+  );
+  const allowLeave = useRef(false);
+  const saving = useRef(false);
+  const navigation = useNavigation();
   const [step, setStep] = useState<number | null>(() =>
       section && /^[0-4]$/.test(section) ? Number(section) : null,
     ),
     [busy, setBusy] = useState(false);
+  const dirty = JSON.stringify(cleanDraft(draft)) !== initialDraft;
+  usePreventRemove(dirty, ({ data }) => {
+    if (allowLeave.current) navigation.dispatch(data.action);
+    else if (!saving.current) setDiscardAction(data.action);
+  });
   const save = async () => {
+    if (saving.current) return;
+    saving.current = true;
     setBusy(true);
     try {
       await st.request("/profile", cleanDraft(draft), "PATCH");
       await st.refresh();
       st.toast("Your profile is updated.");
+      allowLeave.current = true;
       router.back();
     } catch (e: any) {
       st.toast(e.message);
     } finally {
+      saving.current = false;
       setBusy(false);
     }
   };
@@ -62,86 +85,111 @@ function Editor() {
     draft.prompt || "Give someone a reason to say hello",
   ];
   return (
-    <Page
-      key={step === null ? "sections" : step}
-      footer={
-        <Button
-          title={busy ? "Saving…" : "Save my profile"}
-          disabled={busy}
-          onPress={() => void save()}
-        />
-      }
-    >
-      <Header
-        back
-        title="Edit profile"
-        action={
-          step !== null ? (
-            <IconButton
-              name="grid-outline"
-              label="All profile sections"
-              onPress={() => setStep(null)}
-            />
-          ) : (
-            <View />
-          )
-        }
-      />
-      {step === null ? (
-        <>
-          <Text style={[s.body, { marginBottom: 24 }]}>
-            A few good details make it easier to find your people.
-          </Text>
-          <View>
-            {SECTIONS.map((name, i) => (
-              <Pressable
-                key={name}
-                accessibilityRole="button"
-                accessibilityLabel={name}
-                onPress={() => setStep(i)}
-                style={({ pressed }) => [
-                  styles.section,
-                  pressed && { opacity: 0.7 },
-                ]}
-              >
-                <Icon name={icons[i]} size={24} color={C.primary} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[s.label, { fontSize: 16 }]}>{name}</Text>
-                  <Text style={[s.small, { marginTop: 5 }]}>
-                    {summaries[i]}
-                  </Text>
-                </View>
-                <Icon name="chevron-forward" size={18} color={C.muted} />
-              </Pressable>
-            ))}
-          </View>
-          <Text style={[s.small, { marginTop: 24 }]}>
-            Changes are saved together when you tap Save my profile.
-          </Text>
-        </>
-      ) : (
-        <>
-          <Text style={[s.small, { color: C.primary, marginBottom: 8 }]}>
-            SECTION {step + 1} OF 5
-          </Text>
-          <Text style={[s.h2, { marginBottom: 24 }]}>{SECTIONS[step]}</Text>
-          <ProfileForm
-            step={step}
-            draft={draft}
-            setDraft={setDraft}
-            me={me}
-            editing
+    <>
+      <Page
+        key={step === null ? "sections" : step}
+        footer={
+          <Button
+            title={busy ? "Saving…" : "Save my profile"}
+            disabled={busy}
+            onPress={() => void save()}
           />
-          <View style={{ marginTop: 24 }}>
-            <Button
-              title="All profile sections"
-              secondary
-              onPress={() => setStep(null)}
+        }
+      >
+        <Header
+          back
+          title="Edit profile"
+          action={
+            step !== null ? (
+              <IconButton
+                name="grid-outline"
+                label="All profile sections"
+                onPress={() => setStep(null)}
+              />
+            ) : (
+              <View />
+            )
+          }
+        />
+        {step === null ? (
+          <>
+            <Text style={[s.body, { marginBottom: 24 }]}>
+              A few good details make it easier to find your people.
+            </Text>
+            <View>
+              {SECTIONS.map((name, i) => (
+                <Pressable
+                  key={name}
+                  accessibilityRole="button"
+                  accessibilityLabel={name}
+                  onPress={() => setStep(i)}
+                  style={({ pressed }) => [
+                    styles.section,
+                    pressed && { opacity: 0.7 },
+                  ]}
+                >
+                  <Icon name={icons[i]} size={24} color={C.primary} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.label, { fontSize: 16 }]}>{name}</Text>
+                    <Text style={[s.small, { marginTop: 5 }]}>
+                      {summaries[i]}
+                    </Text>
+                  </View>
+                  <Icon name="chevron-forward" size={18} color={C.muted} />
+                </Pressable>
+              ))}
+            </View>
+            <Text style={[s.small, { marginTop: 24 }]}>
+              Save my profile saves your written details and preferences. Photo
+              and video changes save immediately.
+            </Text>
+          </>
+        ) : (
+          <>
+            <Text style={[s.small, { color: C.primary, marginBottom: 8 }]}>
+              SECTION {step + 1} OF 5
+            </Text>
+            <Text style={[s.h2, { marginBottom: 24 }]}>{SECTIONS[step]}</Text>
+            <ProfileForm
+              step={step}
+              draft={draft}
+              setDraft={setDraft}
+              me={me}
+              editing
             />
-          </View>
-        </>
-      )}
-    </Page>
+            <View style={{ marginTop: 24 }}>
+              <Button
+                title="All profile sections"
+                secondary
+                onPress={() => setStep(null)}
+              />
+            </View>
+          </>
+        )}
+      </Page>
+      <BottomSheet
+        visible={!!discardAction}
+        onClose={() => setDiscardAction(null)}
+        title="Leave without saving?"
+      >
+        <Text style={[s.body, { marginBottom: 24 }]}>
+          Your written changes will be lost. Photos and videos already saved
+          will stay on your profile.
+        </Text>
+        <View style={{ gap: 12 }}>
+          <Button title="Keep editing" onPress={() => setDiscardAction(null)} />
+          <Button
+            title="Discard written changes"
+            secondary
+            onPress={() => {
+              allowLeave.current = true;
+              if (discardAction) navigation.dispatch(discardAction);
+              setDiscardAction(null);
+            }}
+          />
+        </View>
+      </BottomSheet>
+    </>
   );
 }
 const styles = StyleSheet.create({
