@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { router, useIsFocused, useLocalSearchParams } from "expo-router";
 import { useStore } from "../lib/store";
@@ -19,8 +19,16 @@ export default function Games() {
 function GameLobby({ target }: { target: string }) {
   const st = useStore();
   const focused = useIsFocused();
-  const { enabled, presence, update } = useGameReady(target);
-  const [busy, setBusy] = useState(false);
+  const {
+    enabled,
+    presence,
+    update,
+    pending: readyPending,
+    error: readyError,
+  } = useGameReady(target);
+  const [inviting, setInviting] = useState<string | null>(null);
+  const invitationPending = useRef(false);
+  const busy = !!inviting;
   const person = st.data?.matches.find((p) => p.id === target);
   return (
     <BottomSheet
@@ -37,23 +45,13 @@ function GameLobby({ target }: { target: string }) {
       ) : (
         <>
           <View style={styles.pair}>
-            <Avatar person={st.data!.me} size={68} />
+            <Avatar person={st.data!.me} size={48} />
             <View style={styles.between}>
               <Icon name="sparkles-outline" color={C.primary} size={22} />
             </View>
-            <Avatar person={person} size={68} />
+            <Avatar person={person} size={48} />
+            <Text style={[s.label, { flex: 1 }]}>Play with {person.name}</Text>
           </View>
-          <Text style={styles.headline}>
-            Less small talk.{"\n"}More you two.
-          </Text>
-          <Text
-            style={[
-              s.body,
-              { textAlign: "center", marginTop: 12, marginBottom: 28 },
-            ]}
-          >
-            A little curiosity, together with {person.name}.
-          </Text>
           <View style={styles.ready}>
             <View style={{ flex: 1 }}>
               <Text style={s.label}>Ready to play?</Text>
@@ -61,9 +59,11 @@ function GameLobby({ target }: { target: string }) {
                 accessibilityLiveRegion="polite"
                 style={[s.small, { marginTop: 6 }]}
               >
-                {presence.partner
-                  ? `${person.name} is ready with you.`
-                  : `${person.name} hasn’t marked ready with you yet.`}
+                {readyError
+                  ? "Readiness is unavailable. Check your connection and try again."
+                  : presence.partner
+                    ? `${person.name} is ready with you.`
+                    : `${person.name} hasn’t marked ready with you yet.`}
               </Text>
             </View>
             <View
@@ -74,11 +74,18 @@ function GameLobby({ target }: { target: string }) {
             />
           </View>
           <Button
-            title={enabled ? "Stop being ready" : "I’m Ready to play"}
+            title={
+              readyPending
+                ? "Updating readiness…"
+                : enabled
+                  ? "Stop being ready"
+                  : "I’m Ready to play"
+            }
             secondary
+            disabled={readyPending || busy}
             onPress={() => void update(!enabled)}
           />
-          <Text style={[s.small, { marginTop: 12, marginBottom: 28 }]}>
+          <Text style={[s.small, { marginTop: 10, marginBottom: 20 }]}>
             Only this match sees your temporary status. It expires within 45
             seconds of leaving or going offline.
           </Text>
@@ -90,11 +97,16 @@ function GameLobby({ target }: { target: string }) {
                 accessibilityRole="button"
                 accessibilityLabel={`Invite to ${game.title}`}
                 accessibilityState={{
-                  disabled: busy || !presence.self || !presence.partner,
+                  disabled:
+                    busy || readyPending || !presence.self || !presence.partner,
                 }}
-                disabled={busy || !presence.self || !presence.partner}
+                disabled={
+                  busy || readyPending || !presence.self || !presence.partner
+                }
                 onPress={async () => {
-                  setBusy(true);
+                  if (invitationPending.current) return;
+                  invitationPending.current = true;
+                  setInviting(game.id);
                   try {
                     const result = await st.request(`/games/${target}`, {
                       kind: game.id,
@@ -106,14 +118,23 @@ function GameLobby({ target }: { target: string }) {
                   } catch (e: any) {
                     st.toast(e.message);
                   } finally {
-                    setBusy(false);
+                    invitationPending.current = false;
+                    setInviting(null);
                   }
                 }}
                 style={({ pressed }) => [
                   styles.game,
                   {
                     backgroundColor: [C.blush, C.peach, C.lavender][i % 3],
-                    opacity: pressed ? 0.8 : 1,
+                    opacity:
+                      busy ||
+                      readyPending ||
+                      !presence.self ||
+                      !presence.partner
+                        ? 0.65
+                        : pressed
+                          ? 0.8
+                          : 1,
                   },
                 ]}
               >
@@ -134,11 +155,13 @@ function GameLobby({ target }: { target: string }) {
                       },
                     ]}
                   >
-                    {busy
+                    {inviting === game.id
                       ? "Sending…"
-                      : presence.self && presence.partner
-                        ? "Invite to play"
-                        : "Both players need to be ready"}
+                      : busy
+                        ? "Invitation in progress"
+                        : presence.self && presence.partner
+                          ? "Invite to play"
+                          : "Both players need to be ready"}
                   </Text>
                   <Icon
                     name="arrow-forward"
@@ -166,19 +189,11 @@ const styles = StyleSheet.create({
   pair: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    marginTop: 12,
+    gap: 12,
+    marginTop: 4,
+    marginBottom: 20,
   },
-  between: { width: 56, alignItems: "center" },
-  headline: {
-    color: C.ink,
-    fontSize: 32,
-    lineHeight: 39,
-    fontWeight: "600",
-    textAlign: "center",
-    letterSpacing: -0.8,
-    marginTop: 24,
-  },
+  between: { width: 24, alignItems: "center" },
   ready: {
     flexDirection: "row",
     alignItems: "center",

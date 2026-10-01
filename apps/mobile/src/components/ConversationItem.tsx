@@ -122,7 +122,10 @@ export function ConversationItem({
         accessibilityLabel={`${def?.title || "Previous game"} · ${m.state}`}
         style={[styles.connection, { backgroundColor: C.lavender }]}
         onPress={() =>
-          router.push({ pathname: "/game/[id]", params: { id: m.id, target } })
+          router.push({
+            pathname: "/game/[id]",
+            params: { id: m.id, target, created_at: m.created_at },
+          })
         }
       >
         <View style={[s.row, { marginBottom: 12 }]}>

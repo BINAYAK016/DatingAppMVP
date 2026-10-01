@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Text, View, StyleSheet } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useStore } from "../lib/store";
+import { invitationTime } from "../lib/dateInvitation";
 import {
   Avatar,
   Button,
@@ -26,35 +27,33 @@ export default function Plan() {
     [time, setTime] = useState("17:00"),
     [busy, setBusy] = useState(false);
   const [step, setStep] = useState(initial ? 1 : 0);
+  const [validation, setValidation] = useState("");
+  const sending = useRef(false);
   const person = st.data?.matches.find((p) => p.id === target);
   const send = async () => {
+    if (sending.current) return;
+    const result = invitationTime(date, time);
+    if (!title.trim() || !result.scheduled) {
+      setValidation(
+        !title.trim() ? "Give your date idea a title." : result.error,
+      );
+      setStep(1);
+      return;
+    }
+    sending.current = true;
     setBusy(true);
     try {
-      if (
-        !/^\d{4}-\d{2}-\d{2}$/.test(date) ||
-        !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)
-      )
-        throw new Error("Use YYYY-MM-DD for the date and HH:MM for time.");
-      const scheduled = new Date(`${date}T${time}:00`);
-      const [year, month, day] = date.split("-").map(Number);
-      if (
-        !Number.isFinite(scheduled.getTime()) ||
-        scheduled.getFullYear() !== year ||
-        scheduled.getMonth() !== month - 1 ||
-        scheduled.getDate() !== day ||
-        scheduled <= new Date()
-      )
-        throw new Error("Choose a valid future date.");
       await st.request(`/plans/${target}`, {
         title,
         venue,
-        scheduledAt: scheduled.toISOString(),
+        scheduledAt: result.scheduled.toISOString(),
       });
       st.toast("Date idea sent. Your match can accept or decline.");
       router.back();
     } catch (e: any) {
       st.toast(e.message);
     } finally {
+      sending.current = false;
       setBusy(false);
     }
   };
@@ -114,7 +113,17 @@ export default function Plan() {
               (step > 0 && (!date || !time)) ||
               (step === 2 && !target)
             }
-            onPress={() => (step === 2 ? void send() : setStep(step + 1))}
+            onPress={() => {
+              if (step === 2) void send();
+              else if (step === 1) {
+                const result = invitationTime(date, time);
+                const error = !title.trim()
+                  ? "Give your date idea a title."
+                  : result.error;
+                setValidation(error);
+                if (!error) setStep(2);
+              } else setStep(1);
+            }}
           />
           {step > 0 && (
             <Button
@@ -171,27 +180,45 @@ export default function Plan() {
           </Text>
           <Field
             label="The idea"
+            editable={!busy}
             value={title}
             onChangeText={setTitle}
             placeholder="Coffee and a slow walk"
           />
           <Field
             label="Public place / venue · optional"
+            editable={!busy}
             value={venue}
             onChangeText={setVenue}
             placeholder="A favorite café or a public park"
           />
           <Field
             label="Date · YYYY-MM-DD"
+            editable={!busy}
             value={date}
-            onChangeText={setDate}
+            onChangeText={(value) => {
+              setDate(value);
+              setValidation("");
+            }}
             placeholder="YYYY-MM-DD"
           />
           <Field
             label="Time · HH:MM · your local time"
+            editable={!busy}
             value={time}
-            onChangeText={setTime}
+            onChangeText={(value) => {
+              setTime(value);
+              setValidation("");
+            }}
           />
+          {!!validation && (
+            <Text
+              accessibilityRole="alert"
+              style={[s.body, s.danger, { marginBottom: 16 }]}
+            >
+              {validation}
+            </Text>
+          )}
           <Text style={s.small}>
             Times use {Intl.DateTimeFormat().resolvedOptions().timeZone}. Your
             match sees the invitation in their local time.

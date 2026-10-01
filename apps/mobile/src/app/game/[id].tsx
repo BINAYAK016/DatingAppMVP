@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
   AppState,
@@ -11,6 +11,8 @@ import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useStore } from "../../lib/store";
 import { useGameReady } from "../../lib/useGameReady";
 import { useReducedMotion } from "../../lib/useReducedMotion";
+import { findConversationGame } from "../../lib/gameHistory";
+import { isUnavailable } from "../../lib/screenErrors";
 import {
   Avatar,
   Button,
@@ -27,29 +29,47 @@ import {
   s,
 } from "../../components/ui";
 export default function Game() {
-  const { id, target, ready } = useLocalSearchParams<{
+  const { id, target, ready, created_at } = useLocalSearchParams<{
     id: string;
     target: string;
     ready?: string;
+    created_at?: string;
   }>();
   return (
-    <Session key={id} id={id} target={target} initiallyReady={ready === "1"} />
+    <Session
+      key={id}
+      id={id}
+      target={target}
+      createdAt={created_at}
+      initiallyReady={ready === "1"}
+    />
   );
 }
 function Session({
   id,
   target,
   initiallyReady,
+  createdAt,
 }: {
   id: string;
   target: string;
   initiallyReady: boolean;
+  createdAt?: string;
 }) {
   const { request, data, toast } = useStore();
-  const { enabled, presence, update } = useGameReady(target, initiallyReady);
+  const {
+    enabled,
+    presence,
+    update,
+    pending: readyPending,
+    error: readyError,
+  } = useGameReady(target, initiallyReady);
   const [game, setGame] = useState<any>(null),
     [error, setError] = useState(""),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(false),
+    [unavailable, setUnavailable] = useState(false);
+  const loading = useRef<Promise<void> | null>(null);
+  const acting = useRef(false);
   const [choices, setChoices] = useState([-1, -1, -1, -1, -1]),
     [statements, setStatements] = useState(["", "", ""]),
     [lie, setLie] = useState(-1),
@@ -68,16 +88,35 @@ function Session({
     animation.start();
     return () => animation.stop();
   }, [question, review, entrance, reducedMotion]);
-  const load = useCallback(async () => {
-    try {
-      const chat = await request(`/chat/${target}`);
-      setGame(chat.games.find((g: any) => g.id === id));
-      setError("");
-    } catch (e: any) {
-      setGame(null);
-      setError(e.message);
-    }
-  }, [request, target, id]);
+  const load = useCallback(
+    async (afterAction = false) => {
+      if (loading.current) {
+        await loading.current;
+        if (!afterAction) return;
+      }
+      const task = (async () => {
+        try {
+          const next = await findConversationGame(
+            request,
+            target,
+            id,
+            createdAt,
+          );
+          setGame(next);
+          setUnavailable(!next);
+          setError("");
+        } catch (e: any) {
+          setGame(null);
+          setUnavailable(isUnavailable(e));
+          setError(isUnavailable(e) ? "" : e.message);
+        }
+      })();
+      loading.current = task;
+      await task;
+      if (loading.current === task) loading.current = null;
+    },
+    [request, target, id, createdAt],
+  );
   useFocusEffect(
     useCallback(() => {
       const first = setTimeout(() => void load(), 0);
@@ -91,13 +130,16 @@ function Session({
     }, [load]),
   );
   const act = async (path: string, body: unknown) => {
+    if (acting.current) return;
+    acting.current = true;
     setBusy(true);
     try {
       await request(`/game/${id}/${path}`, body);
-      await load();
+      await load(true);
     } catch (e: any) {
       toast(e.message);
     } finally {
+      acting.current = false;
       setBusy(false);
     }
   };
@@ -122,6 +164,8 @@ function Session({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`Edit answer ${i + 1}`}
+              accessibilityState={{ disabled: busy }}
+              disabled={busy}
               style={styles.edit}
               onPress={() => {
                 setQuestion(i);
@@ -156,7 +200,20 @@ function Session({
           <Button title="Retry game" secondary onPress={() => void load()} />
         </>
       )}
-      {!game && !error && (
+      {unavailable && (
+        <>
+          <Empty
+            title="Game unavailable"
+            body="This game could not be found, or the match is no longer available."
+          />
+          <Button
+            secondary
+            title="Back to Chat"
+            onPress={() => router.replace("/(tabs)/chat")}
+          />
+        </>
+      )}
+      {!game && !error && !unavailable && (
         <View style={{ gap: 20 }}>
           <Skeleton height={64} />
           <Skeleton height={120} />
@@ -192,6 +249,7 @@ function Session({
                           enabled ? "Stop being ready" : "I’m Ready to play"
                         }
                         variant="soft"
+                        disabled={readyPending || busy}
                         onPress={() => void update(!enabled)}
                       />
                     ) : (
@@ -208,8 +266,13 @@ function Session({
                       <Button
                         secondary
                         title={
-                          enabled ? "Stop being ready" : "I’m Ready to play"
+                          readyPending
+                            ? "Updating readiness…"
+                            : enabled
+                              ? "Stop being ready"
+                              : "I’m Ready to play"
                         }
+                        disabled={readyPending || busy}
                         onPress={() => void update(!enabled)}
                       />
                     </View>
@@ -218,6 +281,15 @@ function Session({
                     <Text style={[s.small, { marginTop: 10 }]}>
                       Only this match sees your temporary status. Both players
                       must stay ready; it expires within 45 seconds of leaving.
+                    </Text>
+                  )}
+                  {readyError && (
+                    <Text
+                      accessibilityLiveRegion="polite"
+                      style={[s.small, { marginTop: 10 }]}
+                    >
+                      Readiness is unavailable. Check your connection, then try
+                      your ready status again.
                     </Text>
                   )}
                 </View>
@@ -248,8 +320,10 @@ function Session({
                   {game.guest === me && (
                     <View style={{ gap: 12, width: "100%" }}>
                       <Button
-                        title="Accept invitation"
-                        disabled={busy || !live}
+                        title={
+                          busy ? "Updating invitation…" : "Accept invitation"
+                        }
+                        disabled={busy || readyPending || !live}
                         onPress={() =>
                           void act("respond", { response: "accept" })
                         }
@@ -301,6 +375,7 @@ function Session({
                               <Field
                                 label={`Statement ${i + 1}`}
                                 value={v}
+                                editable={!busy}
                                 onChangeText={(v) =>
                                   setStatements((a) =>
                                     a.map((old, n) =>
@@ -312,14 +387,20 @@ function Session({
                               <Chip
                                 label={`Statement ${i + 1} is the lie`}
                                 selected={lie === i}
+                                disabled={busy}
                                 onPress={() => setLie(i)}
                               />
                             </View>
                           ))}
                           <Button
-                            title="Lock in my statements"
+                            title={
+                              busy
+                                ? "Locking statements…"
+                                : "Lock in my statements"
+                            }
                             disabled={
                               busy ||
+                              readyPending ||
                               !live ||
                               lie < 0 ||
                               statements.some((s) => !s.trim())
@@ -355,6 +436,7 @@ function Session({
                                   accessibilityLabel={v}
                                   disabled={
                                     game.complete ||
+                                    busy ||
                                     game.guesses[me] !== undefined
                                   }
                                   style={[
@@ -389,8 +471,12 @@ function Session({
                           {!game.complete &&
                             (game.guesses[me] === undefined ? (
                               <Button
-                                title="Lock in my guess"
-                                disabled={busy || !live || guess < 0}
+                                title={
+                                  busy ? "Locking guess…" : "Lock in my guess"
+                                }
+                                disabled={
+                                  busy || readyPending || !live || guess < 0
+                                }
                                 onPress={() => void act("guess", { guess })}
                               />
                             ) : (
@@ -446,8 +532,15 @@ function Session({
                       {choiceSummary(true)}
                       <View style={{ marginTop: 24 }}>
                         <Button
-                          title="Lock in my choices"
-                          disabled={busy || !live || choices.includes(-1)}
+                          title={
+                            busy ? "Locking choices…" : "Lock in my choices"
+                          }
+                          disabled={
+                            busy ||
+                            readyPending ||
+                            !live ||
+                            choices.includes(-1)
+                          }
                           onPress={() =>
                             void act("answer", { answers: choices })
                           }
@@ -484,7 +577,9 @@ function Session({
                               accessibilityLabel={option}
                               accessibilityState={{
                                 selected: choices[question] === j,
+                                disabled: busy,
                               }}
+                              disabled={busy}
                               onPress={() =>
                                 setChoices((a) =>
                                   a.map((v, k) => (k === question ? j : v)),
@@ -516,7 +611,7 @@ function Session({
                                 ? "Review my choices"
                                 : "Next question"
                             }
-                            disabled={choices[question] < 0}
+                            disabled={busy || choices[question] < 0}
                             onPress={() =>
                               question === (def?.questions.length || 5) - 1
                                 ? setReview(true)
@@ -527,6 +622,7 @@ function Session({
                             <Button
                               title="Previous question"
                               secondary
+                              disabled={busy}
                               onPress={() => setQuestion(question - 1)}
                             />
                           )}
