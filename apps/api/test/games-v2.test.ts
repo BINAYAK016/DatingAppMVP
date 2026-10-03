@@ -4,6 +4,7 @@ import { spawn, ChildProcess } from "node:child_process";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { resolve } from "node:path";
+import { dropIsolatedDatabase } from "./database-cleanup";
 
 const base =
   process.env.TEST_DATABASE_URL ||
@@ -135,7 +136,7 @@ before(async () => {
 after(async () => {
   await stop();
   await db.end();
-  await admin.query(`DROP DATABASE IF EXISTS ${name} WITH (FORCE)`);
+  await dropIsolatedDatabase(admin, name);
   await admin.end();
 });
 

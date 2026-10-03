@@ -8,6 +8,7 @@ import sharp from "sharp";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
+import { dropIsolatedDatabase } from "./database-cleanup";
 
 const base =
   process.env.TEST_DATABASE_URL ||
@@ -114,7 +115,7 @@ after(async () => {
   server?.kill();
   await new Promise((r) => setTimeout(r, 500));
   await db.end();
-  await admin.query(`DROP DATABASE IF EXISTS ${dbName} WITH (FORCE)`);
+  await dropIsolatedDatabase(admin, dbName);
   await admin.end();
   if (uploads) {
     assert.equal(dirname(resolve(uploads)), resolve(tmpdir()));

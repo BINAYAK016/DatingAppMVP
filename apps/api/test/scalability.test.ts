@@ -2,6 +2,7 @@ import { after, before, beforeEach, test } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
+import { dropIsolatedDatabase } from "./database-cleanup";
 
 // An explicitly owned database is the only mutation target. No API instance,
 // shared fixtures, real recipients or filesystem media are needed for this suite.
@@ -108,7 +109,7 @@ after(async () => {
   await backend?.pool.end();
   await fixtures.end();
   assertIsolated();
-  await admin.query(`DROP DATABASE IF EXISTS ${databaseName} WITH (FORCE)`);
+  await dropIsolatedDatabase(admin, databaseName);
   await admin.end();
 });
 

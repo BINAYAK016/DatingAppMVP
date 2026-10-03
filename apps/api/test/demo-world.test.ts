@@ -5,6 +5,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { Pool } from "pg";
+import { dropIsolatedDatabase } from "./database-cleanup";
 
 // The suite owns its database and private storage. It never starts, resets,
 // truncates, or changes fixtures in the shared local beta database.
@@ -163,7 +164,7 @@ after(async () => {
   await db?.pool.end();
   await fixture.end();
   owned();
-  await admin.query(`DROP DATABASE IF EXISTS ${name} WITH (FORCE)`);
+  await dropIsolatedDatabase(admin, name);
   await admin.end();
   if (storage) {
     ownStorage();

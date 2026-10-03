@@ -5,6 +5,7 @@ import { createServer, Socket } from "node:net";
 import { randomBytes, randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { resolve } from "node:path";
+import { dropIsolatedDatabase } from "./database-cleanup";
 
 const base =
   process.env.TEST_DATABASE_URL ||
@@ -151,7 +152,7 @@ after(async () => {
   for (const socket of sockets) socket.destroy();
   await new Promise<void>((done) => smtp.close(() => done()));
   await db.end();
-  await admin.query(`DROP DATABASE IF EXISTS ${database} WITH (FORCE)`);
+  await dropIsolatedDatabase(admin, database);
   await admin.end();
 });
 

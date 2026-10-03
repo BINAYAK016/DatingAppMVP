@@ -6,6 +6,7 @@ import { Pool } from "pg";
 import { resolve } from "node:path";
 import sharp from "sharp";
 import { finishSignIn, browserCookieName } from "../src/browser-session";
+import { dropIsolatedDatabase } from "./database-cleanup";
 
 const connection =
   process.env.TEST_DATABASE_URL ||
@@ -81,7 +82,7 @@ after(async () => {
   server?.kill();
   await new Promise((done) => setTimeout(done, 400));
   await db.end();
-  await admin.query(`DROP DATABASE IF EXISTS ${database} WITH (FORCE)`);
+  await dropIsolatedDatabase(admin, database);
   await admin.end();
 });
 test("browser sign-in returns no bearer credential; HttpOnly session survives refresh", async () => {

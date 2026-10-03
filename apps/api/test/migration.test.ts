@@ -4,6 +4,7 @@ import { Pool } from "pg";
 import { randomUUID } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { dropIsolatedDatabase } from "./database-cleanup";
 
 test("upgrade preserves legacy pairs and circle data, migrates one-sided consent once, and rejects checksum drift", async () => {
   const base =
@@ -112,7 +113,7 @@ test("upgrade preserves legacy pairs and circle data, migrates one-sided consent
     assert.equal(migrate().status, 1);
   } finally {
     await db.end();
-    await admin.query(`DROP DATABASE ${name} WITH (FORCE)`);
+    await dropIsolatedDatabase(admin, name);
     await admin.end();
   }
 });

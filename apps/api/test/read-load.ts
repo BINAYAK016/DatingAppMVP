@@ -5,6 +5,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { cpus, tmpdir, totalmem } from "node:os";
 import { createServer } from "node:net";
 import { Pool } from "pg";
+import { dropIsolatedDatabase } from "./database-cleanup";
 
 // Run from apps/api after `npm run build`. This harness owns its database, API
 // process and upload directory. Measured requests are read-only projections;
@@ -316,7 +317,7 @@ async function cleanup() {
   await fixtures.end();
   if (created) {
     assertOwnedDatabase();
-    await admin.query(`DROP DATABASE IF EXISTS ${databaseName} WITH (FORCE)`);
+    await dropIsolatedDatabase(admin, databaseName);
   }
   await admin.end();
   if (uploads) {
