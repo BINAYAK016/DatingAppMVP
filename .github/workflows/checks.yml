@@ -36,8 +36,10 @@ jobs:
           DATABASE_URL: postgres://sangai:local-ci-only@localhost:5432/sangai
           NODE_ENV: development
           ENABLE_DEMO: "true"
+          DEMO_MODE: "true"
           ENABLE_GAMES_V2: "true"
           ENABLE_PUSH: "false"
+          WEB_COOKIE_SECURE: "false"
           UPLOAD_DIR: ${{ runner.temp }}/sangai-ui-media
         run: |
           node apps/api/dist/main.js > "$RUNNER_TEMP/sangai-ui-api.log" 2>&1 &
