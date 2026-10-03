@@ -134,6 +134,7 @@ function ChatScreen({ id }: { id: string }) {
   const pending = useRef<{ text: string; id: string } | null>(null);
   const loadSequence = useRef(0);
   const loadFailures = useRef(0);
+  const initialLoad = useRef(true);
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -169,6 +170,20 @@ function ChatScreen({ id }: { id: string }) {
         generation !== accessGeneration.current
       )
         return false;
+      if (initialLoad.current) {
+        initialLoad.current = false;
+        const newest = next.timeline.at(-1);
+        if (newest) {
+          // Like an explicit Send, initial entry must survive estimated cell
+          // heights and layout scroll events until its target is visible.
+          sentFollow.current = {
+            id: newest.id,
+            generation,
+            ready: false,
+          };
+          setFollowSentId(newest.id);
+        }
+      }
       setChat(next);
       setError("");
       loadFailures.current = 0;

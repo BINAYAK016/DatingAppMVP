@@ -196,9 +196,24 @@ test("slow foreground polls share one GET instead of accumulating parallel reque
   ).toBeVisible();
 });
 
-test("refresh preserves an older conversation position and explicit Send reveals the new message after layout growth", async ({
+const historyPositionJourney =
+  "refresh preserves an older conversation position and explicit Send reveals the new message after layout growth";
+test(historyPositionJourney, async ({ page }) => {
+  await checkHistoryPosition(page);
+});
+test(`${historyPositionJourney} with a slower CPU`, async ({
   page,
+  browserName,
 }) => {
+  test.skip(
+    browserName !== "chromium",
+    "CPU throttling uses Chromium DevTools.",
+  );
+  const cpu = await page.context().newCDPSession(page);
+  await cpu.send("Emulation.setCPUThrottlingRate", { rate: 6 });
+  await checkHistoryPosition(page, 12000);
+});
+async function checkHistoryPosition(page: Page, refreshTimeout = 5000) {
   const { data, person, open } = await openDemoChat(page);
   const remembered = Array.from(
     { length: 28 },
@@ -284,7 +299,11 @@ test("refresh preserves an older conversation position and explicit Send reveals
     body: "Synthetic incoming message received while you are reading history",
     created_at: "2026-01-01T01:02:00.000Z",
   });
-  await expect.poll(() => reads).toBeGreaterThan(readBeforeRefresh);
+  // Sixfold CPU throttling can delay the three-second poll and its response;
+  // the initial visibility and preserved-position assertions stay unchanged.
+  await expect
+    .poll(() => reads, { timeout: refreshTimeout })
+    .toBeGreaterThan(readBeforeRefresh);
   await expect(
     page.getByText(
       "Synthetic incoming message received while you are reading history",
@@ -307,7 +326,7 @@ test("refresh preserves an older conversation position and explicit Send reveals
   expect(sent).toHaveLength(1);
   expect(sent[0].body).toBe(message);
   expect(sent[0].clientId).toEqual(expect.any(String));
-});
+}
 
 test("access revoked during Send clears private data and rejects a delayed authorized refresh", async ({
   page,
