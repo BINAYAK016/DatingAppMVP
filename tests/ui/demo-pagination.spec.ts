@@ -85,6 +85,11 @@ async function fixture(page: Page, delayed?: "matches" | "stories") {
   const queries: { kind: string; query: URLSearchParams }[] = [],
     unexpected: string[] = [];
   await page.route("**/v1/**", async (route) => {
+    if (new URL(route.request().url()).pathname === "/v1/auth/session")
+      return route.fulfill({
+        status: 401,
+        json: { message: "Please sign in." },
+      });
     const request = route.request(),
       url = new URL(request.url()),
       path = url.pathname.slice(3);
@@ -108,7 +113,7 @@ async function fixture(page: Page, delayed?: "matches" | "stories") {
     if (path === "/auth/config")
       return reply({ google: false, localMail: true, otpConfigured: true });
     if (path === "/auth/login")
-      return reply({ token: "synthetic-pagination-session" });
+      return reply({ csrfToken: "synthetic-pagination-session" });
     if (path === "/state") {
       stateReads++;
       return reply(state(revoked));

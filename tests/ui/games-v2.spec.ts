@@ -166,6 +166,11 @@ async function fixture(
       },
     });
   await page.route("**/v1/**", async (route) => {
+    if (new URL(route.request().url()).pathname === "/v1/auth/session")
+      return route.fulfill({
+        status: 401,
+        json: { message: "Please sign in." },
+      });
     const request = route.request(),
       path = new URL(request.url()).pathname.slice(3),
       method = request.method();
@@ -209,7 +214,9 @@ async function fixture(
     if (path === "/auth/demo")
       return fulfill(
         route,
-        method === "GET" ? [host] : { token: "synthetic-browser-session-only" },
+        method === "GET"
+          ? [host]
+          : { csrfToken: "synthetic-browser-session-only" },
       );
     if (path === "/state") return fulfill(route, state);
     if (path === "/matches")
@@ -618,7 +625,7 @@ test("the native Android fetch error is readable while the last authorized game 
   }, gameId);
   await expect(
     page.getByText(
-      "Cannot reach the beta server. Check Docker and the server address.",
+      "Cannot reach the beta server. Check your connection and try again.",
       { exact: true },
     ),
   ).toBeVisible({ timeout: 12000 });

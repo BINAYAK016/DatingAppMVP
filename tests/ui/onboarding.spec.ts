@@ -24,7 +24,9 @@ test("email signup verifies through local mail and saves all five onboarding ste
   let token = "";
   page.on("response", async (response) => {
     if (/\/v1\/auth\/(register|login)$/.test(response.url()) && response.ok()) {
-      token = (await response.json()).token;
+      // Browser sign-in returns a CSRF handle; cleanup uses a separate native
+      // login below when the original response intentionally has no bearer.
+      token = (await response.json()).token || "browser-cleanup-required";
     }
   });
   try {

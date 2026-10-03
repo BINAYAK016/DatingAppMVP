@@ -9,6 +9,9 @@
     "check": "npm run typecheck --prefix apps/api && npm run typecheck --prefix apps/mobile",
     "test": "npm test --prefix apps/api",
     "test:ui": "playwright test",
+    "web:build": "node scripts/build-web.mjs --local",
+    "web:build:remote": "node scripts/build-web.mjs",
+    "web:preview": "node scripts/ui-preview.mjs",
     "test:session": "node apps/api/node_modules/tsx/dist/cli.mjs --test tests/session-credentials.test.ts"
   },
   "devDependencies": {

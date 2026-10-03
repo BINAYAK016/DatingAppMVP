@@ -68,6 +68,11 @@ async function mockNormalSession(
   // Every endpoint for these two store/routing cases is intercepted; no server
   // user, credential, fixture match or external provider request is created.
   await page.route("**/v1/**", async (route) => {
+    if (new URL(route.request().url()).pathname === "/v1/auth/session")
+      return route.fulfill({
+        status: 401,
+        json: { message: "Please sign in." },
+      });
     const path = new URL(route.request().url()).pathname;
     if (path === "/v1/demo/config")
       return route.fulfill({ json: normalConfig });
@@ -76,7 +81,7 @@ async function mockNormalSession(
         json: { google: false, localMail: true, otpConfigured: true },
       });
     if (["/v1/auth/login", "/v1/auth/register"].includes(path))
-      return route.fulfill({ json: { token: "synthetic-auth-session" } });
+      return route.fulfill({ json: { csrfToken: "synthetic-auth-session" } });
     if (path === "/v1/state") {
       if (unavailableState()) return route.abort();
       return route.fulfill({ json: completedNormalAccount });

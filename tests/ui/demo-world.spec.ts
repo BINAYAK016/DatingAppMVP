@@ -93,6 +93,11 @@ async function worldFixture(
     games: [],
   });
   await page.route("**/v1/**", async (route) => {
+    if (new URL(route.request().url()).pathname === "/v1/auth/session")
+      return route.fulfill({
+        status: 401,
+        json: { message: "Please sign in." },
+      });
     const request = route.request(),
       url = new URL(request.url()),
       path = url.pathname.slice(3),
@@ -149,7 +154,7 @@ async function worldFixture(
       selected = groups
         .flatMap((group) => people[group])
         .find((person) => person.id === id)!;
-      return reply({ token: `synthetic-demo-${id}` });
+      return reply({ csrfToken: `synthetic-demo-${id}` });
     }
     if (path === "/state") return reply(state());
     if (path === "/demo/reset") {
@@ -428,13 +433,9 @@ test("demo configuration and selector outages have retry recovery without flashi
   await expect(
     page.getByRole("button", { name: "Continue with email", exact: true }),
   ).toHaveCount(0);
-  await page
-    .getByRole("button", { name: "Connection settings", exact: true })
-    .click();
   await expect(
-    page.getByRole("textbox", { name: "Backend URL", exact: true }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Close sheet", exact: true }).click();
+    page.getByRole("button", { name: "Connection settings", exact: true }),
+  ).toHaveCount(0);
   await page.getByRole("button", { name: "Retry", exact: true }).click();
   await page
     .getByRole("button", { name: "Retry loading demos", exact: true })

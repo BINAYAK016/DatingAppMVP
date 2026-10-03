@@ -103,6 +103,11 @@ test("carousel keeps the fifth photo aligned through rotation and resets changed
   };
   const unexpected: string[] = [];
   await page.route("**/v1/**", async (route) => {
+    if (new URL(route.request().url()).pathname === "/v1/auth/session")
+      return route.fulfill({
+        status: 401,
+        json: { message: "Please sign in." },
+      });
     const path = new URL(route.request().url()).pathname;
     const method = route.request().method();
     if (path === "/v1/demo/config")
@@ -131,7 +136,9 @@ test("carousel keeps the fifth photo aligned through rotation and resets changed
     if (path === "/v1/auth/demo")
       return route.fulfill({
         json:
-          method === "GET" ? [person] : { token: "synthetic-carousel-session" },
+          method === "GET"
+            ? [person]
+            : { csrfToken: "synthetic-carousel-session" },
       });
     if (path === "/v1/auth/config")
       return route.fulfill({ json: { google: false } });

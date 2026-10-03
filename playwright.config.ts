@@ -5,7 +5,7 @@ export default defineConfig({
   workers: 1,
   reporter: "list",
   use: {
-    baseURL: "http://localhost:8081",
+    baseURL: process.env.SANGAI_WEB_TEST_URL || "http://localhost:8081",
     viewport: { width: 412, height: 915 },
     headless: true,
     channel: process.env.PLAYWRIGHT_CHANNEL as "chrome" | undefined,
