@@ -3,7 +3,6 @@ import {
   ActivityIndicator,
   AppState,
   Image,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -14,7 +13,14 @@ import {
 import { router, useLocalSearchParams, useNavigation } from "expo-router";
 import { usePreventRemove } from "expo-router/react-navigation";
 import { randomUUID } from "expo-crypto";
-import * as ImagePicker from "expo-image-picker";
+import {
+  pickMedia,
+  recoverPickedMedia,
+  autoOpenCamera,
+  releasePickedMedia,
+  cameraHint,
+} from "../lib/media";
+import type * as ImagePicker from "expo-image-picker";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import { useVideoPlayer, VideoView } from "expo-video";
 import {
@@ -45,6 +51,18 @@ export default function Compose() {
     navigation = useNavigation();
   const [body, setBody] = useState("");
   const [assets, setAssets] = useState<ImagePicker.ImagePickerAsset[]>([]);
+  const previousAssets = useRef<ImagePicker.ImagePickerAsset[]>([]);
+  useEffect(() => {
+    for (const old of previousAssets.current)
+      if (!assets.some((item) => item.uri === old.uri)) releasePickedMedia(old);
+    previousAssets.current = assets;
+  }, [assets]);
+  useEffect(
+    () => () => {
+      previousAssets.current.forEach(releasePickedMedia);
+    },
+    [],
+  );
   const [selected, setSelected] = useState(0),
     [busy, setBusy] = useState(false),
     [picking, setPicking] = useState(false);
@@ -124,15 +142,6 @@ export default function Compose() {
       setPicking(true);
       try {
         const nativeCamera = mode === "camera" || mode === "record";
-        if (nativeCamera && Platform.OS !== "web") {
-          const permission = await ImagePicker.requestCameraPermissionsAsync();
-          if (!permission.granted) {
-            st.toast(
-              "Allow camera access in Settings, or choose from your photos.",
-            );
-            return;
-          }
-        }
         const video = mode === "video" || mode === "record";
         const options: ImagePicker.ImagePickerOptions = {
           mediaTypes: video ? ["videos"] : ["images"],
@@ -146,9 +155,7 @@ export default function Compose() {
             kind === "post" && !video ? Math.max(1, 6 - assets.length) : 1,
         };
         accept(
-          nativeCamera
-            ? await ImagePicker.launchCameraAsync(options)
-            : await ImagePicker.launchImageLibraryAsync(options),
+          await pickMedia(options, nativeCamera),
           !nativeCamera && kind === "post" && !video,
         );
       } catch (e: any) {
@@ -164,16 +171,12 @@ export default function Compose() {
     if (cameraOpened.current) return;
     cameraOpened.current = true;
     void (async () => {
-      if (Platform.OS === "android") {
-        const pending = await ImagePicker.getPendingResultAsync();
-        if (pending && "assets" in pending && pending.assets) {
-          accept(pending as ImagePicker.ImagePickerResult);
-          return;
-        }
-        if (pending && "message" in pending)
-          st.toast("Your camera couldn’t finish. Please try again.");
+      const pending = await recoverPickedMedia();
+      if (pending && !pending.canceled) {
+        accept(pending);
+        return;
       }
-      if (camera === "photo" && kind === "snap" && Platform.OS !== "web")
+      if (camera === "photo" && kind === "snap" && autoOpenCamera)
         await pick("camera");
     })().catch(() =>
       st.toast("Your camera couldn’t open. You can still choose a photo."),
@@ -511,6 +514,9 @@ export default function Compose() {
             />
           )}
         </View>
+      )}
+      {!!cameraHint && (kind === "snap" || kind === "story") && (
+        <Text style={[s.small, { marginTop: 12 }]}>{cameraHint}</Text>
       )}
       {(kind === "snap" || kind === "story") && (
         <View style={[s.row, { marginTop: 12 }]}>

@@ -6,27 +6,34 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { AppState, Platform } from "react-native";
-import * as SecureStore from "expo-secure-store";
+import {
+  browserAuth,
+  apiHeaders,
+  apiCredentials,
+  resumeSession,
+  sessionFromSignIn,
+  checkSession,
+} from "./auth";
+import {
+  restoreCredentials,
+  saveCredentials,
+  clearCredentials,
+  saveServer,
+} from "./storage";
+import { defaultServer, connectionSettingsEnabled } from "./connection";
+import { isForeground, listenForResume } from "./lifecycle";
 import { State } from "./types";
 import { DemoConfig } from "./demo";
 import { clearGameDrafts } from "./gameDrafts";
 import { clearGameConversations } from "./gameChatBridge";
-import {
-  readSessionCredentials,
-  writeSessionCredentials,
-  clearSessionCredentials,
-} from "./sessionCredentials";
-const DEFAULT_URL =
-  process.env.EXPO_PUBLIC_API_URL ||
-  (Platform.OS === "android"
-    ? "http://10.0.2.2:4100"
-    : "http://localhost:4100");
+const DEFAULT_URL = defaultServer;
 type Store = {
   data: State | null;
   token: string | null;
   url: string;
   ready: boolean;
+  bootstrapError: string;
+  retryBootstrap: () => void;
   loading: boolean;
   notice: string;
   sessionError: string;
@@ -65,6 +72,13 @@ export function Provider({ children }: { children: React.ReactNode }) {
   const [sessionLoading, setSessionLoading] = useState(false);
   const [sessionKey, setSessionKey] = useState(0);
   const [storageWarning, setStorageWarning] = useState(false);
+  const [bootstrapError, setBootstrapError] = useState("");
+  const [bootstrapAttempt, setBootstrapAttempt] = useState(0);
+  const retryBootstrap = () => {
+    setReady(false);
+    setBootstrapError("");
+    setBootstrapAttempt((n) => n + 1);
+  };
   const [demoMode, setDemoMode] = useState<boolean | null>(null);
   const [demoConfig, setDemoConfig] = useState<DemoConfig | null>(null);
   const [demoConfigError, setDemoConfigError] = useState("");
@@ -98,14 +112,12 @@ export function Provider({ children }: { children: React.ReactNode }) {
     let mounted = true;
     (async () => {
       try {
-        if (Platform.OS !== "web") {
-          const server =
-            (await SecureStore.getItemAsync("sangai-server")) || DEFAULT_URL;
-          const restored = await readSessionCredentials(
-            SecureStore,
-            server,
-            DEFAULT_URL,
-          );
+        {
+          const saved = await restoreCredentials(DEFAULT_URL);
+          const server = saved.server;
+          const restored = browserAuth
+            ? await resumeSession(server)
+            : saved.session;
           if (!mounted) return;
           urlRef.current = server;
           setUrlValue(server);
@@ -113,8 +125,16 @@ export function Provider({ children }: { children: React.ReactNode }) {
           setToken(tokenRef.current);
         }
       } catch {
-        if (mounted)
-          toast("Could not restore your saved sign-in. Please sign in again.");
+        if (mounted) {
+          if (browserAuth)
+            setBootstrapError(
+              "We couldn’t restore your sign-in. Check your connection and try again.",
+            );
+          else
+            toast(
+              "Could not restore your saved sign-in. Please sign in again.",
+            );
+        }
       } finally {
         if (mounted) setReady(true);
       }
@@ -122,16 +142,16 @@ export function Provider({ children }: { children: React.ReactNode }) {
     return () => {
       mounted = false;
     };
-  }, [toast]);
+  }, [toast, bootstrapAttempt]);
   const saveToken = useCallback(
     async (t: string | null) => {
       const started = epoch.current,
         server = urlRef.current;
-      if (t && Platform.OS !== "web") {
+      if (t) {
         await persistCredentials(async () => {
           if (started !== epoch.current || server !== urlRef.current)
             throw new Error("Your session changed. Please sign in again.");
-          await writeSessionCredentials(SecureStore, server, t);
+          await saveCredentials(server, t);
         });
         if (started !== epoch.current || server !== urlRef.current)
           throw new Error("Your session changed. Please sign in again.");
@@ -156,10 +176,10 @@ export function Provider({ children }: { children: React.ReactNode }) {
       setToken(t);
       setData(null);
       setSessionError("");
-      if (!t && Platform.OS !== "web") {
+      if (!t) {
         try {
           await persistCredentials(async () => {
-            await clearSessionCredentials(SecureStore);
+            await clearCredentials();
           });
           setStorageWarning(false);
         } catch {
@@ -170,6 +190,7 @@ export function Provider({ children }: { children: React.ReactNode }) {
     [toast, persistCredentials],
   );
   const setUrl = (s: string) => {
+    if (!connectionSettingsEnabled) return;
     const value = s.trim().replace(/\/$/, "");
     try {
       const parsed = new URL(value);
@@ -194,12 +215,9 @@ export function Provider({ children }: { children: React.ReactNode }) {
     // A bearer token belongs to its server and must never follow an address change.
     void saveToken(null);
     setUrlValue(value);
-    if (Platform.OS !== "web")
-      void persistCredentials(() =>
-        SecureStore.setItemAsync("sangai-server", value),
-      ).catch(() =>
-        toast("Server changed for this session. Could not save the address."),
-      );
+    void persistCredentials(() => saveServer(value)).catch(() =>
+      toast("Server changed for this session. Could not save the address."),
+    );
   };
   const request = useCallback(
     <T = any,>(path: string, body?: unknown, method?: string): Promise<T> => {
@@ -220,15 +238,15 @@ export function Provider({ children }: { children: React.ReactNode }) {
         try {
           const response = await fetch(server + "/v1" + path, {
             method: verb,
+            credentials: apiCredentials,
             headers: {
               "Content-Type": "application/json",
-              ...(requestToken
-                ? { Authorization: "Bearer " + requestToken }
-                : {}),
+              ...apiHeaders(requestToken),
             },
             body: body === undefined ? undefined : JSON.stringify(body),
             signal: controller.signal,
           });
+          if (!path.startsWith("/auth/")) checkSession(response, requestToken);
           let result: any;
           try {
             result = await response.json();
@@ -273,13 +291,21 @@ export function Provider({ children }: { children: React.ReactNode }) {
           return result;
         } catch (e: any) {
           if (
+            e?.name === "BrowserSessionChangedError" &&
+            started === epoch.current
+          ) {
+            await saveToken(null);
+            setReady(false);
+            setBootstrapAttempt((n) => n + 1);
+          }
+          if (
             e?.name === "AbortError" ||
             /fetch failed|failed to fetch|network request failed|ConnectException|ECONNREFUSED/i.test(
               String(e?.message || ""),
             )
           )
             throw new Error(
-              "Cannot reach the beta server. Check Docker and the server address.",
+              "Cannot reach the beta server. Check your connection and try again.",
             );
           throw e;
         } finally {
@@ -446,29 +472,41 @@ export function Provider({ children }: { children: React.ReactNode }) {
     if (!token) return;
     const first = setTimeout(() => void refresh(), 0);
     const t = setInterval(() => {
-      if (AppState.currentState === "active" && !refreshFlight.current)
-        void refresh();
+      if (isForeground() && !refreshFlight.current) void refresh();
     }, 12000);
-    const listener = AppState.addEventListener("change", (state) => {
-      if (state === "active") void refresh();
-    });
+    const unsubscribe = listenForResume(() => void refresh());
     return () => {
       clearTimeout(first);
       clearInterval(t);
-      listener.remove();
+      unsubscribe();
     };
   }, [token, refresh]);
   const signIn = async (path: string, body: unknown) => {
     setLoading(true);
     try {
-      const result = await request<{ token: string }>(path, body);
-      await saveToken(result.token);
+      const result = await request<{ token?: string; csrfToken?: string }>(
+        path,
+        body,
+      );
+      await saveToken(sessionFromSignIn(result));
       await refresh();
     } finally {
       setLoading(false);
     }
   };
   const signOut = async () => {
+    if (browserAuth) {
+      // A failed request cannot clear an HttpOnly cookie. Keep the account
+      // visible and let the user retry instead of claiming persistent logout.
+      try {
+        if (tokenRef.current) await request("/logout", {});
+      } catch (error) {
+        toast("Could not sign out. Reconnect and try again.");
+        throw error;
+      }
+      await saveToken(null);
+      return;
+    }
     try {
       if (tokenRef.current) await request("/logout", {});
     } finally {
@@ -506,6 +544,8 @@ export function Provider({ children }: { children: React.ReactNode }) {
         token,
         url,
         ready,
+        bootstrapError,
+        retryBootstrap,
         loading,
         notice,
         sessionError,

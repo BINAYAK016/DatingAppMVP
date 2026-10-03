@@ -1,3 +1,4 @@
+import { apiHeaders, apiCredentials, checkSession } from "../lib/auth";
 import React, {
   useCallback,
   useEffect,
@@ -129,7 +130,7 @@ function MomentSlot({
   const nativeSource = useMemo<VideoSource>(
     () => ({
       uri: `${url}/v1/media/${item.media_id}`,
-      headers: { Authorization: `Bearer ${token}` },
+      headers: apiHeaders(token),
       useCaching: false,
     }),
     [url, token, item.media_id],
@@ -199,9 +200,11 @@ function FetchedMoment({
     let disposed = false;
     void (async () => {
       const response = await fetch(`${url}/v1/media/${item.media_id}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: apiHeaders(token),
+        credentials: apiCredentials,
         signal: controller.signal,
       });
+      checkSession(response, token);
       if (!response.ok) throw new Error("Unavailable");
       const mime = response.headers.get("content-type") || "";
       if (item.kind === "video") {

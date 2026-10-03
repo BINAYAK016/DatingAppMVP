@@ -9,10 +9,10 @@ import {
 } from "react-native";
 import { Redirect, router } from "expo-router";
 import { GoogleAuth } from "../components/GoogleAuth";
-import { AuthRecovery } from "../components/AuthRecovery";
 import { DemoConfigRecovery } from "../components/DemoConnection";
 import { authMessage } from "../lib/authMessage";
 import { useStore } from "../lib/store";
+import { connectionSettingsEnabled } from "../lib/connection";
 import {
   BottomSheet,
   Button,
@@ -60,9 +60,9 @@ export default function Welcome() {
     }, 0);
     return () => clearTimeout(reset);
   }, [st.token]);
-  if (!st.ready) return <Loading />;
+  if (!st.ready || st.bootstrapError) return <Loading />;
   if (st.token && st.data) return <Redirect href="/(tabs)" />;
-  if (st.token) return <AuthRecovery />;
+  if (st.token) return <Loading />;
   if (st.demoMode === null) return <DemoConfigRecovery />;
   if (st.demoMode) return <Redirect href="/demo" />;
   const submit = async () => {
@@ -282,18 +282,20 @@ export default function Welcome() {
               Privacy, safety & beta terms
             </Text>
           </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => {
-              setServer(st.url);
-              setSettings(!settings);
-            }}
-            style={styles.footerLink}
-          >
-            <Text style={[s.small, { textAlign: "center" }]}>
-              Local beta · Connection settings
-            </Text>
-          </Pressable>
+          {connectionSettingsEnabled && (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                setServer(st.url);
+                setSettings(!settings);
+              }}
+              style={styles.footerLink}
+            >
+              <Text style={[s.small, { textAlign: "center" }]}>
+                Local beta · Connection settings
+              </Text>
+            </Pressable>
+          )}
         </View>
       </Page>
       <BottomSheet

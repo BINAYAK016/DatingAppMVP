@@ -41,7 +41,7 @@ export function AuthRecovery() {
           try {
             await st.signOut();
           } catch {
-            /* Local session is cleared even when offline. */
+            /* The store reports a failed logout and preserves browser sign-in for retry. */
           } finally {
             setLeaving(false);
           }

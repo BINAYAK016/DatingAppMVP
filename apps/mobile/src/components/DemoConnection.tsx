@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Text, View } from "react-native";
 import { useStore } from "../lib/store";
+import { connectionSettingsEnabled } from "../lib/connection";
 import { BottomSheet, Button, Field, Header, Icon, Page, s, C } from "./ui";
 
 export function DemoConnectionSettings({
@@ -10,7 +11,9 @@ export function DemoConnectionSettings({
   visible: boolean;
   onClose: () => void;
 }) {
-  return visible ? <ConnectionForm onClose={onClose} /> : null;
+  return visible && connectionSettingsEnabled ? (
+    <ConnectionForm onClose={onClose} />
+  ) : null;
 }
 
 function ConnectionForm({ onClose }: { onClose: () => void }) {
@@ -61,11 +64,13 @@ export function DemoConfigRecovery() {
           onPress={() => void st.loadDemoConfig()}
         />
         <View style={{ height: 12 }} />
-        <Button
-          title="Connection settings"
-          secondary
-          onPress={() => setSettings(true)}
-        />
+        {connectionSettingsEnabled && (
+          <Button
+            title="Connection settings"
+            secondary
+            onPress={() => setSettings(true)}
+          />
+        )}
       </Page>
       <DemoConnectionSettings
         visible={settings}

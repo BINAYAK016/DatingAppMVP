@@ -1,3 +1,4 @@
+import { apiHeaders, apiCredentials, checkSession } from "../lib/auth";
 import React, { useEffect, useRef, useState } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 import { useVideoPlayer, VideoView, VideoSource } from "expo-video";
@@ -22,7 +23,7 @@ export function FeedVideo({ id }: { id: string }) {
       onRetry={() => setAttempt((n) => n + 1)}
       source={{
         uri: `${url}/v1/media/${id}`,
-        headers: { Authorization: `Bearer ${token}` },
+        headers: apiHeaders(token),
       }}
     />
   );
@@ -35,10 +36,12 @@ function BrowserVideo({ id, onRetry }: { id: string; onRetry: () => void }) {
     const controller = new AbortController();
     let blobUrl: string | undefined;
     fetch(`${url}/v1/media/${id}`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: apiHeaders(token),
+      credentials: apiCredentials,
       signal: controller.signal,
     })
       .then(async (r) => {
+        checkSession(r, token);
         if (!r.ok) throw new Error();
         const blob = await r.blob();
         if (controller.signal.aborted) return;

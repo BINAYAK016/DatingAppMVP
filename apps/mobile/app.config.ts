@@ -1,4 +1,5 @@
 import type { ExpoConfig, ConfigContext } from "expo/config";
+const allowLocalHttp = process.env.SANGAI_ALLOW_LOCAL_HTTP === "true";
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
   name: "Sangai Beta",
@@ -12,10 +13,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     supportsTablet: true,
     bundleIdentifier: "com.sangai.beta",
     infoPlist: {
-      NSAppTransportSecurity: {
-        NSAllowsLocalNetworking: true,
-        NSAllowsArbitraryLoads: true,
-      },
+      ...(allowLocalHttp
+        ? {
+            NSAppTransportSecurity: {
+              NSAllowsLocalNetworking: true,
+              NSAllowsArbitraryLoads: true,
+            },
+          }
+        : {}),
     },
   },
   android: {
@@ -26,7 +31,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       backgroundColor: "#FBE4EB",
     },
   },
-  web: { favicon: "./assets/sangai-icon.png" },
+  web: { favicon: "./assets/sangai-icon.png", output: "single" },
   plugins: [
     ...(process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID
       ? [
@@ -47,7 +52,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-secure-store",
     "expo-video",
     "expo-notifications",
-    ["expo-build-properties", { android: { usesCleartextTraffic: true } }],
+    [
+      "expo-build-properties",
+      { android: { usesCleartextTraffic: allowLocalHttp } },
+    ],
     [
       "expo-image-picker",
       {

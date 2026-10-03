@@ -1,5 +1,4 @@
-import { Platform } from "react-native";
-import * as SecureStore from "expo-secure-store";
+import { draftStorage } from "./storage";
 import { clearGameConversations } from "./gameChatBridge";
 
 const indexKey = "sangai.game-draft-index.v2";
@@ -20,16 +19,11 @@ const currentScope = (account: string, scope: GameDraftScope) =>
 const keyFor = (account: string, id: string) =>
   `sangai.game-draft.v2.${account}.${id}`;
 async function get(key: string) {
-  return Platform.OS === "web"
-    ? sessionStorage.getItem(key)
-    : SecureStore.getItemAsync(key);
+  return draftStorage.getItemAsync(key);
 }
 async function put(key: string, value: string | null) {
-  if (Platform.OS === "web") {
-    if (value === null) sessionStorage.removeItem(key);
-    else sessionStorage.setItem(key, value);
-  } else if (value === null) await SecureStore.deleteItemAsync(key);
-  else await SecureStore.setItemAsync(key, value);
+  if (value === null) await draftStorage.deleteItemAsync(key);
+  else await draftStorage.setItemAsync(key, value);
 }
 export async function readGameDraft<T>(
   account: string,

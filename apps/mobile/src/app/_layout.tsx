@@ -1,17 +1,29 @@
 import React, { useEffect } from "react";
 import { Stack, router, usePathname, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { Text, View, Platform } from "react-native";
-import * as Notifications from "expo-notifications";
+import { Text, View } from "react-native";
+import { AppFrame } from "../components/AppFrame";
+import { NotificationListener } from "../components/NotificationListener";
+import { AuthRecovery } from "../components/AuthRecovery";
 import {
   SafeAreaProvider,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { Provider, useStore } from "../lib/store";
-import { C, humanMessage, Button } from "../components/ui";
+import { C, humanMessage, Button, Loading } from "../components/ui";
 import { useReducedMotion } from "../lib/useReducedMotion";
 function Shell() {
-  const { notice, token, ready, storageWarning, clearSavedSignIn } = useStore();
+  const {
+    notice,
+    token,
+    data,
+    ready,
+    storageWarning,
+    clearSavedSignIn,
+    bootstrapError,
+    retryBootstrap,
+  } = useStore();
+  const covered = !ready || !!bootstrapError || (!!token && !data);
   const pathname = usePathname();
   const segments = useSegments();
   const group = segments[0];
@@ -23,42 +35,72 @@ function Shell() {
       pathname === "/welcome" ||
       pathname === "/demo" ||
       pathname === "/reset-password";
-    if (ready && !token && !publicRoute) router.replace("/welcome");
-  }, [ready, token, pathname, group]);
-  useEffect(() => {
-    if (Platform.OS === "web" || !token) return;
-    const redirect = (response: Notifications.NotificationResponse) => {
-      if (response.notification.request.content.data?.url === "/(tabs)/chat")
-        router.push("/(tabs)/chat");
-    };
-    const last = Notifications.getLastNotificationResponse();
-    if (last) {
-      redirect(last);
-      Notifications.clearLastNotificationResponse();
-    }
-    const listener =
-      Notifications.addNotificationResponseReceivedListener(redirect);
-    return () => listener.remove();
-  }, [token]);
+    if (ready && !bootstrapError && !token && !publicRoute)
+      router.replace("/welcome");
+  }, [ready, token, pathname, group, bootstrapError]);
   return (
     <>
       <StatusBar style="dark" />
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: C.bg },
-          animation: reduced ? "none" : "slide_from_right",
-        }}
+      <NotificationListener />
+      <View
+        style={{ flex: 1 }}
+        aria-hidden={covered}
+        importantForAccessibility={covered ? "no-hide-descendants" : "auto"}
+        pointerEvents={covered ? "none" : "auto"}
       >
-        <Stack.Screen
-          name="games"
-          options={{
-            presentation: "transparentModal",
-            animation: "none",
-            contentStyle: { backgroundColor: "transparent" },
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: C.bg },
+            animation: reduced ? "none" : "slide_from_right",
           }}
-        />
-      </Stack>
+        >
+          <Stack.Screen
+            name="games"
+            options={{
+              presentation: "transparentModal",
+              animation: "none",
+              contentStyle: { backgroundColor: "transparent" },
+            }}
+          />
+        </Stack>
+      </View>
+      {covered && !bootstrapError && (
+        <View
+          style={{
+            position: "absolute",
+            inset: 0,
+            backgroundColor: C.bg,
+            zIndex: 200,
+          }}
+        >
+          {ready && token ? <AuthRecovery /> : <Loading />}
+        </View>
+      )}
+      {!!bootstrapError && (
+        <View
+          style={{
+            position: "absolute",
+            inset: 0,
+            backgroundColor: C.bg,
+            zIndex: 200,
+            justifyContent: "center",
+            padding: 28,
+            gap: 20,
+          }}
+        >
+          <Text style={{ color: C.ink, fontSize: 26, fontWeight: "600" }}>
+            Let’s reconnect
+          </Text>
+          <Text
+            accessibilityRole="alert"
+            style={{ color: C.muted, fontSize: 16, lineHeight: 25 }}
+          >
+            {bootstrapError}
+          </Text>
+          <Button title="Retry connection" onPress={retryBootstrap} />
+        </View>
+      )}
       {!token && storageWarning && (
         <View
           style={{
@@ -112,7 +154,9 @@ export default function Layout() {
   return (
     <SafeAreaProvider>
       <Provider>
-        <Shell />
+        <AppFrame>
+          <Shell />
+        </AppFrame>
       </Provider>
     </SafeAreaProvider>
   );

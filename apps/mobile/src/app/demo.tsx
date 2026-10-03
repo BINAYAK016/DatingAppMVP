@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { connectionSettingsEnabled } from "../lib/connection";
 import { Redirect, router } from "expo-router";
 import { DemoAvatarArt } from "../components/DemoAvatarArt";
 import {
@@ -23,7 +24,7 @@ import { useStore } from "../lib/store";
 
 export default function Demo() {
   const st = useStore();
-  if (!st.ready) return <Loading />;
+  if (!st.ready || st.bootstrapError) return <Loading />;
   if (st.demoMode === null) return <DemoConfigRecovery />;
   if (!st.demoMode)
     return <Redirect href={st.token ? "/(tabs)" : "/welcome"} />;
@@ -126,11 +127,13 @@ function DemoSelector() {
           onEnter={enter}
         />
         <View style={{ gap: 12, marginTop: 20 }}>
-          <Button
-            title="Connection settings"
-            secondary
-            onPress={() => setSettings(true)}
-          />
+          {connectionSettingsEnabled && (
+            <Button
+              title="Connection settings"
+              secondary
+              onPress={() => setSettings(true)}
+            />
+          )}
           <Pressable
             accessibilityRole="link"
             onPress={() => void Linking.openURL(st.url + "/policies")}

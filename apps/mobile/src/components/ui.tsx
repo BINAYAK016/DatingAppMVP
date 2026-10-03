@@ -1,3 +1,4 @@
+import { apiHeaders, apiCredentials, checkSession } from "../lib/auth";
 import React, { useEffect, useState } from "react";
 import {
   Animated,
@@ -211,7 +212,9 @@ export function PersonImage({
   if (person.avatar_id)
     return <PrivateImage id={person.avatar_id} style={frame} />;
   if (person.demo)
-    return <DemoAvatarArt person={person} style={frame as StyleProp<ViewStyle>} />;
+    return (
+      <DemoAvatarArt person={person} style={frame as StyleProp<ViewStyle>} />
+    );
   return (
     <LinearGradient
       colors={[person.color || C.peach, C.blush]}
@@ -244,7 +247,7 @@ export function Video({
     <VideoPlayerFrame
       source={{
         uri: `${url}/v1/media/${id}`,
-        headers: { Authorization: `Bearer ${token}` },
+        headers: apiHeaders(token),
       }}
       style={style}
       allowFullscreen={allowFullscreen}
@@ -270,10 +273,12 @@ function BrowserPrivateVideo({
     // HTML video cannot attach the native player's Authorization headers.
     // Keep the authenticated response in memory and release it on close.
     void fetch(`${url}/v1/media/${id}`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: apiHeaders(token),
+      credentials: apiCredentials,
       signal: controller.signal,
     })
       .then(async (response) => {
+        checkSession(response, token);
         if (!response.ok) throw new Error("Video unavailable");
         const blob = await response.blob();
         if (controller.signal.aborted) return;
@@ -369,10 +374,12 @@ export function PrivateImage({
       const response = await fetch(
         `${url}/v1/media/${id}${thumbnail ? "?thumbnail=1" : ""}`,
         {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: apiHeaders(token),
+          credentials: apiCredentials,
           signal: controller.signal,
         },
       );
+      checkSession(response, token);
       if (!response.ok) throw new Error("Photo unavailable");
       const mime = response.headers.get("content-type") || "";
       if (!mime.startsWith("image/")) throw new Error("Invalid photo");
@@ -712,12 +719,12 @@ export function Skeleton({
         Animated.timing(opacity, {
           toValue: 1,
           duration: 900,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== "web",
         }),
         Animated.timing(opacity, {
           toValue: 0.55,
           duration: 900,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== "web",
         }),
       ]),
     );

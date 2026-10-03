@@ -3,7 +3,6 @@ import { View } from "react-native";
 import { Tabs, Redirect } from "expo-router";
 import { useStore } from "../../lib/store";
 import { C, Icon, Loading } from "../../components/ui";
-import { AuthRecovery } from "../../components/AuthRecovery";
 import { DemoBar } from "../../components/DemoBar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 export default function Layout() {
@@ -11,7 +10,7 @@ export default function Layout() {
   const insets = useSafeAreaInsets();
   if (!ready) return <Loading />;
   if (!token) return <Loading />;
-  if (!data) return <AuthRecovery />;
+  if (!data) return <Loading />;
   if (!data.me.demo && (!data.me.email_verified_at || !data.me.onboarded_at))
     return <Redirect href="/onboarding" />;
   return (
