@@ -88,8 +88,15 @@ async function signup(name: string) {
   assert.equal(result.status, 201);
   return { token: result.data.token, id: result.data.user.id };
 }
+const decodedMessage = (message: string) =>
+  message
+    .replace(/=\r?\n/g, "")
+    .replace(/=([\da-f]{2})/gi, (_, hex: string) =>
+      String.fromCharCode(parseInt(hex, 16)),
+    );
 const codeIn = (message: string) => {
-  const code = message.match(/\b\d{6}\b/)?.[0];
+  // Select the text-body code, not six coincidental digits in a MIME boundary.
+  const code = decodedMessage(message).match(/code is:\s+(\d{6})\b/)?.[1];
   assert.ok(code);
   return code;
 };
@@ -154,6 +161,16 @@ test("six-digit delivery, honest resend cooldown, replacement, atomic consumptio
   assert.equal(initial.status, 201);
   assert.equal(initial.data.sent, true);
   const oldCode = codeIn(messages.at(-1)!);
+  const delivered = decodedMessage(messages.at(-1)!);
+  assert.match(delivered, /Content-Type: multipart\/alternative/i);
+  assert.match(delivered, /Content-Type: text\/plain/i);
+  assert.match(delivered, /Content-Type: text\/html/i);
+  assert.match(delivered, /Subject: Your Sangai verification code/);
+  assert.match(delivered, /Auto-Submitted: auto-generated/i);
+  assert.match(delivered, /Verify your email/);
+  assert.match(delivered, /Expires in 15 minutes/);
+  assert.match(delivered, /Keep this code private/);
+  assert.doesNotMatch(delivered, /<img\b|<script\b|<iframe\b|https?:\/\//i);
   assert.equal(JSON.stringify(initial.data).includes(oldCode), false);
   const stored = (
     await db.query("SELECT * FROM auth_challenges WHERE user_id=$1", [user.id])
@@ -287,6 +304,12 @@ test("password recovery uses one-time codes, hides address existence and invalid
     email: "no-such-fixture@example.test",
   });
   assert.equal(known.status, unknown.status);
+  assert.match(messages.at(-1)!, /Subject: Your Sangai password reset code/);
+  assert.match(messages.at(-1)!, /Content-Type: multipart\/alternative/i);
+  assert.match(
+    decodedMessage(messages.at(-1)!),
+    /Your password will remain unchanged/,
+  );
   assert.equal(known.data.message, unknown.data.message);
   assert.deepEqual(Object.keys(known.data), Object.keys(unknown.data));
   const updated = await call("/auth/reset", undefined, {

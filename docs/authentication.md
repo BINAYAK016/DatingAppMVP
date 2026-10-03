@@ -13,6 +13,8 @@ docker compose up --build -d
 
 Mailpit at `http://localhost:8025` captures local verification/reset email. It does **not** deliver to external inboxes. The app sends a verification email automatically on the verification screen, accepts a six-digit code with paste/autofill, shows resend timing, and reports invalid, expired or exhausted codes inline. No code is returned by an API or shown as a development shortcut in the app.
 
+Verification and password reset now send a Sangai-branded HTML email with a matching plain-text alternative. Both include a selectable six-digit code, the 15-minute expiry, single-use guidance and instructions for unexpected requests. The email has a generic preheader, no code in its subject, no private profile details, remote images, tracking or links to a development server. Small-screen styling supplements an inline-styled table layout; clients without HTML can use the same code from the text part.
+
 ## OTP behavior
 
 - Cryptographically random six-digit codes expire after 15 minutes and work once. HMAC hashes bind codes to their challenge, account and purpose. The server-only secret never enters the mobile bundle, responses or logs.
@@ -26,7 +28,26 @@ Mailpit at `http://localhost:8025` captures local verification/reset email. It d
 
 Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD` and `MAIL_FROM` in server secrets. `SMTP_SECURE=true` uses immediate TLS (commonly port 465); false requires STARTTLS for external hosts (commonly 587). Local Mailpit/loopback testing is exempt. Use a verified sender/domain and the provider’s required SPF/DKIM/DMARC setup. Port choices must match the provider. Keep `OTP_HASH_SECRET` stable across server restarts and private from clients. Recreate the API container after changes. See [Nodemailer SMTP options](https://nodemailer.com/smtp).
 
-The latest user decision defers SMTP credentials until deployment. External delivery remains unverified. Do not call Mailpit evidence real inbox delivery. Before inviting real testers, verify delivery, spam placement, sender branding, resend, wrong/expired codes and password reset against an authorized real mailbox. HTTPS and reviewed deployment settings remain necessary; this beta still refuses `NODE_ENV=production`.
+The operator now uses a personal Gmail sender temporarily for the local beta. Its address and App Password belong only in ignored local settings, never source, Git, an APK or an Expo public variable. External Gmail authentication and verification/reset SMTP acceptance have been tested separately from Mailpit; see [verification](verification.md). Recipient inbox placement and actual email-client rendering need recipient confirmation. HTTPS and reviewed deployment settings remain necessary; this beta still refuses `NODE_ENV=production`.
+
+### Temporary Gmail sender
+
+Enable Google 2-Step Verification and generate an [App Password](https://myaccount.google.com/apppasswords) for Sangai Beta. The normal Google account password is not the SMTP credential. Google documents account restrictions in its [App Password help](https://support.google.com/accounts/answer/185833). Replace the following entries in the existing ignored root `.env`, preserving `OTP_HASH_SECRET`, database credentials and other settings:
+
+```dotenv
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=your-authorized-sender@gmail.com
+SMTP_PASSWORD=your-google-app-password-without-spaces
+MAIL_FROM="Sangai Beta <your-authorized-sender@gmail.com>"
+```
+
+Use the same authorized address for `SMTP_USER` and `MAIL_FROM`. Port 465 starts TLS immediately; port 587 instead uses `SMTP_SECURE=false` with the API's required STARTTLS. Keep TLS certificate validation enabled. See [Google SMTP settings](https://knowledge.workspace.google.com/admin/gmail/send-email-from-a-printer-scanner-or-app) and [Nodemailer SMTP](https://nodemailer.com/smtp).
+
+After configuration, run `docker compose up --build -d api` from the repository. Rebuilding is necessary for this template upgrade; later sender-only changes need container recreation, not a new APK or web export. Test normal signup, verification and reset with a real receiving address. SMTP acceptance is not proof of inbox delivery, spam placement or provider-independent deliverability. A personal Gmail account has [sending limits](https://support.google.com/mail/answer/22839); use it only for a small invited beta and move to an official sender/provider later.
+
+The default `.env.example` remains Mailpit for development. Automated synthetic recipient journeys must use Mailpit or their isolated SMTP fixture, not the Gmail sender. To return the running local API to Mailpit, set `SMTP_HOST=mailpit`, `SMTP_PORT=1025`, `SMTP_SECURE=false`, empty `SMTP_USER`/`SMTP_PASSWORD`, and restore the local `MAIL_FROM`, then recreate the API container. Preserve its persistent volumes and OTP hash secret. If a credential has been shared outside its local secret file, revoke it in Google and save a replacement locally.
 
 ## Google on Android and iOS
 
@@ -48,6 +69,6 @@ Only public IDs may use `EXPO_PUBLIC_` variables. Missing configuration is visib
 
 Focused isolated API tests cover delivery format, hashes/no code exposure, cooldown and replacement, concurrent consumption, expiry, attempt/issuance caps, pending-code rejection, SMTP lock isolation, failed delivery, recovery uniformity and reset/session invalidation. Browser tests exercise actual local Mailpit signup/verification, profile completion, logout/existing-user login, input validation and session recovery after a failed state request.
 
-Google OAuth credentials are not configured on this host. Real Google provider sign-in and external SMTP are **not yet verified end-to-end**. Mocked responses, invalid-token rejection or a compiled adapter do not count as provider verification.
+Google OAuth credentials are not configured on this host. Real Google provider sign-in remains **unverified end-to-end**. SMTP delivery is a separate provider flow; current Gmail acceptance evidence is recorded above and in the verification log. Mocked responses, invalid-token rejection or a compiled adapter do not count as provider verification.
 
 References: [Expo SDK 57](https://docs.expo.dev/versions/v57.0.0/), [native Google Expo setup](https://react-native-google-signin.github.io/docs/setting-up/expo), [Google Identity Services](https://developers.google.com/identity/gsi/web/guides/overview).

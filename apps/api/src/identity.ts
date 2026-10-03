@@ -13,6 +13,7 @@ import {
 import { OAuth2Client } from "google-auth-library";
 import nodemailer from "nodemailer";
 import { z } from "zod";
+import { otpEmail, OtpEmailPurpose } from "./otp-email";
 import { digest, hashPassword, session } from "./auth";
 import { one, pool, tx } from "./db";
 import { cities, profileInput, text } from "./validation";
@@ -41,7 +42,7 @@ export function authConfig() {
       !!process.env.OTP_HASH_SECRET && process.env.OTP_HASH_SECRET.length >= 32,
   };
 }
-async function mail(email: string, purpose: string, token: string) {
+async function mail(email: string, purpose: OtpEmailPurpose, token: string) {
   if (!process.env.SMTP_HOST)
     throw new ServiceUnavailableException(
       "Email delivery is not configured on this beta server.",
@@ -65,11 +66,13 @@ async function mail(email: string, purpose: string, token: string) {
   await transport.sendMail({
     from: process.env.MAIL_FROM || "Sangai <beta@sangai.invalid>",
     to: email,
-    subject:
-      purpose === "verify"
-        ? "Verify your Sangai email"
-        : "Reset your Sangai password",
-    text: `Your Sangai ${purpose === "verify" ? "verification" : "password reset"} code is:\n\n${token}\n\nEnter this code in Sangai within 15 minutes. It can be used once. If you did not request it, ignore this email.`,
+    ...otpEmail(purpose, token),
+    headers: {
+      "Auto-Submitted": "auto-generated",
+      "X-Auto-Response-Suppress": "All",
+    },
+    disableFileAccess: true,
+    disableUrlAccess: true,
   });
 }
 type Purpose = "verify" | "reset";
