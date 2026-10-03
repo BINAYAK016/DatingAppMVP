@@ -67,7 +67,7 @@ export async function dispatchPush() {
             to: recipient.push_token,
             title: "Sangai",
             body: "You have a new update.",
-            data: { url: "/(tabs)/chat" },
+            data: { url: "/activity" },
             sound: null,
           }),
           signal: AbortSignal.timeout(8000),

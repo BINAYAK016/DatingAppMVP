@@ -63,7 +63,20 @@ import { demoConfig, demoUsersPage, resetDemoWorld } from "./demoWorld";
 import { dispatchPush } from "./push";
 import { text, uuid } from "./validation";
 import { metricsSnapshot, requestMetrics } from "./observability";
-type AuthRequest = Request & { actor: string };
+import {
+  browserToken,
+  browserSession,
+  requireBrowserOrigin,
+  requireCsrf,
+  finishSignIn,
+  clearBrowserCookie,
+  csrfFor,
+} from "./browser-session";
+type AuthRequest = Request & {
+  actor: string;
+  sessionToken: string;
+  browserSession: boolean;
+};
 
 @Controller()
 class ApiController {
@@ -128,23 +141,51 @@ class ApiController {
       .parse(body);
     return resetDemoWorld(r.actor);
   }
-  @Post("v1/auth/demo") demoSignIn(@Body() b: any) {
-    return demoLogin(uuid.parse(b.id));
+  @Get("v1/auth/session") resumeBrowser(
+    @Req() r: AuthRequest,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return browserSession(r, res);
   }
-  @Post("v1/auth/register") register(@Body() b: unknown) {
-    return register(b);
+  @Post("v1/auth/demo") async demoSignIn(
+    @Body() b: any,
+    @Req() r: AuthRequest,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return finishSignIn(await demoLogin(uuid.parse(b.id)), r, res);
   }
-  @Post("v1/auth/login") login(@Body() b: any) {
+  @Post("v1/auth/register") async register(
+    @Body() b: unknown,
+    @Req() r: AuthRequest,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return finishSignIn(await register(b), r, res);
+  }
+  @Post("v1/auth/login") async login(
+    @Body() b: any,
+    @Req() r: AuthRequest,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     const d = z
       .object({ email: z.email().max(254), password: z.string().max(128) })
       .parse(b);
-    return login(d.email, d.password);
+    return finishSignIn(await login(d.email, d.password), r, res);
   }
   @Get("v1/auth/config") authConfig() {
     return identity.authConfig();
   }
-  @Post("v1/auth/google") google(@Body() b: any) {
-    return identity.googleSignIn(z.string().min(1).max(10000).parse(b.idToken));
+  @Post("v1/auth/google") async google(
+    @Body() b: any,
+    @Req() r: AuthRequest,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return finishSignIn(
+      await identity.googleSignIn(
+        z.string().min(1).max(10000).parse(b.idToken),
+      ),
+      r,
+      res,
+    );
   }
   @Post("v1/auth/forgot") forgot(@Body() b: any) {
     return identity.forgot(z.email().max(254).parse(b.email));
@@ -174,11 +215,15 @@ class ApiController {
   ) {
     return identity.onboarding(r.actor, b);
   }
-  @Post("v1/logout") async logout(@Req() r: AuthRequest) {
+  @Post("v1/logout") async logout(
+    @Req() r: AuthRequest,
+    @Res({ passthrough: true }) res: Response,
+  ) {
     await pool.query("DELETE FROM sessions WHERE token_hash=$1", [
-      digest(r.headers.authorization!.slice(7)),
+      digest(r.sessionToken),
     ]);
     await pool.query("UPDATE users SET push_token=NULL WHERE id=$1", [r.actor]);
+    if (r.browserSession) clearBrowserCookie(res);
     return { ok: true };
   }
   @Post("v1/device") async device(@Req() r: AuthRequest, @Body() b: any) {
@@ -796,8 +841,8 @@ export async function bootstrap() {
           ) ||
           approvedOrigins.includes(origin),
       ),
-    credentials: false,
-    exposedHeaders: ["Retry-After", "X-Request-ID"],
+    credentials: true,
+    exposedHeaders: ["Retry-After", "X-Request-ID", "X-Sangai-Session"],
   });
   app.use(json({ limit: "32kb" }));
   app.use(requestMetrics);
@@ -821,13 +866,41 @@ export async function bootstrap() {
           throw new UnauthorizedException();
         return next();
       }
-      if (routePath.startsWith("/v1/auth")) return next();
+      if (routePath.startsWith("/v1/auth")) {
+        if (
+          req.headers["x-sangai-client"] === "web" &&
+          !["GET", "HEAD"].includes(req.method)
+        )
+          requireBrowserOrigin(req);
+        // Cookies must never authorize a form-based login CSRF request.
+        if (
+          browserToken(req) &&
+          !["GET", "HEAD"].includes(req.method) &&
+          req.headers["x-sangai-client"] !== "web"
+        )
+          throw new UnauthorizedException("Use the browser sign-in flow.");
+        return next();
+      }
       if (
         req.method === "GET" &&
         ["/v1/demo/config", "/v1/demo/users"].includes(routePath)
       )
         return next();
-      req.actor = await authenticate(req.headers.authorization);
+      const cookieToken = browserToken(req);
+      req.browserSession = !req.headers.authorization && !!cookieToken;
+      req.sessionToken = req.headers.authorization?.startsWith("Bearer ")
+        ? req.headers.authorization.slice(7)
+        : req.browserSession
+          ? cookieToken!
+          : "";
+      if (req.browserSession && !["GET", "HEAD"].includes(req.method))
+        requireCsrf(req, req.sessionToken);
+      req.actor = await authenticate(
+        req.headers.authorization ||
+          (req.browserSession ? "Bearer " + req.sessionToken : undefined),
+      );
+      if (req.browserSession)
+        res.setHeader("X-Sangai-Session", csrfFor(req.sessionToken));
       const setupRoutes = [
         "/v1/state",
         "/v1/logout",
@@ -867,6 +940,8 @@ export async function bootstrap() {
       }
       next();
     } catch (e) {
+      if (req.browserSession && e instanceof UnauthorizedException)
+        clearBrowserCookie(res);
       if (e instanceof RateLimitExceeded)
         res.setHeader("Retry-After", e.retryAfterSeconds);
       res.status(e instanceof HttpException ? e.getStatus() : 500).json({
