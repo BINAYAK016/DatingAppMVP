@@ -60,7 +60,24 @@ before(async () => {
 after(async () => {
   await app?.close();
   if (db) await db.pool.end();
-  await admin.query(`DROP DATABASE IF EXISTS ${database} WITH (FORCE)`);
+  // pg-pool can resolve end() before its client socket-close callbacks finish.
+  // Forcing the database away then sends 57P01 into an idle closing client.
+  let openConnections = 0;
+  for (let attempt = 0; attempt < 100; attempt++) {
+    openConnections = (
+      await admin.query("SELECT 1 FROM pg_stat_activity WHERE datname=$1", [
+        database,
+      ])
+    ).rowCount!;
+    if (openConnections === 0) break;
+    await new Promise((done) => setTimeout(done, 25));
+  }
+  assert.equal(
+    openConnections,
+    0,
+    "Fixture connections must close before drop",
+  );
+  await admin.query(`DROP DATABASE IF EXISTS ${database}`);
   await admin.end();
   await rm(directory, { recursive: true, force: true });
 });

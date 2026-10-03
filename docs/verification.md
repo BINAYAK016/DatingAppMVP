@@ -1,5 +1,13 @@
 # Verification record
 
+## GitHub test cleanup repair — 4 October 2026
+
+GitHub [run 37150340341](https://github.com/BINAYAK016/DatingAppMVP/actions/runs/37150340341) for `03458b4` passed all 77 application tests, then failed the security fixture file with an asynchronous PostgreSQL `57P01` error (`terminating connection due to administrator command`). The fixture called `DROP DATABASE ... WITH (FORCE)` after `pg-pool.end()`, which can resolve before its client socket-close callbacks finish. That race failed the overall API step and skipped later mobile/browser steps; it was not an OTP-delivery test failure.
+
+The security fixture now waits, with a bounded timeout and explicit assertion, for its database's connections to disappear from `pg_stat_activity`, then drops its isolated database without `FORCE`. Errors remain test failures; no test or connection error is suppressed. The corrected seven-case security fixture passed **7/7** in **2.389 seconds** in an owned local Linux container with the existing isolated PostgreSQL setup. Log: `artifacts/ci-cleanup-linux-after.log`. A baseline local Linux run also passed, consistent with the timing-dependent GitHub failure; no claim of deterministic local reproduction is made. Application code, SMTP settings and existing accounts were unchanged by this repair.
+
+The CI workflow now uses `actions/checkout@v7` and `actions/setup-node@v7`, whose published action definitions use Node 24, and an explicit `ubuntu-24.04` runner to avoid the announced `ubuntu-latest` OS change. Action runtime and Ubuntu notices were separate from the failed fixture. Full hosted verification is available under the branch's newest [GitHub Actions runs](https://github.com/BINAYAK016/DatingAppMVP/actions).
+
 ## OTP email template and temporary Gmail — 4 October 2026
 
 - Verification and password reset now send Sangai-branded HTML plus matching plain text, with a selectable six-digit code, 15-minute expiry, single-use instructions and unexpected-request guidance. The template includes no remote assets, tracking, profile information, development-server links or code in the subject/preheader. Auto-response suppression headers were added; file/URL content access is disabled for these messages. No schema, API contract, mobile bundle or OTP expiry/attempt rule changed.
