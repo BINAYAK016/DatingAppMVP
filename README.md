@@ -17,7 +17,7 @@ The [1 October application audit](docs/full-audit-20261001.md) records the basel
 ## Included
 
 - Four tabs: Discover, Chat, Sangai and Profile, with warm blush/peach/lavender branding.
-- Demo-first entry, grouped/paged persona selection, profile previews, account switching and a confirmed shared **Reset Demo**. Existing verified-email/Google/profile-creation architecture remains available with demo mode disabled; no new authentication integration is part of this phase.
+- Demo-first entry, grouped/paged persona selection, profile previews, account switching and a confirmed shared **Reset Demo**. Verified-email/Google/profile creation remains available with demo mode disabled; real Google and external email still need provider setup. Web now adds private cookie sessions while native keeps SecureStore credentials.
 - Persisted Like/Pass/Super Like gestures and buttons; hidden incoming Likes, mutual matching, safe undo and reciprocal preferences.
 - Match-only stories, one Chat camera, snaps, ordinary photo/video messages and a paged mixed conversation timeline.
 - Virtualized private feed, up to six ordered photos or one video per post, visible-video autoplay, data saver, reactions, replies, saves and sharing without audience expansion.
@@ -30,7 +30,13 @@ Circles, circle events/RSVP, the old request inbox and separate Play tab are ret
 
 Games 2.0 is enabled by server `ENABLE_GAMES_V2=true` in the local configuration. For a beta rollback, set it to `false` while retaining the migrated schema and compatible API binary: new v2 invitations and non-cancel actions stop, while authorized existing-session reads and cancellation remain available. Legacy game history and the original three-game flow remain supported; their historical readiness rules differ from v2. Do not drop game data or deploy a pre-v2 binary as a rollback. See [game rollout details](docs/games-v2.md#rollout-and-rollback).
 
-## Backend
+## Browser beta (local)
+
+The same Expo application now has a browser build with cookie sessions, private media uploads and a responsive desktop shell. Follow the [cross-platform guide](docs/cross-platform-web-beta.md) for platform differences, session security, testing and the prepared Caddy deployment example. EC2 is unchanged.
+
+With the local backend running, run `npm ci`, `npm run web:build`, then `npm run web:preview` from the repository root. Open `http://localhost:8081`. This local export uses the local API proxy and hides server settings; a previous mobile DuckDNS address is ignored. The Android emulator uses `http://10.0.2.2:4100` in its development connection settings. Local native builds require `SANGAI_ALLOW_LOCAL_HTTP=true`; remote builds default to HTTPS transport rules.
+
+## Backend setup
 
 Install Docker Desktop with Linux containers, Git and Node.js 24. Before starting Docker, create the ignored local `.env` and a random server-only `OTP_HASH_SECRET` of at least 32 characters. This command preserves existing configuration and does not print the secret. Run it from this repository; deployment should use a secret manager. See [authentication setup](docs/authentication.md) for OTP behavior, SMTP and Google configuration.
 
@@ -53,6 +59,9 @@ Local demo entry requires **both `DEMO_MODE=true` and `ENABLE_DEMO=true`** (Comp
 ```powershell
 npm ci --prefix apps/mobile
 cd apps/mobile
+$env:SANGAI_ALLOW_LOCAL_HTTP="true"
+$env:EXPO_PUBLIC_CONNECTION_SETTINGS="true"
+$env:EXPO_PUBLIC_API_URL="http://10.0.2.2:4100"
 npm run android
 ```
 
