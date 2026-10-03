@@ -393,8 +393,8 @@ test("Rapid Fire has independent server timers, persists partial play and counts
     choiceId: "1",
   });
   await db.query(
-    "UPDATE games SET state_data=jsonb_set(state_data,ARRAY['timers',$2],to_jsonb((now()-interval '1 second')::text)),next_tick_at=now()-interval '1 second' WHERE id=$1",
-    [session.id, p.host.id],
+    "UPDATE games SET state_data=jsonb_set(state_data,ARRAY['timers',$2],to_jsonb($3::text)),next_tick_at=$3::timestamptz WHERE id=$1",
+    [session.id, p.host.id, new Date(Date.now() - 60000).toISOString()],
   );
   const timed = (await call(`/game/${session.id}`, p.host)).data;
   assert.equal(timed.view.phase, "waiting");
@@ -528,10 +528,10 @@ test("simultaneous opposing invitations produce one open game; expiry records an
   ]);
   assert.deepEqual([a.status, b.status].sort(), [201, 409]);
   const winner = a.status === 201 ? a.data : b.data;
-  await db.query(
-    "UPDATE games SET expires_at=now()-interval '1 second',next_tick_at=now()-interval '1 second' WHERE id=$1",
-    [winner.id],
-  );
+  await db.query("UPDATE games SET expires_at=$2,next_tick_at=$2 WHERE id=$1", [
+    winner.id,
+    new Date(Date.now() - 60000),
+  ]);
   const expired = (await call(`/game/${winner.id}`, p.host)).data;
   assert.equal(expired.state, "expired");
   assert.equal(expired.results, null);

@@ -190,10 +190,10 @@ test("expired codes, five-attempt exhaustion and issuance caps are enforced", as
   const user = await signup("otp-limits");
   await call("/verification/send", user.token, {});
   const code = codeIn(messages.at(-1)!);
-  await db.query(
-    "UPDATE auth_challenges SET expires_at=now()-interval '1 second' WHERE user_id=$1",
-    [user.id],
-  );
+  await db.query("UPDATE auth_challenges SET expires_at=$2 WHERE user_id=$1", [
+    user.id,
+    new Date(Date.now() - 60000),
+  ]);
   const expired = await call("/verification/confirm", user.token, { code });
   assert.equal(expired.status, 400);
   assert.match(expired.data.message, /expired/);
