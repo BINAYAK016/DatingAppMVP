@@ -1,0 +1,45 @@
+# Shared synthetic testing environment, explicitly requested on 2026-10-05.
+# Ordinary accounts retain their own authentication and visibility rules.
+# BETA_HOST is the hostname only; keep API/database ports on host loopback.
+# Demo entry/list/reset use the API's existing synthetic-account guards.
+{$BETA_HOST} {
+	@admin path_regexp admin (?i)^/(admin(?:\.js)?(?:/|$)|v1/admin(?:/|$))
+	@api path /v1 /v1/* /health /ready /policies
+	@bundles path /_expo/static/*
+	@missingAsset path_regexp asset \.(js|css|png|jpe?g|webp|svg|ttf|ico|json)$
+
+	header {
+		Cache-Control "no-store"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		Strict-Transport-Security "max-age=31536000"
+		Permissions-Policy "camera=(self), microphone=(self), geolocation=()"
+		-Server
+	}
+	route {
+		respond @admin "Not found" 404
+		handle @api {
+			reverse_proxy 127.0.0.1:4100 {
+				header_down Cache-Control "private, no-store"
+			}
+		}
+		handle {
+			root * /srv/sangai/web
+			header Cache-Control "no-store"
+			header Content-Security-Policy "default-src 'self'; script-src 'self' https://accounts.google.com; style-src 'self' 'unsafe-inline' https://accounts.google.com; img-src 'self' data: blob: https://accounts.google.com; media-src 'self' blob:; font-src 'self'; connect-src 'self' blob: data: https://accounts.google.com; frame-src https://accounts.google.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+			header Cross-Origin-Opener-Policy "same-origin-allow-popups"
+			handle @bundles {
+				@found file {path}
+				header @found Cache-Control "public, max-age=31536000, immutable"
+				file_server
+			}
+			handle @missingAsset {
+				file_server
+			}
+			handle {
+				try_files {path} /index.html
+				file_server
+			}
+		}
+	}
+}

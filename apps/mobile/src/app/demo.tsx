@@ -72,6 +72,26 @@ function DemoSelector() {
           All 30 people are fictional adults. Switch perspectives to discover,
           match, chat and play together. No signup needed.
         </Text>
+        <Text style={[s.small, { marginBottom: 20 }]}>
+          Demo accounts are shared. Other testers can see their activity or
+          reset the demo world. Use fictional messages, photos and profile
+          details.
+        </Text>
+        {!st.token && (
+          <View style={{ marginBottom: 24 }}>
+            <Button
+              title="Use my own account"
+              secondary
+              disabled={!!entering}
+              onPress={() =>
+                router.replace({
+                  pathname: "/welcome",
+                  params: { account: "1" },
+                })
+              }
+            />
+          </View>
+        )}
         {!!st.data?.me.demo && (
           <Pressable
             accessibilityRole="button"

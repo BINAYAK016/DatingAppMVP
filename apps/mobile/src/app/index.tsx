@@ -7,7 +7,7 @@ import {
   StyleSheet,
   useWindowDimensions,
 } from "react-native";
-import { Redirect, router } from "expo-router";
+import { Redirect, router, useLocalSearchParams } from "expo-router";
 import { GoogleAuth } from "../components/GoogleAuth";
 import { DemoConfigRecovery } from "../components/DemoConnection";
 import { authMessage } from "../lib/authMessage";
@@ -36,6 +36,7 @@ function Brand() {
   );
 }
 export default function Welcome() {
+  const { account } = useLocalSearchParams<{ account?: string }>();
   const compact = useWindowDimensions().height < 740;
   const st = useStore();
   const [mode, setMode] = useState<"welcome" | "login" | "register">("welcome"),
@@ -64,7 +65,7 @@ export default function Welcome() {
   if (st.token && st.data) return <Redirect href="/(tabs)" />;
   if (st.token) return <Loading />;
   if (st.demoMode === null) return <DemoConfigRecovery />;
-  if (st.demoMode) return <Redirect href="/demo" />;
+  if (st.demoMode && account !== "1") return <Redirect href="/demo" />;
   const submit = async () => {
     setFormError("");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()))
@@ -273,6 +274,13 @@ export default function Welcome() {
           </>
         )}
         <View style={styles.footer}>
+          {st.demoMode && (
+            <Button
+              title="Explore demo accounts"
+              secondary
+              onPress={() => router.replace("/demo")}
+            />
+          )}
           <Pressable
             accessibilityRole="link"
             onPress={() => void Linking.openURL(st.url + "/policies")}

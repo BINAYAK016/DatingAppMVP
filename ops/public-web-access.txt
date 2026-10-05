@@ -1,8 +1,10 @@
 SANGAI PUBLIC WEB ACCESS - PREPARATION RECORD
 Prepared: 2026-10-05
 Branch: feat/cross-platform-web-beta
-Status: PARTIAL. User-reported EC2 health and SMTP authentication pass.
-The public Caddy configuration and new proxy support are not deployed yet.
+Status: PARTIAL. The user reports EC2 health and SMTP authentication, and
+the public web shell loads in their browser. Browser session startup
+returned 403 "This browser origin is not approved."; runtime correction
+has been supplied but its result has not been returned yet.
 
 Requested behavior
 Anyone can reach https://sangaidev.duckdns.org in a browser without
@@ -10,6 +12,30 @@ submitting their IP address or installing Android Studio/an APK.
 Ordinary accounts still require sign-in, verified email, an adult
 declaration and completed onboarding. Matched-user visibility rules
 continue to protect dating profiles, posts, stories, messages and media.
+
+Shared demo testing, explicitly requested 5 October 2026
+The user also wants the existing 30 synthetic accounts available to testers.
+Use ops/enable-ec2-demo.sh on the already deployed EC2 web branch. It takes
+a private live PostgreSQL dump and copies the existing environment/Caddy
+settings before activation. It validates the separate demo Caddy example,
+builds a new web release, checks the installed world version and all 30
+catalog IDs, and unsuspends those existing synthetic records without
+calling seed/reset. Old sessions for suspended synthetic accounts are
+revoked in the same transaction. Other account records are not updated.
+The helper sets ENABLE_DEMO=true, DEMO_MODE=true, WEB_COOKIE_SECURE=true
+and the exact HTTPS CORS origin, then recreates the API container. It
+publishes the new web release and reloads the validated demo configuration.
+The default entry offers the fictional selector; "Use my own account"
+opens signup/login, with a link back to the demo selector. This uses the
+existing shared Expo Router application, not a second web application.
+Demo accounts are shared identities. Anyone selecting a persona can see
+its activity; the existing confirmed reset affects the shared demo world.
+Use fictional content only. Ordinary and demo content remain subject to
+the existing server isolation and match/media authorization rules.
+The demo Caddy example permits demo routes and keeps administration
+blocked. The ordinary-account-only public example below stays available.
+Actual EC2 helper execution, demo cookie sign-in/logout and real signup/
+OTP receipt still need user-run results. This is a testing environment.
 
 Network changes
 In EC2's attached security group, allow TCP 80 and TCP 443 from
@@ -111,5 +137,7 @@ User-reported EC2 checkpoint, 5 October 2026
   returns enabled=false; the exported index.html exists.
 - Gmail SMTP authentication passed after credential correction. This
   proves SMTP authentication, not inbox receipt or application OTP usage.
-- Caddy still uses the original allowlist and proxies every allowed path
-  to the API. Web installation, public routing and outside tests remain.
+- Later output confirms source ec42111, a versioned /srv/sangai/web link,
+  and Caddy 2.11.7 validation. The user supplied SQL output retiring 30
+  synthetic accounts. Their outside browser now loads the web shell, but
+  /v1/auth/session rejects the supplied HTTPS origin with 403.
