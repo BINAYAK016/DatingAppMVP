@@ -240,6 +240,13 @@ test("mobile layouts keep core actions reachable and grouped settings retain the
   await expect(
     page.getByRole("button", { name: "Preview profile", exact: true }),
   ).toBeVisible();
+  await expect(
+    page.getByText("YOUR PROFILE AT A GLANCE", { exact: true }),
+  ).toBeVisible();
+  // Account controls stay accessible; the full gallery belongs in Preview.
+  await expect(
+    page.getByRole("button", { name: "Open privacy settings", exact: true }),
+  ).toBeInViewport();
   await page.screenshot({ path: "artifacts/ui-refinement/profile-mobile.png" });
   await page
     .getByRole("button", { name: "Open discovery settings", exact: true })

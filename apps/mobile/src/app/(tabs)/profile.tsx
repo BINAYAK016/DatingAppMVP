@@ -29,7 +29,6 @@ import {
   s,
   humanMessage,
 } from "../../components/ui";
-import { ProfileStory } from "../../components/ProfilePresentation";
 type SettingsSection = "privacy" | "discovery" | "notifications" | "account";
 type Setting =
   | "posts_visible"
@@ -163,7 +162,27 @@ export default function Profile() {
             </Text>
           </View>
         )}
-        <ProfileStory person={me} />
+        <View style={s.card}>
+          <Text style={[s.meta, { marginBottom: 8 }]}>
+            YOUR PROFILE AT A GLANCE
+          </Text>
+          <View style={[s.row, { marginBottom: 10 }]}>
+            <Icon name="heart-outline" size={18} color={C.primary} />
+            <Text style={[s.label, { flex: 1 }]}>{me.intent}</Text>
+          </View>
+          {!!me.bio && (
+            <Text numberOfLines={3} style={[s.small, { color: C.ink }]}>
+              {me.bio}
+            </Text>
+          )}
+          {!!me.interests.length && (
+            <View style={[s.wrap, { marginTop: 12 }]}>
+              {me.interests.slice(0, 4).map((interest) => (
+                <Chip key={interest} label={interest} />
+              ))}
+            </View>
+          )}
+        </View>
         <View style={styles.moments}>
           <Pressable
             accessibilityRole="button"
