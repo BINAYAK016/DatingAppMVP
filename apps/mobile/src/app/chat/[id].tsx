@@ -409,6 +409,21 @@ function ChatScreen({ id }: { id: string }) {
           </View>
         )}
         <FlatList
+          {...(Platform.OS === "web"
+            ? {
+                // Web wheel/touch scrolling does not emit native drag events.
+                // A real user gesture must cancel even an unmeasured initial
+                // follow target before a later poll grows the conversation.
+                onWheel: () => {
+                  cancelSentFollow();
+                  followNewest.current = false;
+                },
+                onTouchMove: () => {
+                  cancelSentFollow();
+                  followNewest.current = false;
+                },
+              }
+            : {})}
           ref={conversationScroll}
           data={timeline}
           keyExtractor={(item) => item.id}
