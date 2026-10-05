@@ -1,5 +1,17 @@
 # Run the redesigned Sangai beta
 
+## Latest emulator package — 5 October 2026
+
+The current task artifact is **`outputs/Sangai-account-choice-beta-3addde9-x86_64.apk`**, built from application source `3addde9`. It was installed and checked on the SangaiBeta emulator. **Use my own account** now opens ordinary email signup/login from the demo selector, and **Explore demo accounts** returns to the fictional profiles. Its default backend is `https://sangaidev.duckdns.org`; Connection settings remain available and the saved server address was preserved by installation. This build requires HTTPS.
+
+To update an existing emulator installation without clearing its app data:
+
+```powershell
+& 'D:\CodexBuild\SangaiBeta\AndroidSdk\platform-tools\adb.exe' install -r 'C:\Users\Dell\Documents\Codex\2026-09-28\u\outputs\Sangai-account-choice-beta-3addde9-x86_64.apk'
+```
+
+The [verification record](verification.md) contains its checksum and actual native coverage. The local-backend instructions and older artifact references below describe the preceding builds.
+
 Sangai uses one Expo / React Native codebase for Android and iOS. This local APK targets an **x86_64 Android emulator**, is signed with a development certificate, and includes its JavaScript bundle. It does not require Metro. It is not a Play Store release or an APK for a typical ARM phone.
 
 ## On this Windows computer

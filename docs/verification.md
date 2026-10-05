@@ -1,5 +1,14 @@
 # Verification record
 
+## Android own-account entry refresh — 5 October 2026
+
+- Rebuilt the shared mobile application at source **`3addde93155be6375964621ad35161a80382d14a`** in the existing short Windows build directory. The dependency lockfiles matched; hashes of all 97 current source/asset files matched after synchronization. Mobile TypeScript and Expo lint passed. No application or API source change was needed for this refresh.
+- Expo regenerated Android from the existing configuration. The build uses **`https://sangaidev.duckdns.org`** as its default API, enables the beta Connection settings control, disables cleartext HTTP and bundles JavaScript. Gradle **`:app:assembleRelease`** passed in **15m 15s**, with one worker and cached offline dependencies. Kotlin's daemon could not write its user-cache marker; Gradle's fallback compiler completed successfully. The release checks were retained.
+- Delivered task artifact **`outputs/Sangai-account-choice-beta-3addde9-x86_64.apk`**, **46,835,396 bytes**, SHA-256 **`2455ce84fc858ed2aed66abd9731a193e9b091fc3a95355eec09002f57db5a3a`**. APK v2 signature verification passed; signing remains the development certificate. Archive inspection confirmed x86_64 native libraries and the expected account-entry labels/API URL in its bundled JavaScript. This artifact targets the Android emulator.
+- **`adb install -r`** succeeded on the existing SangaiBeta emulator. Its original first-install timestamp remained **29 September 2026** and Connection settings still showed **`https://sangaidev.duckdns.org`**. The updated selector displayed the shared-persona disclosure and **Use my own account**. Native taps opened the ordinary welcome screen, email signup, then email login; **Explore demo accounts** returned to the selector with the own-account button still available. No credentials were entered or signup submitted. The emulator was left open on the demo selector.
+- Visually checked signup/login captures and the updated selector. Evidence is in task **`outputs/ui-qa/android/account-switch-3addde9/`**, including the old selector, updated selector, own-account welcome, signup, login, saved connection and return to demo. No AndroidRuntime/ReactNativeJS error appeared in the executed app-process log check.
+- This is Android entry/navigation verification, not a new end-to-end account/OTP, database, media or games test. No EC2 configuration was changed. Native iOS runtime and physical ARM phone execution were not tested for this refresh.
+
 ## Shared demo testing and ordinary-account entry — 5 October 2026
 
 - The user explicitly requested that internet testers also have access to the existing 30 synthetic accounts. Added a separate `ops/Caddyfile.web-demo-beta.example` permitting the existing demo APIs while continuing to block administration. The ordinary-account-only public example remains available.
