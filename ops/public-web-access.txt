@@ -69,6 +69,13 @@ Deployment sequence
    firewall and current web directory without printing secret values.
 2. Back up PostgreSQL, private media, Caddy configuration and the existing
    API/web release; establish compatible rollback and restore evidence.
+   After the cold backup is recorded in ~/sangai-backups/LATEST, run
+   bash ops/verify-ec2-backup.sh. It restores into temporary volumes on
+   an internal network and boots the saved API image against that copy;
+   no host port is published. It cleans up its temporary resources.
+   For public ordinary-account use, suspend synthetic accounts and
+   revoke their existing sessions; disabling demo entry alone does not
+   invalidate previously issued session tokens.
 3. Address the application limits above before public real-account use.
 4. Build the matching web source using npm run web:build:remote with
    EXPO_PUBLIC_API_URL empty/unset for a same-origin deployment. The build
