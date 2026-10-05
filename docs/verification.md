@@ -1,5 +1,11 @@
 # Verification record
 
+## Targeted discovery diagnostic — 5 October 2026
+
+- Added the operator-only `ops/diagnose-discovery-pair.cjs`, supplied to the running API container through standard input with two display-name arguments. It requires exactly one account per normalized name, checks both directions using the installed discovery eligibility expression and candidate-page function, and reports failed rule labels plus the target's position in the current eight-card batch. It imports neither the application bootstrap nor migrations.
+- All queries run in a repeatable-read, read-only transaction with statement/lock timeouts, followed by rollback and connection cleanup. Output excludes credentials, contact details, birth dates, raw preferences and other candidates' profiles. Account display names are supplied only at execution; none are embedded in the helper.
+- Node syntax and formatting/whitespace checks passed locally. The live pair has not been evaluated: the operator runs EC2 commands and returns the result. No account, preference, swipe, block, connection or deployment configuration was changed by this diagnostic preparation.
+
 ## Android own-account entry refresh — 5 October 2026
 
 - Rebuilt the shared mobile application at source **`3addde93155be6375964621ad35161a80382d14a`** in the existing short Windows build directory. The dependency lockfiles matched; hashes of all 97 current source/asset files matched after synchronization. Mobile TypeScript and Expo lint passed. No application or API source change was needed for this refresh.
