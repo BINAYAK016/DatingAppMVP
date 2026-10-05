@@ -55,6 +55,8 @@ The matrix describes implementation paths, not certified device parity. See [ver
 
 ## Later Caddy deployment
 
+The following guide describes the original private, IP-restricted deployment. On 5 October 2026 the user requested public browser access. See [public web access preparation](../ops/public-web-access.txt) and [the separate public Caddy example](../ops/Caddyfile.web-public-beta.example) for that requested change. These files are prepared configuration only; no EC2 deployment or public-launch approval is established.
+
 Only deploy after local checks pass and after backing up the existing server configuration and persistent data. [Caddyfile.web-beta.example](../ops/Caddyfile.web-beta.example) is prepared configuration, not an applied change. It keeps a mandatory source-IP allowlist, blocks admin routes before proxying, routes `/v1/*`, `/health`, `/ready` and `/policies` to loopback port 4100, serves static assets, and falls back to `index.html` for Router routes. API and private media are never cached. Only hashed Expo bundles get immutable caching. Missing assets return 404 rather than the app HTML.
 
 1. Preserve the exact current allowlist. Set the Caddy service environment `BETA_HOST=sangaidev.duckdns.org` and `BETA_ALLOWED_IPS` to those space-separated IPv4/IPv6 CIDRs. Do not use `0.0.0.0/0`, remove the allowlist or place this behind a new unconfigured proxy. DNS must point to EC2's current public IP.

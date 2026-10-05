@@ -59,6 +59,7 @@ import {
   purgeRateLimits,
 } from "./rate-limit";
 import { seed } from "./seed";
+import { trustedProxyAddresses } from "./trusted-proxy";
 import { demoConfig, demoUsersPage, resetDemoWorld } from "./demoWorld";
 import { dispatchPush } from "./push";
 import { text, uuid } from "./validation";
@@ -808,12 +809,14 @@ export async function bootstrap() {
     throw new Error(
       "This local beta is not approved for public production. Read docs/beta.md.",
     );
+  const trustedProxies = trustedProxyAddresses();
   await migrate();
   await seed();
   const app = await NestFactory.create(AppModule, {
     logger: ["error", "warn", "log"],
     bodyParser: false,
   });
+  app.getHttpAdapter().getInstance().set("trust proxy", trustedProxies);
   app.use(
     helmet({
       contentSecurityPolicy: {

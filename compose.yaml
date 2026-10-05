@@ -24,6 +24,7 @@ services:
     build: ./apps/api
     environment:
       NODE_ENV: development
+      TRUSTED_PROXY_IPS: ${TRUSTED_PROXY_IPS:-}
       DATABASE_URL: postgres://sangai:${POSTGRES_PASSWORD:-local-beta-only}@db:5432/sangai
       ENABLE_DEMO: ${ENABLE_DEMO:-true}
       DEMO_MODE: ${DEMO_MODE:-true}

@@ -1,5 +1,21 @@
 # Verification record
 
+## Public beta proxy support and EC2 progress — 5 October 2026
+
+- The API now accepts an explicit `TRUSTED_PROXY_IPS` list of exact IPv4/IPv6 addresses, validates it before migrations, and applies it to Express before request middleware. Empty configuration retains the existing untrusted-forwarded-header behavior; blanket trust, named networks and CIDRs fail startup. Compose passes this optional server-only setting through.
+- API TypeScript and **6/6 focused proxy tests** passed on Windows with Node **24.19.0**. Actual HTTP requests verify that an untrusted peer cannot forge its IP and that the nearest untrusted visitor takes precedence over a spoofed forwarded prefix. Formatting and whitespace checks passed. The full database/browser suites were not rerun for this change; prior suite results remain historical evidence below.
+- Added an explicit EC2 Compose override for restart policies. It is applied only when named in the Compose command. Public Caddy routing still blocks admin and demo entry/list/reset paths, retains the demo-disabled startup endpoint, and serves the same-origin SPA export.
+- User-supplied EC2 output confirms API/database health, `/health` and `/ready` returning 200, disabled demo mode, the exported web index, cold database/media archive creation with successful gzip checks, Docker gateway `172.18.0.1`, and successful Gmail SMTP authentication after correcting credentials. These are user-run results, not remote checks by the agent. SMTP verification does not prove inbox delivery.
+- Deployment of this new proxy source and public Caddy routing, an actual backup restore/rollback drill, real signup/OTP/cookie/logout/private-media tests, moderation response, reboot behavior and outside-browser access remain pending. No production approval or iOS parity is claimed; the existing production-mode guard remains intact.
+
+## Initial public web configuration preparation — 5 October 2026
+
+- Prepared a separate public Caddy example and access/deployment guide after the user requested browser access without collecting tester IP addresses. The private configuration remains unchanged. The public example blocks administration and synthetic demo sign-in/list/reset routes while retaining `/v1/demo/config` for the application's startup configuration request.
+- API/mobile TypeScript, mobile lint, and the remote web export passed against the current application source. No application source changes were made. The web export uses the existing same-origin build workflow.
+- The official Caddy 2.11.7 Windows archive was checked against its published SHA-512 checksum. `caddy validate` passed for the public example with `BETA_HOST=sangaidev.duckdns.org`. This validates configuration syntax/provisioning locally, not the EC2 server's installed Caddy version, DNS, TLS issuance or end-to-end behavior.
+- DuckDNS resolved to `13.239.18.125`. SSH to that address through the domain timed out on both connection attempts. No remote configuration, data, firewall or service was changed. EC2's current public address/running state remains unconfirmed.
+- Docker Desktop was not running, so no API integration or browser journey suite was run for this preparation. Public signup/OTP, cookie/media behavior, backup/restore, rollback and moderation operations still require deployment evidence. The current API production guard and missing explicit proxy trust configuration are recorded in the preparation guide; no public-launch or production-readiness claim is made.
+
 ## GitHub test cleanup repair — 4 October 2026
 
 GitHub [run 37150340341](https://github.com/BINAYAK016/DatingAppMVP/actions/runs/37150340341) for `03458b4` passed all 77 application tests, then failed the security fixture file with an asynchronous PostgreSQL `57P01` error (`terminating connection due to administrator command`). The fixture called `DROP DATABASE ... WITH (FORCE)` after `pg-pool.end()`, which can resolve before its client socket-close callbacks finish. That race failed the overall API step and skipped later mobile/browser steps; it was not an OTP-delivery test failure.

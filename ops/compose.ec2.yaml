@@ -1,0 +1,8 @@
+# Apply explicitly on EC2 alongside compose.yaml; local defaults stay unchanged.
+services:
+  api:
+    restart: unless-stopped
+  db:
+    restart: unless-stopped
+  mailpit:
+    restart: unless-stopped

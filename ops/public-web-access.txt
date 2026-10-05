@@ -1,0 +1,108 @@
+SANGAI PUBLIC WEB ACCESS - PREPARATION RECORD
+Prepared: 2026-10-05
+Branch: feat/cross-platform-web-beta
+Status: PARTIAL. User-reported EC2 health and SMTP authentication pass.
+The public Caddy configuration and new proxy support are not deployed yet.
+
+Requested behavior
+Anyone can reach https://sangaidev.duckdns.org in a browser without
+submitting their IP address or installing Android Studio/an APK.
+Ordinary accounts still require sign-in, verified email, an adult
+declaration and completed onboarding. Matched-user visibility rules
+continue to protect dating profiles, posts, stories, messages and media.
+
+Network changes
+In EC2's attached security group, allow TCP 80 and TCP 443 from
+0.0.0.0/0. Keep TCP 22 restricted to the operator's current public IP /32.
+Only add ::/0 web rules if the instance has working public IPv6 and DNS.
+Do not expose database, API, Mailpit or Caddy's administration ports.
+Inspect any Ubuntu firewall and previous IP-specific web rules as well.
+DuckDNS must point to the instance's current public IPv4 address.
+
+Web routing
+Use Caddyfile.web-public-beta.example as a reviewed starting point.
+It omits the old source-IP allowlist while preserving HTTPS, authenticated
+API/media access, blocked administration routes, asset handling and SPA
+route refreshes. It blocks demo API access for an ordinary public-account
+site. /v1/demo/config remains available so the client can read enabled=false.
+Disable ENABLE_DEMO and DEMO_MODE in the server environment too;
+shared fictional identities are not public dating profiles.
+The original private example remains available for restricted testing.
+The public example must be merged into the real server Caddyfile; never
+overwrite unrelated sites or remove other controls without inspection.
+
+Required server/session configuration
+Set WEB_COOKIE_SECURE=true.
+Set CORS_ORIGINS=https://sangaidev.duckdns.org, not a wildcard.
+Set TRUSTED_PROXY_IPS to the exact Docker gateway address seen by the API.
+Inspect it with docker inspect sangai-beta-api-1 --format
+'{{range .NetworkSettings.Networks}}{{.Gateway}}{{println}}{{end}}'.
+For this EC2 session the user reported 172.18.0.1. Recheck after recreating
+Docker networks. Empty disables proxy trust; CIDRs and blanket trust fail
+startup. Keep the API bound to loopback; Caddy must overwrite forwarded
+headers rather than accepting client-supplied addresses as trusted.
+Apply the EC2 restart override with docker compose -f compose.yaml
+-f ops/compose.ec2.yaml up -d --build --wait --wait-timeout 180.
+Keep database, admin, OTP and SMTP secrets server-only in ignored settings.
+Use the existing database password; changing an environment variable does
+not update an initialized PostgreSQL user's password.
+Real OTP email requires a working external SMTP provider; Mailpit only
+captures local email. Google sign-in needs the deployed domain configured
+at Google as well as its public client ID in the web build and server.
+Do not enable push unless the providers and client builds are configured.
+
+Current application limits that remain
+The API explicitly refuses NODE_ENV=production. Do not delete that guard
+or claim a production deployment merely by opening network access.
+Current deployment evidence still needs to establish backup/restore,
+rollback, safety support and real signup/OTP/session behavior.
+The API rate limiter reads Express req.ip. New source supports exact
+TRUSTED_PROXY_IPS with an empty default. Six focused tests cover malformed
+trust configuration, untrusted forwarded headers and spoofed prefixes.
+EC2 must pull, configure and exercise this source before relying on
+per-client public throttling. Restart policies are supplied through the
+explicit EC2 override; reboot/restart behavior still needs actual evidence.
+This preparation is not production approval or device parity evidence.
+
+Deployment sequence
+1. Read the actual branch, Docker services, Caddyfile, service environment,
+   firewall and current web directory without printing secret values.
+2. Back up PostgreSQL, private media, Caddy configuration and the existing
+   API/web release; establish compatible rollback and restore evidence.
+3. Address the application limits above before public real-account use.
+4. Build the matching web source using npm run web:build:remote with
+   EXPO_PUBLIC_API_URL empty/unset for a same-origin deployment. The build
+   must not use mobile dotenv settings or expose server credentials.
+5. Upload apps/mobile/dist into a new versioned directory under
+   /srv/sangai; keep the previous directory and point /srv/sangai/web to
+   the selected build. Upgrade API and web together for cookie/CSRF support.
+6. Merge/validate the Caddy configuration using the Caddy service's
+   environment (or replace BETA_HOST in a staged copy), then reload.
+   Ensure DNS points to this EC2 instance.
+7. Open public web ingress and verify from an outside, previously
+   non-allowlisted connection: home, direct-route refresh, health JSON,
+   real signup/OTP, Secure HttpOnly cookie, logout, matched content/media
+   and blocked admin/demo routes. Recheck privacy and rollback behavior.
+8. Record actual results and share the HTTPS link only once those checks
+   pass. Do not expose a Metro or local preview server to the Internet.
+
+References
+Existing implementation: docs/cross-platform-web-beta.md
+EC2 web/SSH ingress: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/security-group-rules-reference.html
+Caddy SPA/API routing: https://caddyserver.com/docs/caddyfile/patterns
+
+The earlier private-deployment guide describes the old IP-restricted
+policy. The user's 2026-10-05 request authorizes preparing a public web
+entry point. This record does not certify that it is live or that the
+application's launch requirements have been met.
+
+User-reported EC2 checkpoint, 5 October 2026
+- Web branch at 979ee97 before this proxy-support update.
+- Cold database/media archives created under ~/sangai-backups; gzip
+  checks passed. A restore drill and compatible rollback remain pending.
+- API and database healthy; /health and /ready return 200; demo config
+  returns enabled=false; the exported index.html exists.
+- Gmail SMTP authentication passed after credential correction. This
+  proves SMTP authentication, not inbox receipt or application OTP usage.
+- Caddy still uses the original allowlist and proxies every allowed path
+  to the API. Web installation, public routing and outside tests remain.
