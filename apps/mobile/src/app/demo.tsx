@@ -1,7 +1,7 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { connectionSettingsEnabled } from "../lib/connection";
-import { Redirect, router } from "expo-router";
+import { Redirect, router, useLocalSearchParams } from "expo-router";
 import { DemoAvatarArt } from "../components/DemoAvatarArt";
 import {
   DemoConfigRecovery,
@@ -33,10 +33,15 @@ export default function Demo() {
 
 function DemoSelector() {
   const st = useStore();
+  const { account } = useLocalSearchParams<{ account?: string }>();
+  const autoOpening = useRef(false);
   const [group, setGroup] = useState<DemoGroup>("men");
   const [settings, setSettings] = useState(false);
   const [entering, setEntering] = useState<string | null>(null);
+  const [leaving, setLeaving] = useState(false);
   const [entryError, setEntryError] = useState("");
+  const busy = !!entering || leaving;
+  const ownAccountActive = !!st.token && !!st.data && !st.data.me.demo;
   const enteringRef = useRef(false),
     mounted = useRef(true);
   useEffect(() => {
@@ -61,41 +66,87 @@ function DemoSelector() {
       if (mounted.current) setEntering(null);
     }
   };
+  const openOwnAccount = useCallback(async () => {
+    if (enteringRef.current || (st.token && !st.data)) return;
+    enteringRef.current = true;
+    setLeaving(true);
+    setEntryError("");
+    try {
+      // Revoke the demo session before opening ordinary signup/login. Web
+      // logout must succeed on the server to clear the HttpOnly cookie.
+      if (st.token && st.data?.me.demo) await st.signOut();
+      if (mounted.current)
+        router.replace(
+          ownAccountActive
+            ? "/(tabs)"
+            : { pathname: "/welcome", params: { account: "1" } },
+        );
+    } catch (error: any) {
+      if (mounted.current && error.name !== "SessionChangedError")
+        setEntryError(humanMessage(error.message));
+    } finally {
+      enteringRef.current = false;
+      if (mounted.current) setLeaving(false);
+    }
+  }, [st, ownAccountActive]);
+  useEffect(() => {
+    if (account !== "1" || autoOpening.current || (st.token && !st.data))
+      return;
+    // Enter the public selector before clearing a protected tab's session.
+    // This keeps the route guard from losing the explicit account-entry hint.
+    const timer = setTimeout(() => {
+      if (autoOpening.current) return;
+      autoOpening.current = true;
+      void openOwnAccount();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [account, st.token, st.data, openOwnAccount]);
   return (
     <>
       <Page>
         <Header title="Sangai Beta" eyebrow="DEMO MODE" action={<View />} />
-        <Text style={[s.body, { marginBottom: 8 }]}>
-          Explore Sangai using a demo profile.
+        <Text style={[s.body, { marginBottom: 6 }]}>
+          Explore with a fictional profile.
         </Text>
-        <Text style={[s.small, { marginBottom: 24 }]}>
-          All 30 people are fictional adults. Switch perspectives to discover,
-          match, chat and play together. No signup needed.
+        <Text style={[s.small, { marginBottom: 12 }]}>
+          All 30 profiles are fictional adults. No signup needed.
         </Text>
-        <Text style={[s.small, { marginBottom: 20 }]}>
+        <Text
+          style={[
+            s.small,
+            {
+              fontSize: 12,
+              lineHeight: 18,
+              padding: 12,
+              backgroundColor: C.lavender,
+              borderRadius: 14,
+              marginBottom: 16,
+            },
+          ]}
+        >
           Demo accounts are shared. Other testers can see their activity or
           reset the demo world. Use fictional messages, photos and profile
           details.
         </Text>
-        {!st.token && (
-          <View style={{ marginBottom: 24 }}>
-            <Button
-              title="Use my own account"
-              secondary
-              disabled={!!entering}
-              onPress={() =>
-                router.replace({
-                  pathname: "/welcome",
-                  params: { account: "1" },
-                })
-              }
-            />
-          </View>
-        )}
+        <View style={{ marginBottom: 24 }}>
+          <Button
+            title={
+              leaving
+                ? "Opening your account…"
+                : ownAccountActive
+                  ? "Return to my account"
+                  : "Use my own account"
+            }
+            secondary
+            disabled={busy || (!!st.token && !st.data)}
+            onPress={() => void openOwnAccount()}
+          />
+        </View>
         {!!st.data?.me.demo && (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Return to current demo account"
+            disabled={busy}
             onPress={() => router.replace("/(tabs)")}
             style={styles.returnLink}
           >
@@ -112,10 +163,10 @@ function DemoSelector() {
               accessibilityLabel={item.title}
               accessibilityState={{
                 selected: group === item.id,
-                disabled: !!entering,
+                disabled: busy,
               }}
               aria-pressed={group === item.id}
-              disabled={!!entering}
+              disabled={busy}
               onPress={() => {
                 setGroup(item.id);
                 setEntryError("");
@@ -123,7 +174,7 @@ function DemoSelector() {
               style={[
                 styles.group,
                 group === item.id && styles.selectedGroup,
-                !!entering && { opacity: 0.5 },
+                busy && { opacity: 0.5 },
               ]}
             >
               <Text style={[s.label, group === item.id && { color: C.white }]}>
@@ -144,6 +195,7 @@ function DemoSelector() {
           key={`${st.url}:${group}`}
           group={group}
           entering={entering}
+          busy={busy}
           onEnter={enter}
         />
         <View style={{ gap: 12, marginTop: 20 }}>
@@ -151,6 +203,7 @@ function DemoSelector() {
             <Button
               title="Connection settings"
               secondary
+              disabled={busy}
               onPress={() => setSettings(true)}
             />
           )}
@@ -174,10 +227,12 @@ function DemoSelector() {
 function DemoUsers({
   group,
   entering,
+  busy,
   onEnter,
 }: {
   group: DemoGroup;
   entering: string | null;
+  busy: boolean;
   onEnter: (person: DemoPerson) => void;
 }) {
   const st = useStore(),
@@ -290,14 +345,14 @@ function DemoUsers({
                 ? `Entering as ${person.name}…`
                 : `Enter as ${person.name}`
             }
-            disabled={!!entering || st.loading}
+            disabled={busy || st.loading}
             onPress={() => onEnter(person)}
           />
           {!!st.data?.me.demo && (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`View ${person.name} profile`}
-              disabled={!!entering}
+              disabled={busy}
               onPress={() => router.push(`/profile/${person.id}`)}
               style={styles.policy}
             >
@@ -329,7 +384,7 @@ function DemoUsers({
       {!!nextCursor && (
         <Button
           title={moreLoading ? "Loading more profiles…" : "Load more profiles"}
-          disabled={moreLoading || !!entering}
+          disabled={moreLoading || busy}
           secondary
           onPress={() => void loadMore()}
         />
@@ -347,7 +402,13 @@ const styles = StyleSheet.create({
     backgroundColor: C.blush,
   },
   selectedGroup: { backgroundColor: C.primary },
-  person: { borderRadius: 18, padding: 18, backgroundColor: C.white },
+  person: {
+    borderRadius: 20,
+    padding: 16,
+    backgroundColor: C.white,
+    borderWidth: 1,
+    borderColor: C.line,
+  },
   returnLink: {
     flexDirection: "row",
     gap: 8,

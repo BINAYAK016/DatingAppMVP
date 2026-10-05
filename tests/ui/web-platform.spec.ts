@@ -1,5 +1,14 @@
 import { expect, test, type Page } from "@playwright/test";
 
+async function navigate(page: Page, label: string) {
+  const wide = (page.viewportSize()?.width || 0) >= 1024;
+  await page
+    .getByRole(wide ? "link" : "tab", {
+      name: wide ? "Navigate to " + label : new RegExp(label),
+      exact: wide,
+    })
+    .click();
+}
 async function enter(page: Page, name = "Aarav", group = "Men") {
   await page.goto("/demo");
   if (group !== "Men")
@@ -31,20 +40,20 @@ test("web shell fits all requested widths, keeps four tabs and supports keyboard
     const frame = page.getByTestId("sangai-app-frame");
     await expect(frame).toBeVisible();
     expect((await frame.boundingBox())!.width).toBeLessThanOrEqual(
-      Math.min(660, width),
+      Math.min(width >= 1024 ? 960 : 760, width),
     );
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth),
     ).toBeLessThanOrEqual(width);
-    await page.getByRole("tab", { name: /Chat/ }).click();
+    await navigate(page, "Chat");
     await expect(
       page.getByRole("button", { name: "Chat with Anaya", exact: true }),
     ).toBeVisible();
-    await page.getByRole("tab", { name: /Profile/ }).click();
+    await navigate(page, "Profile");
     await expect(
       page.getByRole("button", { name: "Profile settings", exact: true }),
     ).toBeVisible();
-    await page.getByRole("tab", { name: /Discover/ }).click();
+    await navigate(page, "Discover");
   }
   await page.screenshot({ path: "artifacts/web-desktop.png", fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
@@ -81,7 +90,7 @@ test("HttpOnly browser sign-in survives direct conversation refresh and logout r
   expect(await page.evaluate(() => document.cookie)).not.toContain(
     "sangai-local-session",
   );
-  await page.getByRole("tab", { name: /Chat/ }).click();
+  await navigate(page, "Chat");
   await page
     .getByRole("button", { name: "Chat with Anaya", exact: true })
     .click();

@@ -211,6 +211,7 @@ test("email signup verifies through local mail and saves all five onboarding ste
     ).toHaveCount(0);
     await page.getByRole("tab", { name: "Profile", exact: false }).click();
     await page.getByLabel("Profile settings", { exact: true }).click();
+    await page.getByRole("button", { name: "Account", exact: true }).click();
     const loggedOut = page.waitForResponse(
       (response) => response.url().endsWith("/v1/logout"),
       { timeout: 15000 },

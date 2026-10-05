@@ -3,6 +3,7 @@ import {
   View,
   Text,
   Pressable,
+  ScrollView,
   Switch,
   Linking,
   Share,
@@ -14,9 +15,11 @@ import Constants from "expo-constants";
 import { useStore } from "../../lib/store";
 import { enableDeviceNotifications } from "../../lib/notifications";
 import {
+  Avatar,
   BottomSheet,
   Button,
   C,
+  Chip,
   Field,
   Header,
   Icon,
@@ -26,10 +29,8 @@ import {
   s,
   humanMessage,
 } from "../../components/ui";
-import {
-  ProfileHero,
-  ProfileStory,
-} from "../../components/ProfilePresentation";
+import { ProfileStory } from "../../components/ProfilePresentation";
+type SettingsSection = "privacy" | "discovery" | "notifications" | "account";
 type Setting =
   | "posts_visible"
   | "stories_visible"
@@ -53,6 +54,8 @@ export default function Profile() {
     };
   }, []);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsSection, setSettingsSection] =
+    useState<SettingsSection>("privacy");
   const [pendingSettings, setPendingSettings] = useState<
     Partial<Record<Setting, boolean>>
   >({});
@@ -101,44 +104,49 @@ export default function Profile() {
             <IconButton
               name="settings-outline"
               label="Profile settings"
-              onPress={() => setSettingsOpen(true)}
+              onPress={() => {
+                setSettingsSection("privacy");
+                setSettingsOpen(true);
+              }}
             />
           }
         />
-        <ProfileHero person={me} />
-        <View style={{ marginTop: 16 }}>
-          <Button
-            title="Edit profile"
-            icon="create-outline"
-            secondary
-            onPress={() => router.push("/edit-profile")}
-          />
-        </View>
-        {st.demoMode && me.demo && (
-          <View style={{ gap: 8, paddingVertical: 16 }}>
-            <Button
-              title="Switch Demo User"
-              secondary
-              icon="people-outline"
-              onPress={() => router.push("/demo")}
-            />
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Reset Demo"
-              onPress={() => {
-                setResetError("");
-                setResetOpen(true);
-              }}
-              style={{
-                minHeight: 44,
-                justifyContent: "center",
-                alignItems: "center",
-              }}
-            >
-              <Text style={[s.link, { color: C.primary }]}>Reset Demo</Text>
-            </Pressable>
+        <View style={styles.summary}>
+          <Avatar person={me} size={76} />
+          <View style={{ flex: 1, minWidth: 0, gap: 5 }}>
+            <Text style={s.h2}>
+              {me.name}, {me.age}
+            </Text>
+            <View style={[s.row, { gap: 4 }]}>
+              <Icon name="location-outline" size={14} color={C.muted} />
+              <Text style={s.small}>{me.city}</Text>
+            </View>
+            {me.demo && (
+              <Text style={[s.meta, { color: C.primary }]}>
+                Fictional demo profile
+              </Text>
+            )}
           </View>
-        )}
+        </View>
+        <View style={[s.row, { marginBottom: 16 }]}>
+          <View style={{ flex: 1 }}>
+            <Button
+              title="Edit profile"
+              compact
+              icon="create-outline"
+              onPress={() => router.push("/edit-profile")}
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Button
+              title="Preview profile"
+              compact
+              secondary
+              icon="eye-outline"
+              onPress={() => router.push(`/profile/${me.id}`)}
+            />
+          </View>
+        </View>
         {!me.demo && (
           <View style={styles.accountStatus}>
             <Icon
@@ -176,6 +184,31 @@ export default function Profile() {
             <Icon name="chevron-forward" size={18} color={C.muted} />
           </Pressable>
         </View>
+        <View style={styles.moments}>
+          {(
+            [
+              ["privacy", "Privacy & safety", "shield-checkmark-outline"],
+              ["discovery", "Discovery & data", "options-outline"],
+              ["notifications", "Notifications", "notifications-outline"],
+              ["account", "Account", "person-outline"],
+            ] as const
+          ).map(([section, label, icon]) => (
+            <Pressable
+              key={section}
+              accessibilityRole="button"
+              accessibilityLabel={`Open ${section} settings`}
+              style={styles.momentLink}
+              onPress={() => {
+                setSettingsSection(section);
+                setSettingsOpen(true);
+              }}
+            >
+              <Icon name={icon} size={20} color={C.primary} />
+              <Text style={[s.label, { flex: 1 }]}>{label}</Text>
+              <Icon name="chevron-forward" size={16} color={C.muted} />
+            </Pressable>
+          ))}
+        </View>
         <View style={styles.plus}>
           <View style={[s.row, { marginBottom: 10 }]}>
             <Icon name="sparkles-outline" color={C.primary} />
@@ -189,16 +222,92 @@ export default function Profile() {
             onPress={() => router.push("/subscriptions")}
           />
         </View>
+        {st.demoMode && me.demo && (
+          <View style={styles.demoTools}>
+            <View style={s.row}>
+              <Icon name="flask-outline" color={C.primary} size={18} />
+              <Text style={s.label}>Demo tools</Text>
+            </View>
+            <Text style={[s.small, { marginVertical: 10 }]}>
+              Fictional, shared accounts. Use made-up messages and profile
+              details.
+            </Text>
+            <Button
+              title="Use my own account"
+              compact
+              secondary
+              onPress={() =>
+                router.push({ pathname: "/demo", params: { account: "1" } })
+              }
+            />
+            <View style={{ marginTop: 8 }}>
+              <Button
+                title="Switch Demo User"
+                compact
+                secondary
+                icon="people-outline"
+                onPress={() => router.push("/demo")}
+              />
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Reset Demo"
+              onPress={() => {
+                setResetError("");
+                setResetOpen(true);
+              }}
+              style={{
+                minHeight: 44,
+                justifyContent: "center",
+                alignItems: "center",
+                marginTop: 4,
+              }}
+            >
+              <Text style={s.link}>Reset Demo</Text>
+            </Pressable>
+          </View>
+        )}
       </Page>
       <BottomSheet
         visible={settingsOpen}
         onClose={() => setSettingsOpen(false)}
-        title="Privacy & settings"
+        title={
+          settingsSection === "privacy"
+            ? "Privacy & safety"
+            : settingsSection === "discovery"
+              ? "Discovery & data"
+              : settingsSection === "notifications"
+                ? "Notifications"
+                : "Account"
+        }
       >
         <Text style={[s.body, { marginBottom: 24 }]}>
           Choose what feels right for you.
         </Text>
-        <Text style={[s.h2, { marginBottom: 12 }]}>Your space</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ gap: 8, paddingBottom: 16 }}
+        >
+          {(
+            [
+              ["privacy", "Privacy"],
+              ["discovery", "Discovery"],
+              ["notifications", "Notifications"],
+              ["account", "Account"],
+            ] as const
+          ).map(([section, label]) => (
+            <Chip
+              key={section}
+              label={label}
+              selected={settingsSection === section}
+              onPress={() => setSettingsSection(section)}
+            />
+          ))}
+        </ScrollView>
+        {settingsSection === "privacy" && (
+          <Text style={[s.label, { marginBottom: 12 }]}>Your space</Text>
+        )}
         {(
           [
             ["posts_visible", "Share posts with matches"],
@@ -207,103 +316,117 @@ export default function Profile() {
             ["interactions_enabled", "Allow comments and reactions"],
             ["data_saver", "Data saver · tap to play feed videos"],
           ] as const
-        ).map(([key, label]) => (
-          <View key={key} style={styles.setting}>
+        )
+          .filter(([key]) =>
+            settingsSection === "privacy"
+              ? key !== "data_saver"
+              : settingsSection === "discovery" && key === "data_saver",
+          )
+          .map(([key, label]) => (
+            <View key={key} style={styles.setting}>
+              <View style={{ flex: 1 }}>
+                <Text style={[s.body, { color: C.ink }]}>{label}</Text>
+                {pendingSettings[key] !== undefined && (
+                  <Text accessibilityLiveRegion="polite" style={s.small}>
+                    Saving…
+                  </Text>
+                )}
+              </View>
+              <Switch
+                {...(Platform.OS === "web"
+                  ? { activeThumbColor: C.white }
+                  : {})}
+                thumbColor={C.white}
+                accessibilityLabel={label}
+                value={pendingSettings[key] ?? me[key]}
+                disabled={pendingSettings[key] !== undefined}
+                trackColor={{ false: C.line, true: C.primary }}
+                onValueChange={(value) => void settings(key, value)}
+              />
+            </View>
+          ))}
+        {settingsSection === "discovery" && (
+          <View style={styles.setting}>
             <View style={{ flex: 1 }}>
-              <Text style={[s.body, { color: C.ink }]}>{label}</Text>
-              {pendingSettings[key] !== undefined && (
-                <Text accessibilityLiveRegion="polite" style={s.small}>
-                  Saving…
-                </Text>
-              )}
+              <Text style={s.label}>Pause discovery</Text>
+              <Text style={[s.small, { marginTop: 4 }]}>
+                {pendingSettings.paused !== undefined
+                  ? "Saving…"
+                  : "Take a breather. Existing chats stay."}
+              </Text>
             </View>
             <Switch
               {...(Platform.OS === "web" ? { activeThumbColor: C.white } : {})}
               thumbColor={C.white}
-              accessibilityLabel={label}
-              value={pendingSettings[key] ?? me[key]}
-              disabled={pendingSettings[key] !== undefined}
+              accessibilityLabel="Pause discovery"
+              value={pendingSettings.paused ?? me.paused}
+              disabled={pendingSettings.paused !== undefined}
               trackColor={{ false: C.line, true: C.primary }}
-              onValueChange={(value) => void settings(key, value)}
+              onValueChange={(paused) => void settings("paused", paused)}
             />
           </View>
-        ))}
-        <View style={s.divider} />
-        <View style={styles.setting}>
-          <View style={{ flex: 1 }}>
-            <Text style={s.label}>Pause discovery</Text>
-            <Text style={[s.small, { marginTop: 4 }]}>
-              {pendingSettings.paused !== undefined
-                ? "Saving…"
-                : "Take a breather. Existing chats stay."}
-            </Text>
-          </View>
-          <Switch
-            {...(Platform.OS === "web" ? { activeThumbColor: C.white } : {})}
-            thumbColor={C.white}
-            accessibilityLabel="Pause discovery"
-            value={pendingSettings.paused ?? me.paused}
-            disabled={pendingSettings.paused !== undefined}
-            trackColor={{ false: C.line, true: C.primary }}
-            onValueChange={(paused) => void settings("paused", paused)}
-          />
-        </View>
-        <View style={styles.setting}>
-          <View style={{ flex: 1 }}>
-            <Text style={s.label}>Notification preference</Text>
-            <Text style={[s.small, { marginTop: 4 }]}>
-              {pendingSettings.notifications !== undefined
-                ? "Saving…"
-                : "Generic updates only."}
-            </Text>
-          </View>
-          <Switch
-            {...(Platform.OS === "web" ? { activeThumbColor: C.white } : {})}
-            thumbColor={C.white}
-            accessibilityLabel="Notifications"
-            value={pendingSettings.notifications ?? me.notifications}
-            disabled={pendingSettings.notifications !== undefined}
-            trackColor={{ false: C.line, true: C.primary }}
-            onValueChange={(notifications) =>
-              void settings("notifications", notifications)
-            }
-          />
-        </View>
-        <View style={{ marginVertical: 16 }}>
-          {canRegisterPush ? (
-            <Button
-              title={
-                pushBusy
-                  ? "Enabling notifications…"
-                  : "Enable push on this device"
-              }
-              secondary
-              disabled={pushBusy}
-              onPress={async () => {
-                if (pushInFlight.current) return;
-                pushInFlight.current = true;
-                setPushBusy(true);
-                try {
-                  const token = await enableDeviceNotifications();
-                  await st.request("/device", { token });
-                  st.toast("Device registered for notifications.");
-                } catch (e: any) {
-                  st.toast(e.message);
-                } finally {
-                  pushInFlight.current = false;
-                  setPushBusy(false);
+        )}
+        {settingsSection === "notifications" && (
+          <>
+            <View style={styles.setting}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.label}>Notification preference</Text>
+                <Text style={[s.small, { marginTop: 4 }]}>
+                  {pendingSettings.notifications !== undefined
+                    ? "Saving…"
+                    : "Generic updates only."}
+                </Text>
+              </View>
+              <Switch
+                {...(Platform.OS === "web"
+                  ? { activeThumbColor: C.white }
+                  : {})}
+                thumbColor={C.white}
+                accessibilityLabel="Notifications"
+                value={pendingSettings.notifications ?? me.notifications}
+                disabled={pendingSettings.notifications !== undefined}
+                trackColor={{ false: C.line, true: C.primary }}
+                onValueChange={(notifications) =>
+                  void settings("notifications", notifications)
                 }
-              }}
-            />
-          ) : (
-            <Text style={s.small}>
-              {Platform.OS === "web"
-                ? "Device notifications are available in the mobile app when enabled. Your in-app Activity inbox works here."
-                : "Device notifications are not enabled in this beta build. Your in-app Activity inbox still works."}
-            </Text>
-          )}
-        </View>
-        <View style={s.divider} />
+              />
+            </View>
+            <View style={{ marginVertical: 16 }}>
+              {canRegisterPush ? (
+                <Button
+                  title={
+                    pushBusy
+                      ? "Enabling notifications…"
+                      : "Enable push on this device"
+                  }
+                  secondary
+                  disabled={pushBusy}
+                  onPress={async () => {
+                    if (pushInFlight.current) return;
+                    pushInFlight.current = true;
+                    setPushBusy(true);
+                    try {
+                      const token = await enableDeviceNotifications();
+                      await st.request("/device", { token });
+                      st.toast("Device registered for notifications.");
+                    } catch (e: any) {
+                      st.toast(e.message);
+                    } finally {
+                      pushInFlight.current = false;
+                      setPushBusy(false);
+                    }
+                  }}
+                />
+              ) : (
+                <Text style={s.small}>
+                  {Platform.OS === "web"
+                    ? "Device notifications are available in the mobile app when enabled. Your in-app Activity inbox works here."
+                    : "Device notifications are not enabled in this beta build. Your in-app Activity inbox still works."}
+                </Text>
+              )}
+            </View>
+          </>
+        )}
         {(
           [
             {
@@ -332,80 +455,92 @@ export default function Profile() {
               },
             },
           ] as const
-        ).map((item) => (
-          <Pressable
-            accessibilityRole="button"
-            key={item.title}
-            onPress={item.action}
-            style={styles.setting}
-          >
-            <Icon name={item.icon} size={22} color={C.muted} />
-            <Text style={[s.label, { flex: 1 }]}>{item.title}</Text>
-            <Icon name="chevron-forward" size={18} color={C.muted} />
-          </Pressable>
-        ))}
-        <View style={{ marginTop: 24 }}>
-          <Button
-            title={st.demoMode && me.demo ? "Switch Demo User" : "Sign out"}
-            secondary
-            onPress={() => {
-              if (st.demoMode && me.demo)
-                return closeThen(() => router.push("/demo"));
-              void st
-                .signOut()
-                .then(() => {
-                  setSettingsOpen(false);
-                  router.replace("/welcome");
-                })
-                .catch((e) => st.toast(e.message));
-            }}
-          />
-        </View>
-        <Pressable
-          accessibilityRole="button"
-          style={{
-            minHeight: 52,
-            alignItems: "center",
-            justifyContent: "center",
-            marginTop: 12,
-          }}
-          onPress={() => setDeleting(!deleting)}
-        >
-          <Text style={[s.small, s.danger]}>Delete my account</Text>
-        </Pressable>
-        {deleting && (
-          <View style={[s.note, { marginTop: 8 }]}>
-            <Text style={[s.body, { marginBottom: 16 }]}>
-              Your profile, messages, matches and media will be removed from the
-              live beta server. This cannot be undone. Type DELETE to confirm.
-            </Text>
-            <Field
-              value={confirmation}
-              onChangeText={setConfirmation}
-              placeholder="DELETE"
-            />
-            <Button
-              title={busy ? "Deleting…" : "Permanently delete account"}
-              disabled={confirmation !== "DELETE" || busy}
-              onPress={async () => {
-                setBusy(true);
-                try {
-                  await st.request(
-                    "/account",
-                    { confirm: confirmation },
-                    "DELETE",
-                  );
-                  await st.signOut();
-                  setSettingsOpen(false);
-                  router.replace("/welcome");
-                } catch (e: any) {
-                  st.toast(e.message);
-                } finally {
-                  setBusy(false);
-                }
+        )
+          .filter((item) =>
+            settingsSection === "account"
+              ? item.title !== "Privacy & safety"
+              : settingsSection === "privacy" &&
+                item.title === "Privacy & safety",
+          )
+          .map((item) => (
+            <Pressable
+              accessibilityRole="button"
+              key={item.title}
+              onPress={item.action}
+              style={styles.setting}
+            >
+              <Icon name={item.icon} size={22} color={C.muted} />
+              <Text style={[s.label, { flex: 1 }]}>{item.title}</Text>
+              <Icon name="chevron-forward" size={18} color={C.muted} />
+            </Pressable>
+          ))}
+        {settingsSection === "account" && (
+          <>
+            <View style={{ marginTop: 16 }}>
+              <Button
+                title={st.demoMode && me.demo ? "Switch Demo User" : "Sign out"}
+                secondary
+                onPress={() => {
+                  if (st.demoMode && me.demo)
+                    return closeThen(() => router.push("/demo"));
+                  void st
+                    .signOut()
+                    .then(() => {
+                      setSettingsOpen(false);
+                      router.replace("/welcome");
+                    })
+                    .catch((e) => st.toast(e.message));
+                }}
+              />
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              style={{
+                minHeight: 52,
+                alignItems: "center",
+                justifyContent: "center",
+                marginTop: 12,
               }}
-            />
-          </View>
+              onPress={() => setDeleting(!deleting)}
+            >
+              <Text style={[s.small, s.danger]}>Delete my account</Text>
+            </Pressable>
+            {deleting && (
+              <View style={[s.note, { marginTop: 8 }]}>
+                <Text style={[s.body, { marginBottom: 16 }]}>
+                  Your profile, messages, matches and media will be removed from
+                  the live beta server. This cannot be undone. Type DELETE to
+                  confirm.
+                </Text>
+                <Field
+                  value={confirmation}
+                  onChangeText={setConfirmation}
+                  placeholder="DELETE"
+                />
+                <Button
+                  title={busy ? "Deleting…" : "Permanently delete account"}
+                  disabled={confirmation !== "DELETE" || busy}
+                  onPress={async () => {
+                    setBusy(true);
+                    try {
+                      await st.request(
+                        "/account",
+                        { confirm: confirmation },
+                        "DELETE",
+                      );
+                      await st.signOut();
+                      setSettingsOpen(false);
+                      router.replace("/welcome");
+                    } catch (e: any) {
+                      st.toast(e.message);
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                />
+              </View>
+            )}
+          </>
         )}
       </BottomSheet>
       <BottomSheet
@@ -466,6 +601,21 @@ export default function Profile() {
   );
 }
 const styles = StyleSheet.create({
+  summary: {
+    backgroundColor: C.blush,
+    borderRadius: 20,
+    padding: 16,
+    flexDirection: "row",
+    gap: 16,
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  demoTools: {
+    backgroundColor: C.lavender,
+    borderRadius: 18,
+    padding: 16,
+    marginTop: 16,
+  },
   accountStatus: {
     flexDirection: "row",
     gap: 8,
@@ -473,19 +623,22 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   moments: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: C.line,
-    marginBottom: 24,
+    backgroundColor: C.white,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: C.line,
+    paddingHorizontal: 16,
+    marginBottom: 16,
   },
   momentLink: {
-    minHeight: 64,
+    minHeight: 56,
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: C.line,
   },
-  plus: { backgroundColor: C.blush, padding: 24, borderRadius: 18 },
+  plus: { backgroundColor: C.peach, padding: 16, borderRadius: 18 },
   setting: {
     flexDirection: "row",
     gap: 16,

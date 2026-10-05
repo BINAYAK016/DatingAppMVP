@@ -114,6 +114,7 @@ export function ConversationItem({
         {!!m.post_id && (
           <Button
             secondary
+            compact
             title="View shared moment"
             onPress={() =>
               router.push({ pathname: "/post/[id]", params: { id: m.post_id } })
@@ -197,7 +198,9 @@ export function ConversationItem({
               : "A little more to know"}
           </Text>
         </View>
-        <Text style={s.h2}>{def?.title || "Previous game"}</Text>
+        <Text style={[s.label, { fontSize: 17, lineHeight: 24 }]}>
+          {def?.title || "Previous game"}
+        </Text>
         {m.version === 2 && (
           <Text style={[s.small, { marginTop: 8 }]}>
             {def?.durationMinutes} min · 2 players
@@ -219,6 +222,7 @@ export function ConversationItem({
           m.guest === st.data?.me.id && (
             <View style={{ gap: 10, marginTop: 16 }}>
               <Button
+                compact
                 title={gameBusy ? "Opening…" : "Accept & play"}
                 disabled={gameBusy}
                 onPress={(event?: any) => {
@@ -227,6 +231,7 @@ export function ConversationItem({
                 }}
               />
               <Button
+                compact
                 title="Maybe later"
                 secondary
                 disabled={gameBusy}
@@ -297,9 +302,9 @@ export function ConversationItem({
 const styles = StyleSheet.create({
   bubble: {
     maxWidth: "86%",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 18,
     marginBottom: 10,
   },
   sent: {
@@ -335,9 +340,10 @@ const styles = StyleSheet.create({
   snapTitle: { fontSize: 15, fontWeight: "500", color: C.ink },
   connection: {
     borderRadius: 18,
-    padding: 22,
+    padding: 16,
     width: "92%",
+    maxWidth: 420,
     alignSelf: "center",
-    marginVertical: 12,
+    marginVertical: 8,
   },
 });

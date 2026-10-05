@@ -12,26 +12,19 @@ import {
   s,
   Skeleton,
 } from "../../components/ui";
+import { MatchStrip } from "../../components/MatchStrip";
 import { useStore } from "../../lib/store";
 
 export default function ChatList() {
-  const { data, refresh, loadMoreMatches, loadMoreStories, toast } = useStore();
+  const { data, refresh, loadMoreMatches, toast } = useStore();
   const [refreshing, setRefreshing] = useState(false);
-  const available = (data?.stories || []).filter(
-    (story) => new Date(story.expires_at) > new Date(),
-  );
-  const authors = available.filter(
-    (story, index, all) =>
-      all.findIndex((candidate) => candidate.author.id === story.author.id) ===
-      index,
-  );
   return (
     <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor: C.bg }}>
       <FlatList
         data={data?.matches || []}
         keyExtractor={(person) => person.id}
-        contentContainerStyle={[s.page, { paddingBottom: 32 }]}
-        initialNumToRender={7}
+        contentContainerStyle={[s.page, { paddingBottom: 24 }]}
+        initialNumToRender={8}
         maxToRenderPerBatch={5}
         windowSize={5}
         onEndReached={() =>
@@ -47,88 +40,13 @@ export default function ChatList() {
         ListHeaderComponent={
           <>
             <Header title="Chat" />
-            {data ? (
-              <FlatList
-                horizontal
-                data={authors}
-                keyExtractor={(story) => story.author.id}
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.stories}
-                initialNumToRender={5}
-                maxToRenderPerBatch={3}
-                windowSize={3}
-                ListFooterComponent={
-                  data.storiesNextCursor ? (
-                    <Button
-                      title="More stories"
-                      secondary
-                      onPress={() =>
-                        void loadMoreStories().catch((error) =>
-                          toast(error.message),
-                        )
-                      }
-                    />
-                  ) : null
-                }
-                ListHeaderComponent={
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Add your story"
-                    style={styles.story}
-                    onPress={() =>
-                      router.push({
-                        pathname: "/compose",
-                        params: { kind: "story" },
-                      })
-                    }
-                  >
-                    <View style={styles.addStory}>
-                      <Avatar person={data.me} size={60} />
-                      <View style={styles.plus}>
-                        <Icon name="add" size={15} color={C.white} />
-                      </View>
-                    </View>
-                    <Text style={styles.storyName}>Your story</Text>
-                  </Pressable>
-                }
-                renderItem={({ item: story }) => (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`View ${story.author.name}'s story`}
-                    style={styles.story}
-                    onPress={() => {
-                      const first = available
-                        .filter(
-                          (moment) => moment.author.id === story.author.id,
-                        )
-                        .sort((a, b) =>
-                          a.expires_at.localeCompare(b.expires_at),
-                        )[0];
-                      if (first) router.push(`/story/${first.id}`);
-                    }}
-                  >
-                    <View style={styles.ring}>
-                      <Avatar person={story.author} size={60} />
-                    </View>
-                    <Text style={styles.storyName} numberOfLines={1}>
-                      {story.author.id === data.me.id
-                        ? "You"
-                        : story.author.name}
-                    </Text>
-                  </Pressable>
-                )}
-              />
-            ) : (
-              <Skeleton height={88} />
-            )}
-            {!!data && !authors.length && (
-              <Text style={styles.storyHint}>
-                Your matches’ moments will appear here.
-              </Text>
-            )}
+            {data ? <MatchStrip inbox /> : <Skeleton height={88} />}
             <View style={styles.section}>
-              <Text style={s.h2}>Conversations</Text>
-              <Icon name="lock-closed-outline" size={14} color={C.muted} />
+              <Text style={s.label}>Conversations</Text>
+              <View style={[s.row, { gap: 5 }]}>
+                <Icon name="lock-closed-outline" size={12} color={C.muted} />
+                <Text style={s.meta}>Just your matches</Text>
+              </View>
             </View>
           </>
         }
@@ -139,13 +57,13 @@ export default function ChatList() {
             onPress={() => router.push(`/chat/${person.id}`)}
             style={({ pressed }) => [
               styles.conversation,
-              pressed && { opacity: 0.7 },
+              pressed && { backgroundColor: C.blush },
             ]}
           >
-            <Avatar person={person} size={62} />
+            <Avatar person={person} size={48} />
             <View style={styles.preview}>
               <Text
-                style={[styles.name, !!person.unread && { fontWeight: "600" }]}
+                style={[styles.name, !!person.unread && { fontWeight: "700" }]}
               >
                 {person.name}
               </Text>
@@ -169,11 +87,12 @@ export default function ChatList() {
                 </Text>
               </View>
             )}
+            <Icon name="chevron-forward" size={15} color={C.muted} />
           </Pressable>
         )}
         ListEmptyComponent={
           !data ? (
-            <View style={{ gap: 16 }}>
+            <View style={{ gap: 12 }}>
               <Skeleton height={76} />
               <Skeleton height={76} />
               <Skeleton height={76} />
@@ -197,53 +116,33 @@ export default function ChatList() {
   );
 }
 const styles = StyleSheet.create({
-  stories: { gap: 18, paddingTop: 4, paddingBottom: 20 },
-  story: { alignItems: "center", gap: 8, width: 72 },
-  storyName: { fontSize: 13, color: C.ink, textAlign: "center" },
-  addStory: { padding: 4, width: 70, height: 70 },
-  plus: {
-    width: 23,
-    height: 23,
-    borderRadius: 12,
-    backgroundColor: C.primary,
-    borderWidth: 3,
-    borderColor: C.bg,
-    alignItems: "center",
-    justifyContent: "center",
-    position: "absolute",
-    right: 0,
-    bottom: 1,
-  },
-  ring: {
-    borderWidth: 2,
-    borderColor: C.primary,
-    padding: 3,
-    borderRadius: 36,
-  },
-  storyHint: { color: C.muted, fontSize: 13, lineHeight: 19, marginBottom: 8 },
   section: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingTop: 12,
-    paddingBottom: 8,
+    paddingVertical: 12,
   },
   conversation: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 14,
-    minHeight: 92,
-    paddingVertical: 14,
+    gap: 12,
+    minHeight: 78,
+    padding: 12,
+    marginBottom: 8,
+    borderRadius: 18,
+    backgroundColor: C.white,
+    borderWidth: 1,
+    borderColor: C.line,
   },
-  preview: { flex: 1, gap: 5 },
-  name: { fontSize: 17, fontWeight: "500", color: C.ink },
-  lastMessage: { fontSize: 13, lineHeight: 20, color: C.muted },
+  preview: { flex: 1, minWidth: 0, gap: 4 },
+  name: { fontSize: 16, fontWeight: "600", color: C.ink },
+  lastMessage: { fontSize: 13, lineHeight: 19, color: C.muted },
   unread: {
-    minWidth: 22,
-    height: 22,
+    minWidth: 21,
+    height: 21,
     borderRadius: 11,
     backgroundColor: C.primary,
-    paddingHorizontal: 6,
+    paddingHorizontal: 5,
     alignItems: "center",
     justifyContent: "center",
   },

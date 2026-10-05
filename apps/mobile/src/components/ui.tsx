@@ -74,12 +74,14 @@ export function Button({
   secondary = false,
   disabled = false,
   icon,
+  compact = false,
 }: {
   title: string;
   onPress: () => void;
   secondary?: boolean;
   disabled?: boolean;
   icon?: React.ComponentProps<typeof Ionicons>["name"];
+  compact?: boolean;
 }) {
   return (
     <Pressable
@@ -90,13 +92,26 @@ export function Button({
       style={({ pressed }) => [
         s.button,
         secondary && s.secondary,
+        compact && {
+          minHeight: 44,
+          paddingVertical: 10,
+          paddingHorizontal: 14,
+        },
         { opacity: disabled ? 0.45 : pressed ? 0.8 : 1 },
       ]}
     >
       {icon && (
         <Icon name={icon} color={secondary ? C.ink : C.white} size={18} />
       )}
-      <Text style={[s.buttonText, secondary && { color: C.ink }]}>{title}</Text>
+      <Text
+        style={[
+          s.buttonText,
+          compact && { fontSize: 14 },
+          secondary && { color: C.ink },
+        ]}
+      >
+        {title}
+      </Text>
     </Pressable>
   );
 }
@@ -580,15 +595,15 @@ export function Empty({
     <View
       style={{
         alignItems: "center",
-        paddingVertical: 48,
-        paddingHorizontal: 24,
+        paddingVertical: 32,
+        paddingHorizontal: 16,
       }}
     >
       <View
         style={{
-          width: 72,
-          height: 72,
-          borderRadius: 36,
+          width: 60,
+          height: 60,
+          borderRadius: 20,
           backgroundColor: C.blush,
           alignItems: "center",
           justifyContent: "center",
@@ -940,7 +955,7 @@ export const s = StyleSheet.create({
   page: {
     padding: 20,
     paddingBottom: 32,
-    maxWidth: 600,
+    maxWidth: 680,
     width: "100%",
     alignSelf: "center",
   },
@@ -948,8 +963,8 @@ export const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    minHeight: 52,
-    marginBottom: 20,
+    minHeight: 48,
+    marginBottom: 16,
   },
   eyebrow: {
     fontSize: 11,
@@ -960,8 +975,8 @@ export const s = StyleSheet.create({
   },
   title: {
     fontWeight: "600",
-    fontSize: 28,
-    lineHeight: 34,
+    fontSize: 26,
+    lineHeight: 32,
     color: C.ink,
     letterSpacing: -0.8,
   },
@@ -973,13 +988,13 @@ export const s = StyleSheet.create({
     letterSpacing: -1.2,
   },
   h2: {
-    fontSize: 22,
-    lineHeight: 28,
+    fontSize: 20,
+    lineHeight: 26,
     fontWeight: "600",
     color: C.ink,
     letterSpacing: -0.4,
   },
-  body: { fontSize: 16, lineHeight: 25, color: C.ink },
+  body: { fontSize: 16, lineHeight: 24, color: C.ink },
   small: { fontSize: 13, color: C.muted, lineHeight: 20 },
   caption: { fontSize: 13, color: C.muted, lineHeight: 20 },
   meta: { fontSize: 11, color: C.muted, lineHeight: 16 },
@@ -988,16 +1003,18 @@ export const s = StyleSheet.create({
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   card: {
     backgroundColor: C.white,
-    borderRadius: 18,
-    padding: 20,
-    marginBottom: 20,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: C.line,
+    padding: 16,
+    marginBottom: 16,
   },
   button: {
     backgroundColor: C.primary,
     borderRadius: 14,
-    minHeight: 54,
+    minHeight: 48,
     paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingVertical: 12,
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
@@ -1005,17 +1022,15 @@ export const s = StyleSheet.create({
   },
   buttonText: { fontSize: 16, fontWeight: "600", color: C.white },
   secondary: {
-    backgroundColor: "transparent",
+    backgroundColor: C.white,
     borderWidth: 1,
     borderColor: C.line,
   },
   chip: {
-    backgroundColor: C.bg,
-    borderWidth: 1,
-    borderColor: C.line,
+    backgroundColor: C.lavender,
     paddingHorizontal: 13,
-    paddingVertical: 11,
-    borderRadius: 20,
+    paddingVertical: 7,
+    borderRadius: 14,
   },
   chipText: { fontSize: 13, color: C.ink, fontWeight: "500" },
   input: {

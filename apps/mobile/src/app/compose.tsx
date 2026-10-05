@@ -24,6 +24,7 @@ import type * as ImagePicker from "expo-image-picker";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import { useVideoPlayer, VideoView } from "expo-video";
 import {
+  Avatar,
   BottomSheet,
   Button,
   C,
@@ -363,7 +364,8 @@ export default function Compose() {
       }
     >
       <Header back title={title} />
-      <View style={[s.row, { marginBottom: 20 }]}>
+      <View style={[s.row, { marginBottom: 16 }]}>
+        {st.data && <Avatar person={st.data.me} size={36} />}
         <Icon
           name={
             kind === "avatar" || kind === "gallery"
@@ -385,6 +387,33 @@ export default function Compose() {
                   : "A little more of you, on your profile."}
         </Text>
       </View>
+      {kind !== "avatar" && kind !== "gallery" && (
+        <View style={{ marginBottom: 16 }}>
+          <Text style={[s.small, { marginBottom: 8 }]}>
+            {assets.length ? "A little caption" : "Or share a thought"}
+          </Text>
+          <TextInput
+            accessibilityLabel={
+              kind === "snap" ? "A little caption" : "What’s on your mind?"
+            }
+            value={body}
+            onChangeText={(value) => {
+              setBody(value.slice(0, captionLimit));
+              updateDraft();
+            }}
+            placeholder="What made you smile today?"
+            placeholderTextColor={C.muted}
+            multiline
+            editable={mutable}
+            style={styles.caption}
+          />
+          {body.length > captionLimit - 100 && (
+            <Text style={[s.small, { textAlign: "right" }]}>
+              {body.length}/{captionLimit}
+            </Text>
+          )}
+        </View>
+      )}
       {asset ? (
         <>
           <View style={styles.preview}>
@@ -493,7 +522,7 @@ export default function Compose() {
         <View style={styles.chooser}>
           <View style={s.row}>
             <Icon name="images-outline" size={26} color={C.primary} />
-            <Text style={[s.h2, { flex: 1 }]}>
+            <Text style={[s.label, { flex: 1 }]}>
               {needsMedia ? "Choose a moment" : "Add to your moment"}
             </Text>
           </View>
@@ -538,33 +567,6 @@ export default function Compose() {
               onPress={() => void pick("record")}
             />
           </View>
-        </View>
-      )}
-      {kind !== "avatar" && kind !== "gallery" && (
-        <View style={{ marginTop: 24 }}>
-          <Text style={[s.small, { marginBottom: 8 }]}>
-            {assets.length ? "A little caption" : "Or share a thought"}
-          </Text>
-          <TextInput
-            accessibilityLabel={
-              kind === "snap" ? "A little caption" : "What’s on your mind?"
-            }
-            value={body}
-            onChangeText={(value) => {
-              setBody(value.slice(0, captionLimit));
-              updateDraft();
-            }}
-            placeholder="What made you smile today?"
-            placeholderTextColor={C.muted}
-            multiline
-            editable={mutable}
-            style={styles.caption}
-          />
-          {body.length > captionLimit - 100 && (
-            <Text style={[s.small, { textAlign: "right" }]}>
-              {body.length}/{captionLimit}
-            </Text>
-          )}
         </View>
       )}
       <BottomSheet
@@ -614,14 +616,18 @@ function LocalVideo({ uri }: { uri: string }) {
   );
 }
 const styles = StyleSheet.create({
-  chooser: { padding: 20, backgroundColor: C.blush, borderRadius: 20, gap: 14 },
+  chooser: { padding: 16, backgroundColor: C.blush, borderRadius: 18, gap: 10 },
   caption: {
-    minHeight: 100,
-    padding: 0,
+    minHeight: 140,
+    padding: 16,
+    backgroundColor: C.white,
+    borderWidth: 1,
+    borderColor: C.line,
+    borderRadius: 18,
     textAlignVertical: "top",
     color: C.ink,
-    fontSize: 20,
-    lineHeight: 29,
+    fontSize: 16,
+    lineHeight: 24,
   },
   preview: {
     position: "relative",

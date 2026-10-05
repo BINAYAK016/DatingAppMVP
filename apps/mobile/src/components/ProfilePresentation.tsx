@@ -1,24 +1,21 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { Person } from "../lib/types";
 import { C, Chip, Icon, Media, PersonImage, s } from "./ui";
 
 export function ProfileHero({ person }: { person: Person }) {
   return (
     <View style={styles.hero}>
-      <PersonImage person={person} style={StyleSheet.absoluteFill} />
-      <LinearGradient
-        colors={["transparent", "#241F2499", "#241F24E0"]}
-        style={styles.shade}
-      />
+      <View style={styles.photo}>
+        <PersonImage person={person} style={StyleSheet.absoluteFill} />
+      </View>
       <View style={styles.identity}>
         {person.demo && <Text style={styles.demo}>FICTIONAL DEMO PROFILE</Text>}
         <Text style={styles.name}>
           {person.name}, {person.age}
         </Text>
         <View style={s.row}>
-          <Icon name="location-outline" color={C.white} size={16} />
+          <Icon name="location-outline" color={C.muted} size={15} />
           <Text style={styles.location}>{person.city}</Text>
         </View>
       </View>
@@ -143,46 +140,51 @@ export function ProfileStory({ person }: { person: Person }) {
 
 const styles = StyleSheet.create({
   hero: {
-    height: 430,
-    borderRadius: 22,
+    borderRadius: 20,
     overflow: "hidden",
-    backgroundColor: C.peach,
+    backgroundColor: C.white,
+    borderWidth: 1,
+    borderColor: C.line,
+    marginBottom: 16,
   },
-  shade: { position: "absolute", left: 0, right: 0, bottom: 0, height: "65%" },
-  identity: { position: "absolute", left: 24, right: 24, bottom: 24, gap: 8 },
+  photo: { height: 320, backgroundColor: C.peach },
+  identity: { padding: 16, gap: 6 },
   name: {
-    color: C.white,
-    fontSize: 34,
-    lineHeight: 40,
+    color: C.ink,
+    fontSize: 26,
+    lineHeight: 32,
     fontWeight: "600",
-    letterSpacing: -1,
+    letterSpacing: -0.5,
   },
-  location: { color: C.white, fontSize: 15 },
-  demo: {
-    color: "#FFFFFFCC",
-    fontSize: 10,
-    letterSpacing: 1.5,
-    fontWeight: "600",
+  location: { color: C.muted, fontSize: 14 },
+  demo: { color: C.primary, fontSize: 10, letterSpacing: 1, fontWeight: "600" },
+  section: {
+    padding: 16,
+    marginBottom: 12,
+    backgroundColor: C.white,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: C.line,
   },
-  section: { paddingVertical: 24 },
   intention: {
     flexDirection: "row",
     gap: 16,
     alignItems: "center",
     backgroundColor: C.blush,
-    padding: 20,
+    padding: 16,
     borderRadius: 18,
+    marginBottom: 12,
   },
   prompt: {
     backgroundColor: C.lavender,
-    padding: 24,
+    padding: 16,
     borderRadius: 18,
-    marginTop: 8,
+    marginBottom: 12,
   },
   promptText: {
     color: C.ink,
-    fontSize: 23,
-    lineHeight: 32,
+    fontSize: 20,
+    lineHeight: 28,
     fontWeight: "500",
     letterSpacing: -0.4,
     marginTop: 12,

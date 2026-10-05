@@ -193,6 +193,7 @@ test("signing out returns to Welcome and clears the retained signup fields", asy
     .click();
   await page.getByRole("tab", { name: "Profile", exact: false }).click();
   await page.getByLabel("Profile settings", { exact: true }).click();
+  await page.getByRole("button", { name: "Account", exact: true }).click();
   const loggedOut = page.waitForResponse((response) =>
     response.url().endsWith("/v1/logout"),
   );

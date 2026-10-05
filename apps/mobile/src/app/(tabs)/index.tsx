@@ -18,7 +18,6 @@ import {
 import { router } from "expo-router";
 import { randomUUID } from "expo-crypto";
 import * as Haptics from "expo-haptics";
-import { LinearGradient } from "expo-linear-gradient";
 import {
   BottomSheet,
   Button,
@@ -55,7 +54,7 @@ export default function Discover() {
   const demoControlsHeight =
     st.demoMode && st.data?.me.demo ? 44 + Math.min(insets.bottom, 12) : 0;
   const cardHeight = Math.min(
-    650,
+    560,
     Math.max(
       280,
       height - insets.top - insets.bottom - 224 - demoControlsHeight,
@@ -198,8 +197,13 @@ export default function Discover() {
           {st.data?.me.preferences.cities.join(", ") || "All launch cities"}
         </Text>
         <Text style={s.label}>Interested in</Text>
-        <Text style={[s.body, { marginBottom: 24 }]}>
+        <Text style={[s.body, { marginBottom: 20 }]}>
           {st.data?.me.preferences.genders.join(", ") || "Everyone"}
+        </Text>
+        <Text style={s.label}>Relationship intent</Text>
+        <Text style={[s.body, { marginBottom: 24 }]}>
+          {st.data?.me.preferences.intents?.join(", ") ||
+            "Any relationship intent"}
         </Text>
         <Button
           title="Edit discovery preferences"
@@ -334,93 +338,40 @@ function SwipeCard({
             if (Platform.OS !== "web" || !dragged.current)
               router.push(`/profile/${p.id}`);
           }}
-          style={{
-            height,
-            borderRadius: 22,
-            overflow: "hidden",
-            backgroundColor: C.peach,
-          }}
+          style={styles.card}
         >
-          <PersonImage person={p} style={StyleSheet.absoluteFill} />
           <View
             style={{
-              position: "absolute",
-              top: 16,
-              left: 16,
-              right: 16,
-              flexDirection: "row",
-              flexWrap: "wrap",
-              gap: 8,
+              height: Math.max(160, height - 172),
+              backgroundColor: C.peach,
             }}
           >
-            <Text style={styles.photoPill}>{p.intent}</Text>
-            {p.demo && <Text style={styles.photoPill}>Fictional demo</Text>}
+            <PersonImage person={p} style={StyleSheet.absoluteFill} />
+            {p.demo && <Text style={styles.demo}>Fictional demo</Text>}
           </View>
-          <LinearGradient
-            colors={["transparent", "#241A2099", "#241A20F2"]}
-            locations={[0, 0.4, 1]}
-            style={{
-              position: "absolute",
-              left: 0,
-              right: 0,
-              bottom: 0,
-              padding: 22,
-              paddingTop: 70,
-            }}
-          >
-            <Text
-              style={{
-                fontSize: 32,
-                lineHeight: 38,
-                fontWeight: "700",
-                color: C.white,
-              }}
-            >
+          <View style={styles.details}>
+            <Text style={styles.name} numberOfLines={2}>
               {p.name}, {p.age}
             </Text>
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 5,
-                marginTop: 6,
-                marginBottom: 10,
-              }}
-            >
-              <Icon name="location-outline" color={C.white} size={15} />
-              <Text style={{ fontSize: 14, color: "#FFF4EE" }}>{p.city}</Text>
+            <View style={[s.row, { gap: 5, flexWrap: "wrap", marginTop: 4 }]}>
+              <Icon name="location-outline" size={14} color={C.muted} />
+              <Text style={s.small}>{p.city}</Text>
+              <Text style={styles.intent}>{p.intent}</Text>
             </View>
             <Text
-              numberOfLines={2}
-              style={{ fontSize: 14, lineHeight: 21, color: C.white }}
+              numberOfLines={1}
+              style={[s.small, { color: C.ink, marginTop: 10 }]}
             >
               {p.bio}
             </Text>
-            <View
-              style={{
-                flexDirection: "row",
-                flexWrap: "wrap",
-                gap: 6,
-                marginTop: 14,
-              }}
-            >
-              {p.interests.slice(0, 3).map((i) => (
-                <Text
-                  key={i}
-                  style={[
-                    styles.photoPill,
-                    {
-                      backgroundColor: "#FFFFFF24",
-                      fontSize: 12,
-                      paddingHorizontal: 10,
-                    },
-                  ]}
-                >
-                  {i}
+            <View style={[s.wrap, { gap: 6, marginTop: 10 }]}>
+              {p.interests.slice(0, 3).map((interest) => (
+                <Text key={interest} style={styles.interest}>
+                  {interest}
                 </Text>
               ))}
             </View>
-          </LinearGradient>
+          </View>
           {(
             [
               ["LIKE", likeOpacity, -12],
@@ -473,22 +424,34 @@ function SwipeCard({
             accessibilityLabel={label}
             onPress={() => choose(action)}
             style={({ pressed }) => ({
-              width: size,
-              height: size,
-              borderRadius: size / 2,
+              minWidth: 72,
+              minHeight: 80,
               alignItems: "center",
               justifyContent: "center",
-              backgroundColor: bg,
-              borderWidth: action === "pass" ? 1 : 0,
-              borderColor: C.line,
               opacity: busy || animating ? 0.5 : pressed ? 0.7 : 1,
             })}
           >
-            <Icon
-              name={icon}
-              color={color}
-              size={action === "like" ? 30 : 25}
-            />
+            <View
+              style={{
+                width: size,
+                height: size,
+                borderRadius: size / 2,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: bg,
+                borderWidth: action === "pass" ? 1 : 0,
+                borderColor: C.line,
+              }}
+            >
+              <Icon
+                name={icon}
+                color={color}
+                size={action === "like" ? 28 : 23}
+              />
+            </View>
+            <Text style={[s.meta, { marginTop: 5, color: C.ink }]}>
+              {label}
+            </Text>
           </Pressable>
         ))}
       </View>
@@ -496,14 +459,51 @@ function SwipeCard({
   );
 }
 const styles = StyleSheet.create({
-  photoPill: {
+  card: {
+    borderRadius: 20,
     overflow: "hidden",
-    backgroundColor: "#241A2066",
-    color: "#FFFFFF",
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    fontSize: 12,
+    backgroundColor: C.white,
+    borderWidth: 1,
+    borderColor: C.line,
+  },
+  details: { padding: 16 },
+  name: {
+    fontSize: 24,
+    lineHeight: 30,
     fontWeight: "600",
+    color: C.ink,
+    letterSpacing: -0.5,
+  },
+  demo: {
+    position: "absolute",
+    top: 12,
+    left: 12,
+    backgroundColor: C.blush,
+    color: C.primary,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    overflow: "hidden",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  intent: {
+    overflow: "hidden",
+    backgroundColor: C.blush,
+    color: C.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    fontSize: 11,
+    marginLeft: 4,
+  },
+  interest: {
+    overflow: "hidden",
+    backgroundColor: C.lavender,
+    color: C.ink,
+    borderRadius: 9,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    fontSize: 11,
   },
 });

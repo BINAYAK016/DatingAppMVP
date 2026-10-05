@@ -1,5 +1,5 @@
 import React from "react";
-import { View } from "react-native";
+import { Platform, View, useWindowDimensions } from "react-native";
 import { Tabs, Redirect } from "expo-router";
 import { useStore } from "../../lib/store";
 import { C, Icon, Loading } from "../../components/ui";
@@ -8,6 +8,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 export default function Layout() {
   const { ready, token, data, demoMode, sessionKey } = useStore();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const wideWeb = Platform.OS === "web" && width >= 1024;
   if (!ready) return <Loading />;
   if (!token) return <Loading />;
   if (!data) return <Loading />;
@@ -22,6 +24,7 @@ export default function Layout() {
           tabBarActiveTintColor: C.primary,
           tabBarInactiveTintColor: C.muted,
           tabBarStyle: {
+            display: wideWeb ? "none" : "flex",
             backgroundColor: C.bg,
             borderTopColor: C.line,
             height:
@@ -31,6 +34,9 @@ export default function Layout() {
             paddingBottom:
               demoMode && data.me.demo ? 12 : Math.max(insets.bottom, 12),
           },
+          tabBarLabelPosition: "below-icon",
+          tabBarItemStyle: { borderRadius: 14, marginHorizontal: 4 },
+          tabBarActiveBackgroundColor: C.blush,
           tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
         }}
       >

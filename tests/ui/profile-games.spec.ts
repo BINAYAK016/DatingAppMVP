@@ -193,6 +193,9 @@ test("settings wait for the request and roll back after failure, with honest web
   await expect(setting).toBeEnabled();
   await expect(setting).toBeChecked({ checked: state.me.posts_visible });
   expect(writes).toBe(1);
+  await page
+    .getByRole("button", { name: "Notifications", exact: true })
+    .click();
   await expect(
     page.getByRole("button", {
       name: "Enable push on this device",

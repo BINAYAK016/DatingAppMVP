@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { router, useFocusEffect, useIsFocused } from "expo-router";
 import * as Crypto from "expo-crypto";
 import { useStore } from "../lib/store";
@@ -231,6 +231,7 @@ export function GamePickerV2({
                     Resume it before starting another game together.
                   </Text>
                   <Button
+                    compact
                     title="Resume game"
                     onPress={() =>
                       open(catalog.current!.id, catalog.current!.version)
@@ -242,24 +243,32 @@ export function GamePickerV2({
               <Text style={[s.body, { marginTop: 6, marginBottom: 16 }]}>
                 Pick something fun. They can join when they’re back.
               </Text>
-              <View style={[s.row, { flexWrap: "wrap", marginBottom: 16 }]}>
-                <Chip
-                  label="Quick Play"
-                  selected={!category}
-                  onPress={() => setCategory(null)}
-                />
-                {["Get to know you", "Make them laugh", "See if you click"].map(
-                  (value) => (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ paddingBottom: 16 }}
+              >
+                <View style={[s.row, { gap: 8 }]}>
+                  <Chip
+                    label="Quick Play"
+                    selected={!category}
+                    onPress={() => setCategory(null)}
+                  />
+                  {[
+                    "Get to know you",
+                    "Make them laugh",
+                    "See if you click",
+                  ].map((value) => (
                     <Chip
                       key={value}
                       label={value}
                       selected={category === value}
                       onPress={() => setCategory(value)}
                     />
-                  ),
-                )}
-              </View>
-              <View style={{ gap: 12 }}>
+                  ))}
+                </View>
+              </ScrollView>
+              <View style={{ gap: 10 }}>
                 {list?.map((game) => (
                   <Pressable
                     key={game.id}
@@ -325,22 +334,24 @@ export function GamePickerV2({
 }
 const styles = StyleSheet.create({
   emoji: { fontSize: 52, textAlign: "center", marginVertical: 24 },
-  smallEmoji: { fontSize: 28 },
+  smallEmoji: { fontSize: 26 },
   game: {
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
     backgroundColor: C.blush,
-    padding: 18,
+    padding: 14,
     borderRadius: 18,
-    minHeight: 110,
+    minHeight: 86,
+    borderWidth: 1,
+    borderColor: C.line,
   },
   notice: {
     backgroundColor: C.lavender,
     borderRadius: 16,
     padding: 16,
-    marginBottom: 20,
-    gap: 8,
+    marginBottom: 16,
+    gap: 6,
   },
   advisory: {
     marginTop: 28,

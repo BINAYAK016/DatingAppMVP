@@ -8,10 +8,12 @@ import {
   Empty,
   Header,
   Icon,
+  IconButton,
   Skeleton,
   s,
 } from "../../components/ui";
 import { PostCard } from "../../components/PostCard";
+import { MatchStrip } from "../../components/MatchStrip";
 import { useStore } from "../../lib/store";
 import { Post } from "../../lib/types";
 import { useMediaVisible } from "../../lib/useMediaVisible";
@@ -103,14 +105,14 @@ function SangaiFeed() {
         refreshing={refreshing}
         onRefresh={() => void refresh()}
         ListHeaderComponent={
-          <View style={{ marginBottom: 24 }}>
+          <View style={{ marginBottom: 8 }}>
             <Header
               title="Sangai"
               action={
-                <Button
-                  title="Create Post"
-                  icon="add"
-                  secondary
+                <IconButton
+                  label="Create Post"
+                  name="add"
+                  variant="primary"
                   onPress={() =>
                     router.push({
                       pathname: "/compose",
@@ -120,12 +122,11 @@ function SangaiFeed() {
                 />
               }
             />
-            <View style={[s.row, { gap: 6 }]}>
+            <View style={[s.row, { gap: 6, marginBottom: 16 }]}>
               <Icon name="lock-closed-outline" size={13} color={C.muted} />
-              <Text style={s.small}>
-                Little moments, shared with your matches.
-              </Text>
+              <Text style={s.small}>Shared with your matches.</Text>
             </View>
+            <MatchStrip />
           </View>
         }
         ListEmptyComponent={

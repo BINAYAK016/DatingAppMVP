@@ -17,6 +17,7 @@ import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ConversationItem } from "../../components/ConversationItem";
 import { StoryPlayer } from "../../components/StoryPlayer";
+import { ConversationLayout } from "../../components/ConversationLayout";
 import { useStore } from "../../lib/store";
 import { consumeGameConversation } from "../../lib/gameChatBridge";
 import {
@@ -34,7 +35,11 @@ import {
 export default function Chat() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const st = useStore();
-  return <ChatScreen key={`${id}:${st.sessionKey}`} id={id} />;
+  return (
+    <ConversationLayout target={id}>
+      <ChatScreen key={`${id}:${st.sessionKey}`} id={id} />
+    </ConversationLayout>
+  );
 }
 function ChatScreen({ id }: { id: string }) {
   const st = useStore();
@@ -382,7 +387,13 @@ function ChatScreen({ id }: { id: string }) {
               }
               style={[
                 s.row,
-                { minHeight: 40, justifyContent: "space-between" },
+                {
+                  minHeight: 44,
+                  justifyContent: "space-between",
+                  backgroundColor: C.lavender,
+                  borderRadius: 14,
+                  paddingHorizontal: 12,
+                },
               ]}
             >
               <View style={s.row}>
@@ -755,7 +766,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 4,
     paddingHorizontal: 12,
-    paddingVertical: 12,
+    paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: C.line,
   },

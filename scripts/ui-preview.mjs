@@ -7,6 +7,9 @@ const root = path.resolve(
   "../apps/mobile/dist",
 );
 const api = new URL("http://127.0.0.1:4100");
+const previewPort = Number(process.env.SANGAI_PREVIEW_PORT || 8081);
+if (!Number.isInteger(previewPort) || previewPort < 1024 || previewPort > 65535)
+  throw new Error("Choose a preview port between 1024 and 65535.");
 const mime = {
   ".html": "text/html",
   ".js": "application/javascript",
@@ -101,6 +104,8 @@ http
       })
       .pipe(res);
   })
-  .listen(8081, "127.0.0.1", () =>
-    process.stdout.write("Sangai UI preview: http://localhost:8081\n"),
+  .listen(previewPort, "127.0.0.1", () =>
+    process.stdout.write(
+      `Sangai UI preview: http://localhost:${previewPort}\n`,
+    ),
   );

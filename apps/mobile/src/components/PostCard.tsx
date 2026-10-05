@@ -529,10 +529,12 @@ export function PostCard({
 }
 const styles = StyleSheet.create({
   post: {
-    paddingBottom: 20,
-    marginBottom: 24,
-    borderBottomWidth: 1,
-    borderBottomColor: C.line,
+    padding: 16,
+    marginBottom: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: C.line,
+    backgroundColor: C.white,
   },
   photo: {
     width: "100%",
@@ -560,8 +562,8 @@ const styles = StyleSheet.create({
   caption: { color: C.ink, fontSize: 16, lineHeight: 24, marginTop: 14 },
   question: {
     backgroundColor: C.lavender,
-    padding: 20,
-    borderRadius: 18,
+    padding: 14,
+    borderRadius: 14,
     marginVertical: 8,
   },
   videoPrompt: {
@@ -573,12 +575,11 @@ const styles = StyleSheet.create({
   },
   textMoment: {
     color: C.ink,
-    fontSize: 25,
-    lineHeight: 35,
-    letterSpacing: -0.5,
-    fontWeight: "500",
-    paddingTop: 8,
-    paddingBottom: 12,
+    fontSize: 16,
+    lineHeight: 24,
+    fontWeight: "400",
+    paddingTop: 4,
+    paddingBottom: 8,
   },
   actions: {
     flexDirection: "row",
