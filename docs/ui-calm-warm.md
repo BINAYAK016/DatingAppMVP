@@ -51,6 +51,13 @@ Shared screens are React Native components. This is not a WebView conversion. Us
 
 The local Android test artifact enables the existing local-HTTP build option and defaults to `http://10.0.2.2:4100`. A previously saved server address overrides a bundle default; use **Switch > Connection settings** to set the local address before entering a demo. This local build setting is only for testing. Existing HTTPS release configuration remains unchanged in source. x86_64 APKs run on the x86_64 emulator; phone distribution requires an ARM64 build and a reachable HTTPS backend.
 
+The delivered local emulator APK is `outputs/Sangai-ui-calm-warm-038d887-x86_64.apk` in this task's output directory. It bundles the frontend at `038d887` and uses the existing development signing certificate. The emulator is already open on Aarav's Discover with the local backend selected. To reinstall it on this laptop:
+
+```powershell
+& 'D:\CodexBuild\SangaiBeta\AndroidSdk\platform-tools\adb.exe' install -r 'C:\Users\Dell\Documents\Codex\2026-09-28\u\outputs\Sangai-ui-calm-warm-038d887-x86_64.apk'
+& 'D:\CodexBuild\SangaiBeta\AndroidSdk\platform-tools\adb.exe' shell monkey -p com.sangai.beta -c android.intent.category.LAUNCHER 1
+```
+
 Native iOS runtime requires a Mac or an appropriately signed cloud build. A successful TypeScript check or iOS JavaScript export does not establish native iOS behavior.
 
 ## Delivery gate
