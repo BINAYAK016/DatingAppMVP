@@ -1,0 +1,486 @@
+{
+  "schemaVersion": 1,
+  "journey": "Synthetic authenticated Discover",
+  "baselineCommit": "530f3f8",
+  "afterCommit": "75db48fc5b3ec049816339a9bb7616c659a698fa",
+  "afterSource": "feat/ui-reform; identify exact exported artifact by index/bundle SHA256 below",
+  "metricUnits": {
+    "first-contentful-paint": "ms",
+    "largest-contentful-paint": "ms",
+    "total-blocking-time": "ms",
+    "cumulative-layout-shift": "unitless",
+    "speed-index": "ms"
+  },
+  "interpretation": "Median of three independent cold-browser runs per device. Local uncompressed no-store synthetic fixture; not EC2/native/real-photo performance. All API writes rejected; no real SMTP or accounts.",
+  "fixtureChange": "Added font/woff2 MIME mapping for the new asset; unchanged responses for all baseline paths, timing, state, and compression.",
+  "excludedDiagnostic": "Signed-out Welcome was excluded because expected session 401 caused incomplete Lighthouse network accounting/load warnings. Auth behavior unchanged.",
+  "initialFont": {
+    "before": {
+      "format": "TTF",
+      "bytes": 389724
+    },
+    "after": {
+      "format": "WOFF2",
+      "bytes": 162552
+    },
+    "glyphs": 1361,
+    "mappedCodepoints": 1358,
+    "subset": false
+  },
+  "before": {
+    "localReportDirectory": "baseline-shell-discover",
+    "validWithoutWarnings": true,
+    "tooling": {
+      "node": "v24.16.0",
+      "lighthouse": "13.5.0",
+      "chromium": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.12 Safari/537.36",
+      "browserExecutableSha256": "addfa79abb060e1e514e155ed745d4bf96140bca402735958bb4e223aea0b98c"
+    },
+    "conditions": {
+      "mobile": {
+        "formFactor": "mobile",
+        "screenEmulation": {
+          "mobile": true,
+          "width": 360,
+          "height": 800,
+          "deviceScaleFactor": 1,
+          "disabled": false
+        },
+        "throttlingMethod": "simulate",
+        "throttling": {
+          "rttMs": 150,
+          "throughputKbps": 1638.4,
+          "requestLatencyMs": 562.5,
+          "downloadThroughputKbps": 1474.5600000000002,
+          "uploadThroughputKbps": 675,
+          "cpuSlowdownMultiplier": 4
+        }
+      },
+      "desktop": {
+        "formFactor": "desktop",
+        "screenEmulation": {
+          "mobile": false,
+          "width": 1440,
+          "height": 1000,
+          "deviceScaleFactor": 1,
+          "disabled": false
+        },
+        "throttlingMethod": "simulate",
+        "throttling": {
+          "rttMs": 40,
+          "throughputKbps": 10240,
+          "requestLatencyMs": 0,
+          "downloadThroughputKbps": 0,
+          "uploadThroughputKbps": 0,
+          "cpuSlowdownMultiplier": 1
+        }
+      }
+    },
+    "fixtureConditions": {
+      "staticCache": "no-store",
+      "compression": false,
+      "apiDelayMs": 40,
+      "api": "in-memory GET fixtures only; all writes rejected",
+      "media": "synthetic demo illustration; no uploaded photos/video",
+      "measurements": "cold browser per run; Lighthouse simulate throttling; local loopback; not EC2 or native measurements"
+    },
+    "export": {
+      "indexSha256": "ef5d6556691aad6183996d916276b3b68a024bf2bac3e64f6ff280fd15071f8f",
+      "bundles": [
+        {
+          "name": "entry-6672add9216606a284711350f6a3a658.js",
+          "bytes": 1498775,
+          "sha256": "f897c8849d66d0e538c37d1745c7de34a5e9006345504c042c889f0094ce2890"
+        }
+      ]
+    },
+    "medians": {
+      "mobile": {
+        "scores": {
+          "performance": 53,
+          "accessibility": 96,
+          "best-practices": 100,
+          "seo": 90
+        },
+        "metrics": {
+          "first-contentful-paint": 2856.7560000000003,
+          "largest-contentful-paint": 11167.134000000002,
+          "total-blocking-time": 546,
+          "cumulative-layout-shift": 0.02398458333333333,
+          "speed-index": 4798.965301816605
+        }
+      },
+      "desktop": {
+        "scores": {
+          "performance": 90,
+          "accessibility": 93,
+          "best-practices": 100,
+          "seo": 90
+        },
+        "metrics": {
+          "first-contentful-paint": 565.912,
+          "largest-contentful-paint": 1853.472,
+          "total-blocking-time": 30,
+          "cumulative-layout-shift": 0.08698296296296296,
+          "speed-index": 1068.6973957271211
+        }
+      }
+    },
+    "runs": [
+      {
+        "report": "mobile-1.json",
+        "device": "mobile",
+        "index": 1,
+        "measuredAt": "2026-10-08T15:29:32.059Z",
+        "scores": {
+          "performance": 46,
+          "accessibility": 96,
+          "best-practices": 100,
+          "seo": 90
+        },
+        "metrics": {
+          "first-contentful-paint": 2873.358,
+          "largest-contentful-paint": 11350.037,
+          "total-blocking-time": 943,
+          "cumulative-layout-shift": 0.02398458333333333,
+          "speed-index": 4824.67067990373
+        },
+        "warnings": [],
+        "hostBenchmarkIndex": 1846.5
+      },
+      {
+        "report": "mobile-2.json",
+        "device": "mobile",
+        "index": 2,
+        "measuredAt": "2026-10-08T15:29:43.159Z",
+        "scores": {
+          "performance": 59,
+          "accessibility": 96,
+          "best-practices": 100,
+          "seo": 90
+        },
+        "metrics": {
+          "first-contentful-paint": 2856.298,
+          "largest-contentful-paint": 11014.446999999998,
+          "total-blocking-time": 341,
+          "cumulative-layout-shift": 0.02398458333333333,
+          "speed-index": 4712.409800756129
+        },
+        "warnings": [],
+        "hostBenchmarkIndex": 2281.5
+      },
+      {
+        "report": "mobile-3.json",
+        "device": "mobile",
+        "index": 3,
+        "measuredAt": "2026-10-08T15:29:52.257Z",
+        "scores": {
+          "performance": 53,
+          "accessibility": 96,
+          "best-practices": 100,
+          "seo": 90
+        },
+        "metrics": {
+          "first-contentful-paint": 2856.7560000000003,
+          "largest-contentful-paint": 11167.134000000002,
+          "total-blocking-time": 546,
+          "cumulative-layout-shift": 0.02398458333333333,
+          "speed-index": 4798.965301816605
+        },
+        "warnings": [],
+        "hostBenchmarkIndex": 1997
+      },
+      {
+        "report": "desktop-1.json",
+        "device": "desktop",
+        "index": 1,
+        "measuredAt": "2026-10-08T15:30:01.626Z",
+        "scores": {
+          "performance": 90,
+          "accessibility": 93,
+          "best-practices": 100,
+          "seo": 90
+        },
+        "metrics": {
+          "first-contentful-paint": 565.912,
+          "largest-contentful-paint": 1851.912,
+          "total-blocking-time": 30,
+          "cumulative-layout-shift": 0.08698296296296296,
+          "speed-index": 1062.3991419514489
+        },
+        "warnings": [],
+        "hostBenchmarkIndex": 2272.5
+      },
+      {
+        "report": "desktop-2.json",
+        "device": "desktop",
+        "index": 2,
+        "measuredAt": "2026-10-08T15:30:11.450Z",
+        "scores": {
+          "performance": 89,
+          "accessibility": 93,
+          "best-practices": 100,
+          "seo": 90
+        },
+        "metrics": {
+          "first-contentful-paint": 568.034,
+          "largest-contentful-paint": 1870.034,
+          "total-blocking-time": 45,
+          "cumulative-layout-shift": 0.08698296296296296,
+          "speed-index": 1101.9719037421373
+        },
+        "warnings": [],
+        "hostBenchmarkIndex": 2128
+      },
+      {
+        "report": "desktop-3.json",
+        "device": "desktop",
+        "index": 3,
+        "measuredAt": "2026-10-08T15:30:21.684Z",
+        "scores": {
+          "performance": 90,
+          "accessibility": 93,
+          "best-practices": 100,
+          "seo": 90
+        },
+        "metrics": {
+          "first-contentful-paint": 565.472,
+          "largest-contentful-paint": 1853.472,
+          "total-blocking-time": 30,
+          "cumulative-layout-shift": 0.08698296296296296,
+          "speed-index": 1068.6973957271211
+        },
+        "warnings": [],
+        "hostBenchmarkIndex": 2570.5
+      }
+    ]
+  },
+  "after": {
+    "localReportDirectory": "after-final-text-fix-discover",
+    "validWithoutWarnings": true,
+    "tooling": {
+      "node": "v24.16.0",
+      "lighthouse": "13.5.0",
+      "chromium": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.8010.12 Safari/537.36",
+      "browserExecutableSha256": "addfa79abb060e1e514e155ed745d4bf96140bca402735958bb4e223aea0b98c"
+    },
+    "conditions": {
+      "mobile": {
+        "formFactor": "mobile",
+        "screenEmulation": {
+          "mobile": true,
+          "width": 360,
+          "height": 800,
+          "deviceScaleFactor": 1,
+          "disabled": false
+        },
+        "throttlingMethod": "simulate",
+        "throttling": {
+          "rttMs": 150,
+          "throughputKbps": 1638.4,
+          "requestLatencyMs": 562.5,
+          "downloadThroughputKbps": 1474.5600000000002,
+          "uploadThroughputKbps": 675,
+          "cpuSlowdownMultiplier": 4
+        }
+      },
+      "desktop": {
+        "formFactor": "desktop",
+        "screenEmulation": {
+          "mobile": false,
+          "width": 1440,
+          "height": 1000,
+          "deviceScaleFactor": 1,
+          "disabled": false
+        },
+        "throttlingMethod": "simulate",
+        "throttling": {
+          "rttMs": 40,
+          "throughputKbps": 10240,
+          "requestLatencyMs": 0,
+          "downloadThroughputKbps": 0,
+          "uploadThroughputKbps": 0,
+          "cpuSlowdownMultiplier": 1
+        }
+      }
+    },
+    "fixtureConditions": {
+      "staticCache": "no-store",
+      "compression": false,
+      "apiDelayMs": 40,
+      "api": "in-memory GET fixtures only; all writes rejected",
+      "media": "synthetic demo illustration; no uploaded photos/video",
+      "measurements": "cold browser per run; Lighthouse simulate throttling; local loopback; not EC2 or native measurements"
+    },
+    "export": {
+      "indexSha256": "161fb3ee576ce44e3ab6e47b8ef1c96e46f9395103d661db4ef69851c3f26ea0",
+      "bundles": [
+        {
+          "name": "entry-38c2756fe058a6253fcf2d9feacee943.js",
+          "bytes": 1509558,
+          "sha256": "62323db9393c57f088a2dfe8c8d48124741f826b3880aef6fc269e99162bbce9"
+        }
+      ]
+    },
+    "medians": {
+      "mobile": {
+        "scores": {
+          "performance": 68,
+          "accessibility": 100,
+          "best-practices": 100,
+          "seo": 100
+        },
+        "metrics": {
+          "first-contentful-paint": 755.56,
+          "largest-contentful-paint": 9796.280999999999,
+          "total-blocking-time": 306,
+          "cumulative-layout-shift": 0.0076,
+          "speed-index": 3294.875345812444
+        }
+      },
+      "desktop": {
+        "scores": {
+          "performance": 92,
+          "accessibility": 100,
+          "best-practices": 100,
+          "seo": 100
+        },
+        "metrics": {
+          "first-contentful-paint": 205.462,
+          "largest-contentful-paint": 1634.2640000000001,
+          "total-blocking-time": 13,
+          "cumulative-layout-shift": 0.0884363888888889,
+          "speed-index": 752.4130219457388
+        }
+      }
+    },
+    "runs": [
+      {
+        "report": "mobile-1.json",
+        "device": "mobile",
+        "index": 1,
+        "measuredAt": "2026-10-08T17:28:27.061Z",
+        "scores": {
+          "performance": 67,
+          "accessibility": 100,
+          "best-practices": 100,
+          "seo": 100
+        },
+        "metrics": {
+          "first-contentful-paint": 762.854,
+          "largest-contentful-paint": 9796.280999999999,
+          "total-blocking-time": 306,
+          "cumulative-layout-shift": 0.0076,
+          "speed-index": 3524.927832846767
+        },
+        "warnings": [],
+        "hostBenchmarkIndex": 2940
+      },
+      {
+        "report": "mobile-2.json",
+        "device": "mobile",
+        "index": 2,
+        "measuredAt": "2026-10-08T17:28:35.415Z",
+        "scores": {
+          "performance": 68,
+          "accessibility": 100,
+          "best-practices": 100,
+          "seo": 100
+        },
+        "metrics": {
+          "first-contentful-paint": 755.56,
+          "largest-contentful-paint": 9804.34,
+          "total-blocking-time": 308.5,
+          "cumulative-layout-shift": 0.0076,
+          "speed-index": 3294.875345812444
+        },
+        "warnings": [],
+        "hostBenchmarkIndex": 2542
+      },
+      {
+        "report": "mobile-3.json",
+        "device": "mobile",
+        "index": 3,
+        "measuredAt": "2026-10-08T17:28:43.509Z",
+        "scores": {
+          "performance": 72,
+          "accessibility": 100,
+          "best-practices": 100,
+          "seo": 100
+        },
+        "metrics": {
+          "first-contentful-paint": 753.3879999999999,
+          "largest-contentful-paint": 9538.387999999999,
+          "total-blocking-time": 192,
+          "cumulative-layout-shift": 0.0076,
+          "speed-index": 2813.028966877468
+        },
+        "warnings": [],
+        "hostBenchmarkIndex": 3022
+      },
+      {
+        "report": "desktop-1.json",
+        "device": "desktop",
+        "index": 1,
+        "measuredAt": "2026-10-08T17:28:51.478Z",
+        "scores": {
+          "performance": 92,
+          "accessibility": 100,
+          "best-practices": 100,
+          "seo": 100
+        },
+        "metrics": {
+          "first-contentful-paint": 205.108,
+          "largest-contentful-paint": 1623.108,
+          "total-blocking-time": 8,
+          "cumulative-layout-shift": 0.0884363888888889,
+          "speed-index": 680.8816549279171
+        },
+        "warnings": [],
+        "hostBenchmarkIndex": 2378.5
+      },
+      {
+        "report": "desktop-2.json",
+        "device": "desktop",
+        "index": 2,
+        "measuredAt": "2026-10-08T17:28:59.736Z",
+        "scores": {
+          "performance": 92,
+          "accessibility": 100,
+          "best-practices": 100,
+          "seo": 100
+        },
+        "metrics": {
+          "first-contentful-paint": 206.764,
+          "largest-contentful-paint": 1634.2640000000001,
+          "total-blocking-time": 13,
+          "cumulative-layout-shift": 0.0884363888888889,
+          "speed-index": 752.4130219457388
+        },
+        "warnings": [],
+        "hostBenchmarkIndex": 3221
+      },
+      {
+        "report": "desktop-3.json",
+        "device": "desktop",
+        "index": 3,
+        "measuredAt": "2026-10-08T17:29:07.738Z",
+        "scores": {
+          "performance": 92,
+          "accessibility": 100,
+          "best-practices": 100,
+          "seo": 100
+        },
+        "metrics": {
+          "first-contentful-paint": 205.462,
+          "largest-contentful-paint": 1658.962,
+          "total-blocking-time": 38,
+          "cumulative-layout-shift": 0.0884363888888889,
+          "speed-index": 833.9426397474851
+        },
+        "warnings": [],
+        "hostBenchmarkIndex": 2405.5
+      }
+    ]
+  }
+}

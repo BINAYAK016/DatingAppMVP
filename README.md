@@ -1,6 +1,6 @@
 # Sangai Beta
 
-This branch contains the [approved calm structure and warm-card UI](docs/ui-calm-warm.md), prepared for local review before deployment. Backend and deployment configuration are unchanged.
+This branch contains the [Sangai UI reform](docs/ui-reform-verification.md) on `feat/ui-reform`, prepared for local review before deployment. See the [before/after screenshots](docs/ui-reform-visual-review.md), [design system](docs/ui-reform-design-system.md) and [measured performance](docs/ui-reform-performance.md). Backend, authentication contracts and deployment configuration are unchanged.
 
 A real React Native / Expo Android and iOS app for Nepali adults in Kathmandu, Bhaktapur, Lalitpur, Pokhara, Sydney, Melbourne, Perth and Brisbane. Shared TypeScript screens use native navigation, camera/media access, video playback and secure token storage. No AI services are used.
 
