@@ -2,7 +2,16 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { AppState, FlatList, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
-import { Button, C, Empty, Header, Icon, Skeleton, s } from "../components/ui";
+import {
+  Button,
+  C,
+  Empty,
+  Header,
+  Icon,
+  Skeleton,
+  s,
+  T,
+} from "../components/ui";
 import { useStore } from "../lib/store";
 import { State } from "../lib/types";
 
@@ -207,9 +216,12 @@ function ActivityScreen() {
               {
                 alignItems: "flex-start",
                 gap: 16,
-                paddingVertical: 20,
-                borderBottomWidth: 1,
-                borderBottomColor: C.line,
+                padding: 18,
+                marginBottom: 12,
+                borderRadius: T.radius.card,
+                backgroundColor: n.read ? C.white : C.blush,
+                borderWidth: 1,
+                borderColor: C.line,
               },
             ]}
           >
@@ -218,7 +230,7 @@ function ActivityScreen() {
                 width: 44,
                 height: 44,
                 borderRadius: 16,
-                backgroundColor: n.read ? C.lavender : C.blush,
+                backgroundColor: C.white,
                 alignItems: "center",
                 justifyContent: "center",
               }}
@@ -281,6 +293,7 @@ function ActivityScreen() {
             {updates.some((update) => !update.read) && (
               <Button
                 title={busy ? "Marking as read…" : "Mark updates as read"}
+                loading={busy}
                 secondary
                 disabled={busy}
                 onPress={() => void markRead()}

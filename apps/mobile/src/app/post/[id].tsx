@@ -44,7 +44,7 @@ export default function PostScreen() {
   );
   return (
     <Page>
-      <Header back title="A shared moment" />
+      <Header back title="A shared moment" eyebrow="JUST YOUR MATCHES" />
       {post ? (
         <PostCard post={post} active detail />
       ) : error ? (

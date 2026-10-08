@@ -6,6 +6,7 @@ import {
   BottomSheet,
   Button,
   C,
+  T,
   Chip,
   Field,
   Icon,
@@ -107,7 +108,12 @@ export function ProfileForm({
     </View>
   );
   const group = (label: string) => (
-    <Text style={[s.label, { marginTop: 12 }]}>{label}</Text>
+    <Text
+      accessibilityRole="header"
+      style={[s.label, { marginTop: 20, color: C.ink }]}
+    >
+      {label}
+    </Text>
   );
   const intentIcons: React.ComponentProps<typeof Icon>["name"][] = [
     "heart-outline",
@@ -122,6 +128,8 @@ export function ProfileForm({
         <>
           <Field
             label="First name"
+            autoComplete="given-name"
+            hint="The name you want your matches to know."
             value={d.name}
             onChangeText={(v) => set("name", v)}
           />
@@ -132,6 +140,7 @@ export function ProfileForm({
                 value={d.birthDate}
                 onChangeText={(v) => set("birthDate", v)}
                 placeholder="YYYY-MM-DD"
+                hint="For example, 1998-04-23."
               />
               <Text style={[s.small, { marginBottom: 24 }]}>
                 Your birth date stays private. Only your age appears on your
@@ -286,11 +295,13 @@ export function ProfileForm({
           {choices(INTERESTS, d.interests, (v) => set("interests", v))}
           <Field
             label="Languages · optional, comma separated"
+            placeholder="Nepali, English"
             value={d.languages.join(",")}
             onChangeText={(v) => set("languages", v.split(","))}
           />
           <Field
             label="Hobbies · optional, comma separated"
+            placeholder="Hiking, cooking, photography"
             value={d.hobbies.join(",")}
             onChangeText={(v) => set("hobbies", v.split(","))}
           />
@@ -299,7 +310,7 @@ export function ProfileForm({
       {step === 3 && (
         <>
           {editing && (
-            <View style={[s.row, { marginBottom: 20 }]}>
+            <View style={[s.wrap, { marginBottom: 20 }]}>
               <Chip
                 label="Dating preferences"
                 selected={preferencesTab === "preferences"}
@@ -396,12 +407,26 @@ export function ProfileForm({
       {step === 4 && (
         <>
           <View style={styles.promptNote}>
+            <Text style={[s.meta, { color: C.textOnTint, marginBottom: 12 }]}>
+              A SMALL DETAIL. A GOOD FIRST HELLO.
+            </Text>
             <Icon
               name="chatbubble-ellipses-outline"
               color={C.primary}
               size={28}
             />
-            <Text style={[s.body, { marginTop: 16 }]}>
+            <Text
+              style={[
+                s.body,
+                {
+                  marginTop: 16,
+                  color: C.ink,
+                  fontFamily: T.font.editorial,
+                  fontSize: 22,
+                  lineHeight: 32,
+                },
+              ]}
+            >
               “My ideal weekend is…”{"\n"}“Something I could talk about for
               hours…”{"\n"}“What makes me laugh…”
             </Text>
@@ -432,12 +457,14 @@ export function ProfileForm({
         <View style={{ gap: 12 }}>
           <Button
             title={removing ? "Removing…" : "Remove photo or video"}
+            loading={removing}
             disabled={removing}
             onPress={() => void removeMedia()}
           />
           <Button
             title="Keep on profile"
             secondary
+            loading={removing}
             disabled={removing}
             onPress={() => setRemoveId(null)}
           />
@@ -498,7 +525,7 @@ const styles = StyleSheet.create({
   promptNote: {
     backgroundColor: C.lavender,
     padding: 24,
-    borderRadius: 18,
+    borderRadius: 24,
     marginBottom: 24,
   },
 });

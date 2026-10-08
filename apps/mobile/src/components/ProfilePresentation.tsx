@@ -1,7 +1,7 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { Person } from "../lib/types";
-import { C, Chip, Icon, Media, PersonImage, s } from "./ui";
+import { C, Chip, Icon, Media, PersonImage, s, T } from "./ui";
 
 export function ProfileHero({ person }: { person: Person }) {
   return (
@@ -11,7 +11,7 @@ export function ProfileHero({ person }: { person: Person }) {
       </View>
       <View style={styles.identity}>
         {person.demo && <Text style={styles.demo}>FICTIONAL DEMO PROFILE</Text>}
-        <Text style={styles.name}>
+        <Text accessibilityRole="header" style={styles.name}>
           {person.name}, {person.age}
         </Text>
         <View style={s.row}>
@@ -32,7 +32,9 @@ export function ProfileSection({
 }) {
   return (
     <View style={styles.section}>
-      <Text style={[s.h2, { marginBottom: 14 }]}>{title}</Text>
+      <Text accessibilityRole="header" style={[s.h2, { marginBottom: 14 }]}>
+        {title}
+      </Text>
       {children}
     </View>
   );
@@ -69,7 +71,7 @@ export function ProfileStory({ person }: { person: Person }) {
       <View style={styles.intention}>
         <Icon name="heart-outline" color={C.primary} />
         <View style={{ flex: 1 }}>
-          <Text style={s.small}>LOOKING FOR</Text>
+          <Text style={[s.meta, { color: C.textOnTint }]}>LOOKING FOR</Text>
           <Text style={[s.label, { marginTop: 4 }]}>{person.intent}</Text>
         </View>
       </View>
@@ -89,7 +91,7 @@ export function ProfileStory({ person }: { person: Person }) {
             color={C.primary}
             size={24}
           />
-          <Text style={[s.small, { marginTop: 16 }]}>
+          <Text style={[s.meta, { marginTop: 16, color: C.textOnTint }]}>
             A CONVERSATION STARTER
           </Text>
           <Text style={styles.promptText}>{person.prompt}</Text>
@@ -140,29 +142,30 @@ export function ProfileStory({ person }: { person: Person }) {
 
 const styles = StyleSheet.create({
   hero: {
-    borderRadius: 20,
+    borderRadius: 28,
     overflow: "hidden",
     backgroundColor: C.white,
     borderWidth: 1,
     borderColor: C.line,
     marginBottom: 16,
   },
-  photo: { height: 320, backgroundColor: C.peach },
-  identity: { padding: 16, gap: 6 },
+  photo: { aspectRatio: 1.05, maxHeight: 460, backgroundColor: C.peach },
+  identity: { padding: 20, gap: 8 },
   name: {
     color: C.ink,
-    fontSize: 26,
-    lineHeight: 32,
-    fontWeight: "600",
+    fontFamily: T.font.editorial,
+    fontSize: 32,
+    lineHeight: 38,
+    fontWeight: "400",
     letterSpacing: -0.5,
   },
   location: { color: C.muted, fontSize: 14 },
   demo: { color: C.primary, fontSize: 10, letterSpacing: 1, fontWeight: "600" },
   section: {
-    padding: 16,
-    marginBottom: 12,
+    padding: 20,
+    marginBottom: 16,
     backgroundColor: C.white,
-    borderRadius: 18,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: C.line,
   },
@@ -171,21 +174,22 @@ const styles = StyleSheet.create({
     gap: 16,
     alignItems: "center",
     backgroundColor: C.blush,
-    padding: 16,
-    borderRadius: 18,
+    padding: 20,
+    borderRadius: 20,
     marginBottom: 12,
   },
   prompt: {
     backgroundColor: C.lavender,
-    padding: 16,
-    borderRadius: 18,
+    padding: 20,
+    borderRadius: 20,
     marginBottom: 12,
   },
   promptText: {
     color: C.ink,
-    fontSize: 20,
-    lineHeight: 28,
-    fontWeight: "500",
+    fontFamily: T.font.editorial,
+    fontSize: 26,
+    lineHeight: 34,
+    fontWeight: "400",
     letterSpacing: -0.4,
     marginTop: 12,
   },

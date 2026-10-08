@@ -81,6 +81,7 @@ function MyMoments() {
             <Header
               back
               title="My moments"
+              eyebrow="YOUR EVERYDAY"
               action={
                 <IconButton
                   name="add"

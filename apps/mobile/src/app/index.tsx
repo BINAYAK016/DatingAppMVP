@@ -23,6 +23,7 @@ import {
   Page,
   s,
   C,
+  T,
 } from "../components/ui";
 
 function Brand() {
@@ -143,7 +144,8 @@ export default function Welcome() {
                 />
               </View>
             </View>
-            <Text style={styles.display}>
+            <Text style={styles.eyebrow}>ROOM FOR A REAL CONNECTION</Text>
+            <Text accessibilityRole="header" style={styles.display}>
               Meet people.{"\n"}Find your together.
             </Text>
             <Text
@@ -178,7 +180,10 @@ export default function Welcome() {
           </>
         ) : (
           <>
-            <Text style={[s.title, styles.formTitle]}>
+            <Text
+              accessibilityRole="header"
+              style={[s.title, styles.formTitle]}
+            >
               {mode === "register" ? "Make yourself at home" : "Welcome back"}
             </Text>
             <Text style={[s.body, { marginBottom: 16 }]}>
@@ -196,6 +201,7 @@ export default function Welcome() {
               label="Email"
               value={email}
               onChangeText={setEmail}
+              autoComplete="email"
               keyboardType="email-address"
               placeholder="you@example.com"
             />
@@ -203,6 +209,13 @@ export default function Welcome() {
               label="Password · at least 10 characters"
               value={password}
               onChangeText={setPassword}
+              autoComplete={
+                mode === "register" ? "new-password" : "current-password"
+              }
+              returnKeyType="go"
+              onSubmitEditing={() => {
+                if (!st.loading) void submit();
+              }}
               secure
               placeholder="Your password"
             />
@@ -246,6 +259,7 @@ export default function Welcome() {
                     ? "Create account"
                     : "Sign in"
               }
+              loading={st.loading}
               disabled={st.loading}
               onPress={() => void submit()}
             />
@@ -355,7 +369,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   connectionArt: {
-    height: 148,
+    height: 136,
+    backgroundColor: C.peach,
+    borderRadius: 28,
     width: "100%",
     alignItems: "center",
     justifyContent: "center",
@@ -363,34 +379,51 @@ const styles = StyleSheet.create({
   },
   connectionCircle: {
     position: "absolute",
-    width: 126,
-    height: 126,
-    borderRadius: 63,
+    width: 94,
+    height: 108,
+    borderTopLeftRadius: 48,
+    borderTopRightRadius: 48,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
   },
   circleLeft: {
     backgroundColor: C.blush,
     transform: [{ translateX: -38 }, { rotate: "-12deg" }],
   },
   circleRight: {
-    backgroundColor: C.peach,
+    backgroundColor: C.lavender,
     transform: [{ translateX: 38 }, { rotate: "12deg" }],
   },
   connectionHeart: {
-    width: 80,
-    height: 80,
+    width: 64,
+    height: 64,
     borderRadius: 40,
     backgroundColor: C.bg,
     alignItems: "center",
     justifyContent: "center",
   },
-  display: {
-    fontSize: 36,
-    lineHeight: 42,
-    fontWeight: "600",
-    color: C.ink,
-    letterSpacing: -1.4,
+  eyebrow: {
+    color: C.brandTextOnTint,
+    fontSize: 11,
+    lineHeight: 18,
+    letterSpacing: 1.6,
+    fontWeight: "700",
+    marginBottom: 12,
   },
-  welcomeBody: { marginTop: 16, marginBottom: 28, maxWidth: 340 },
+  display: {
+    fontFamily: T.font.editorial,
+    fontSize: 40,
+    lineHeight: 46,
+    fontWeight: "400",
+    color: C.ink,
+    letterSpacing: -1.2,
+  },
+  welcomeBody: {
+    marginTop: 16,
+    marginBottom: 28,
+    maxWidth: 460,
+    color: C.muted,
+  },
   actionStack: { gap: 12 },
   textAction: {
     minHeight: 48,
@@ -421,7 +454,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 12,
-    paddingVertical: 12,
+    padding: 16,
+    backgroundColor: C.white,
+    borderWidth: 1,
+    borderColor: C.line,
+    borderRadius: 16,
     marginBottom: 16,
     minHeight: 48,
   },

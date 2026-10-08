@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
-import { Button, C, Chip, Header, Icon, Page, s } from "../components/ui";
+import { Button, C, Chip, Header, Icon, Page, s, T } from "../components/ui";
 import {
   BillingPeriod,
   FREE_BENEFITS,
@@ -43,8 +43,10 @@ export default function Subscriptions() {
         <View style={styles.symbol}>
           <Icon name="sparkles-outline" size={36} color={C.primary} />
         </View>
-        <Text style={styles.headline}>A little more{"\n"}possibility.</Text>
-        <Text style={[s.body, { marginTop: 12 }]}>
+        <Text accessibilityRole="header" style={styles.headline}>
+          A little more{"\n"}possibility.
+        </Text>
+        <Text style={[s.body, { marginTop: 12, color: C.textOnTint }]}>
           Extra room to find your together.
         </Text>
       </LinearGradient>
@@ -60,7 +62,7 @@ export default function Subscriptions() {
             />
           ))}
         </View>
-        <View style={[s.row, { marginTop: 20 }]}>
+        <View style={[s.wrap, { marginTop: 20 }]}>
           <Chip
             label="Monthly"
             selected={period === "monthly"}
@@ -106,7 +108,9 @@ export default function Subscriptions() {
       <View style={styles.free}>
         <View style={[s.row, { marginBottom: 12 }]}>
           <Icon name="heart-outline" color={C.primary} />
-          <Text style={s.h2}>Your beta access is Free.</Text>
+          <Text accessibilityRole="header" style={[s.h2, { flex: 1 }]}>
+            Your beta access is Free.
+          </Text>
         </View>
         <Text style={[s.body, { marginBottom: 20 }]}>
           Everything at the heart of a connection.
@@ -118,8 +122,8 @@ export default function Subscriptions() {
           </View>
         ))}
         <Text style={s.small}>
-          Three standard games are here first; four more will follow. Core
-          dating and safety stay free.
+          All seven standard games are available in this beta. Core dating and
+          safety stay free.
         </Text>
       </View>
       <Text style={[s.small, { marginTop: 24 }]}>
@@ -131,12 +135,13 @@ export default function Subscriptions() {
   );
 }
 const styles = StyleSheet.create({
-  hero: { padding: 28, borderRadius: 18 },
+  hero: { padding: 24, borderRadius: 28 },
   symbol: { marginBottom: 24 },
   headline: {
+    fontFamily: T.font.editorial,
     fontSize: 34,
     lineHeight: 42,
-    fontWeight: "600",
+    fontWeight: "400",
     letterSpacing: -0.9,
     color: C.ink,
   },

@@ -201,5 +201,8 @@ const styles = StyleSheet.create({
     right: 12,
     flexDirection: "row",
     gap: 8,
+    padding: 6,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,251,248,0.94)",
   },
 });

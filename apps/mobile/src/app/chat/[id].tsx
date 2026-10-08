@@ -19,6 +19,7 @@ import { ConversationItem } from "../../components/ConversationItem";
 import { StoryPlayer } from "../../components/StoryPlayer";
 import { ConversationLayout } from "../../components/ConversationLayout";
 import { useStore } from "../../lib/store";
+import { useReducedMotion } from "../../lib/useReducedMotion";
 import { consumeGameConversation } from "../../lib/gameChatBridge";
 import {
   Avatar,
@@ -43,6 +44,7 @@ export default function Chat() {
 }
 function ChatScreen({ id }: { id: string }) {
   const st = useStore();
+  const reducedMotion = useReducedMotion();
   const { request } = st;
   const [chat, setChat] = useState<any>(null),
     [error, setError] = useState(""),
@@ -725,7 +727,7 @@ function ChatScreen({ id }: { id: string }) {
       </BottomSheet>
       <Modal
         visible={!!snap}
-        animationType="fade"
+        animationType={reducedMotion ? "none" : "fade"}
         onRequestClose={() => void close()}
       >
         <SafeAreaView style={styles.snap}>
@@ -781,7 +783,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 4,
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 12,
+    backgroundColor: C.white,
     borderBottomWidth: 1,
     borderBottomColor: C.line,
   },
@@ -790,10 +793,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
     flex: 1,
+    minWidth: 0,
     minHeight: 48,
   },
   name: { fontSize: 17, fontWeight: "600", color: C.ink },
-  subtitle: { fontSize: 12, lineHeight: 18, color: C.muted, marginTop: 2 },
+  subtitle: { fontSize: 12, lineHeight: 18, color: C.textOnTint, marginTop: 2 },
   messages: {
     paddingHorizontal: 20,
     paddingTop: 20,
@@ -806,7 +810,7 @@ const styles = StyleSheet.create({
   hello: { paddingVertical: 36, maxWidth: 320, alignSelf: "center" },
   composer: {
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 12,
     gap: 6,
     flexDirection: "row",
     alignItems: "center",
@@ -818,13 +822,13 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     backgroundColor: C.white,
-    borderRadius: 24,
+    borderRadius: 16,
     color: C.ink,
     fontSize: 15,
     height: 48,
     paddingHorizontal: 16,
     borderWidth: 1,
-    borderColor: C.line,
+    borderColor: C.controlBorder,
   },
   snap: { flex: 1, backgroundColor: C.bg, paddingHorizontal: 20 },
   snapHeader: {

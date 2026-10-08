@@ -103,6 +103,7 @@ function Setup() {
                     ? "Finish profile & Discover"
                     : "Save & continue"
               }
+              loading={busy}
               disabled={busy}
               icon="arrow-forward"
               onPress={() =>
@@ -121,6 +122,7 @@ function Setup() {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Previous step"
+                accessibilityState={{ disabled: busy }}
                 disabled={busy}
                 onPress={() => setStep(step - 1)}
                 style={{
@@ -136,6 +138,7 @@ function Setup() {
         ) : (
           <Button
             title="Verify email"
+            loading={busy}
             disabled={busy || code.length !== 6}
             onPress={() =>
               void (async () => {
@@ -157,7 +160,7 @@ function Setup() {
       }
     >
       {me.email_verified_at && (
-        <View style={{ marginTop: 8 }}>
+        <View style={{ marginTop: 8, marginBottom: 8 }}>
           <StepProgress current={step + 1} total={5} />
         </View>
       )}
@@ -239,7 +242,19 @@ function Setup() {
       ) : (
         <>
           <ProfileForm step={step} draft={draft} setDraft={setDraft} me={me} />
-          <Text style={[s.small, { marginTop: 18, textAlign: "center" }]}>
+          <Text
+            style={[
+              s.small,
+              {
+                marginTop: 20,
+                padding: 16,
+                borderRadius: 16,
+                backgroundColor: C.peach,
+                color: C.textOnTint,
+                textAlign: "center",
+              },
+            ]}
+          >
             Saved after each step. Make yourself at home.
           </Text>
         </>

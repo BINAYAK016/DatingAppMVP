@@ -27,6 +27,7 @@ import {
   Page,
   Skeleton,
   StepProgress,
+  T,
   s,
 } from "../../components/ui";
 export default function Game() {
@@ -464,7 +465,10 @@ function Session({
                                     <Text
                                       style={[
                                         s.small,
-                                        { marginTop: 8, color: C.primary },
+                                        {
+                                          marginTop: 8,
+                                          color: C.brandTextOnTint,
+                                        },
                                       ]}
                                     >
                                       The lie ✓
@@ -562,7 +566,10 @@ function Session({
                           total={def?.questions.length || 5}
                         />
                         <Text
-                          style={[s.small, { color: C.primary, marginTop: 20 }]}
+                          style={[
+                            s.small,
+                            { color: C.brandTextOnTint, marginTop: 20 },
+                          ]}
                         >
                           QUESTION {question + 1} / {def?.questions.length || 5}
                         </Text>
@@ -663,11 +670,7 @@ function Session({
 }
 const styles = StyleSheet.create({
   headline: {
-    fontSize: 28,
-    lineHeight: 36,
-    fontWeight: "600",
-    color: C.ink,
-    letterSpacing: -0.7,
+    ...T.type.title,
   },
   ready: {
     paddingVertical: 16,
@@ -677,13 +680,13 @@ const styles = StyleSheet.create({
   dot: { width: 9, height: 9, borderRadius: 5, backgroundColor: C.line },
   invitation: { alignItems: "center", paddingVertical: 36 },
   option: {
-    minHeight: 100,
+    minHeight: 84,
     padding: 24,
     flexDirection: "row",
     gap: 16,
     alignItems: "center",
     justifyContent: "space-between",
-    borderRadius: 18,
+    borderRadius: T.radius.card,
     borderWidth: 2,
     borderColor: "transparent",
     backgroundColor: C.blush,
@@ -691,8 +694,8 @@ const styles = StyleSheet.create({
   selected: { borderColor: C.primary },
   optionText: {
     flex: 1,
-    fontSize: 20,
-    lineHeight: 28,
+    fontSize: 18,
+    lineHeight: 27,
     fontWeight: "500",
     color: C.ink,
   },
@@ -711,7 +714,7 @@ const styles = StyleSheet.create({
   complete: {
     padding: 24,
     backgroundColor: C.blush,
-    borderRadius: 18,
+    borderRadius: T.radius.card,
     marginTop: 24,
   },
 });

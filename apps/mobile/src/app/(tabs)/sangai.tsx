@@ -10,6 +10,7 @@ import {
   Icon,
   IconButton,
   Skeleton,
+  T,
   s,
 } from "../../components/ui";
 import { PostCard } from "../../components/PostCard";
@@ -108,6 +109,7 @@ function SangaiFeed() {
           <View style={{ marginBottom: 8 }}>
             <Header
               title="Sangai"
+              eyebrow="LITTLE MOMENTS, TOGETHER"
               action={
                 <IconButton
                   label="Create Post"
@@ -127,6 +129,12 @@ function SangaiFeed() {
               <Text style={s.small}>Shared with your matches.</Text>
             </View>
             <MatchStrip />
+            <Text
+              accessibilityRole="header"
+              style={[T.type.section, { marginTop: 24, marginBottom: 12 }]}
+            >
+              From your matches
+            </Text>
           </View>
         }
         ListEmptyComponent={

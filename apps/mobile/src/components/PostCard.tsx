@@ -26,6 +26,7 @@ import {
   Icon,
   IconButton,
   PrivateImage,
+  T,
   s,
 } from "./ui";
 import { FeedVideo } from "./FeedVideo";
@@ -154,10 +155,11 @@ export function PostCard({
           accessibilityRole="button"
           accessibilityLabel={`View ${post.author.name}'s profile`}
           onPress={() => router.push(`/profile/${post.author.id}`)}
+          style={{ minWidth: 44, minHeight: 44, justifyContent: "center" }}
         >
-          <Avatar person={post.author} size={38} />
+          <Avatar person={post.author} size={44} />
         </Pressable>
-        <View style={{ flex: 1, gap: 3 }}>
+        <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
           <Text style={styles.name}>
             {post.author.name}
             {post.author.demo ? " · demo" : ""}
@@ -344,6 +346,7 @@ export function PostCard({
             />
             <Button
               title="Send reply"
+              loading={busy}
               disabled={busy || !reply.trim()}
               onPress={() =>
                 void act(async () => {
@@ -529,9 +532,10 @@ export function PostCard({
 }
 const styles = StyleSheet.create({
   post: {
-    padding: 16,
-    marginBottom: 16,
-    borderRadius: 20,
+    padding: 18,
+    marginBottom: 20,
+    borderRadius: T.radius.card,
+    ...T.shadow.card,
     borderWidth: 1,
     borderColor: C.line,
     backgroundColor: C.white,
@@ -558,13 +562,16 @@ const styles = StyleSheet.create({
     marginTop: 0,
     marginBottom: 12,
   },
-  name: { fontSize: 14, color: C.ink, fontWeight: "600" },
+  name: { fontSize: 16, lineHeight: 23, color: C.ink, fontWeight: "600" },
   caption: { color: C.ink, fontSize: 16, lineHeight: 24, marginTop: 14 },
   question: {
-    backgroundColor: C.lavender,
-    padding: 14,
-    borderRadius: 14,
+    backgroundColor: C.peach,
+    padding: 20,
+    borderRadius: 18,
     marginVertical: 8,
+    fontFamily: T.font.editorial,
+    fontSize: 24,
+    lineHeight: 33,
   },
   videoPrompt: {
     gap: 12,
@@ -575,17 +582,20 @@ const styles = StyleSheet.create({
   },
   textMoment: {
     color: C.ink,
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 18,
+    lineHeight: 28,
     fontWeight: "400",
-    paddingTop: 4,
-    paddingBottom: 8,
+    paddingTop: 8,
+    paddingBottom: 12,
   },
   actions: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
     marginTop: 12,
+    paddingTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: C.line,
     marginLeft: -6,
     marginRight: -6,
   },
@@ -609,7 +619,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 10,
-    paddingVertical: 8,
+    padding: 14,
+    marginBottom: 10,
+    borderRadius: 18,
+    backgroundColor: C.bg,
   },
   commentName: { fontSize: 14, fontWeight: "600", color: C.ink },
   fullPhoto: { flex: 1, backgroundColor: C.bg, paddingHorizontal: 20 },

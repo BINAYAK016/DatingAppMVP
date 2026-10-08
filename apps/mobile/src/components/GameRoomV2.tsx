@@ -28,6 +28,7 @@ import {
   s,
   Skeleton,
   StepProgress,
+  T,
 } from "./ui";
 
 export function GameRoomV2({ id, target }: { id: string; target?: string }) {
@@ -178,6 +179,12 @@ export function GameRoomV2({ id, target }: { id: string; target?: string }) {
             onPress={() => router.replace("/(tabs)/chat")}
           />
         </>
+      ) : !session && game.error ? (
+        <Empty
+          icon="dice-outline"
+          title="Your game can wait"
+          body="Refresh when your connection returns. Your saved progress stays with your game."
+        />
       ) : !session || !game.restored ? (
         <View style={{ gap: 18 }}>
           <Skeleton height={60} />
@@ -186,7 +193,7 @@ export function GameRoomV2({ id, target }: { id: string; target?: string }) {
         </View>
       ) : (
         <>
-          <View style={[s.row, { marginBottom: 24 }]}>
+          <View style={[s.row, styles.pair]}>
             {person && <Avatar person={person} size={36} />}
             <View style={{ flex: 1 }}>
               <Text style={s.label}>You + {person?.name || "your match"}</Text>
@@ -196,9 +203,9 @@ export function GameRoomV2({ id, target }: { id: string; target?: string }) {
             </View>
           </View>
           {session.state === "invited" ? (
-            <View style={{ gap: 16 }}>
+            <View style={[styles.invitation, { gap: 16 }]}>
               <Text style={styles.emoji}>{session.definition.emoji}</Text>
-              <Text style={styles.headline}>
+              <Text accessibilityRole="header" style={styles.headline}>
                 {session.guest === account
                   ? `${person?.name || "Your match"} wants to play`
                   : "Your invitation is waiting"}
@@ -211,7 +218,8 @@ export function GameRoomV2({ id, target }: { id: string; target?: string }) {
               {session.guest === account ? (
                 <>
                   <Button
-                    title={game.busy ? "Joining…" : "Let’s Play ❤️"}
+                    title={game.busy ? "Joining…" : "Let’s play"}
+                    loading={game.busy}
                     disabled={blocked}
                     onPress={() => void game.act("accept")}
                   />
@@ -241,7 +249,10 @@ export function GameRoomV2({ id, target }: { id: string; target?: string }) {
             <>
               <View style={styles.result}>
                 <Icon name="heart-outline" size={36} color={C.primary} />
-                <Text style={[styles.headline, { marginTop: 16 }]}>
+                <Text
+                  accessibilityRole="header"
+                  style={[styles.headline, { marginTop: 16 }]}
+                >
                   {session.results.heading}
                 </Text>
                 <Text style={[s.body, { marginTop: 12 }]}>
@@ -302,7 +313,11 @@ export function GameRoomV2({ id, target }: { id: string; target?: string }) {
                 <Text
                   style={[
                     s.small,
-                    { color: C.primary, marginTop: 16, marginBottom: 12 },
+                    {
+                      color: C.brandTextOnTint,
+                      marginTop: 16,
+                      marginBottom: 12,
+                    },
                   ]}
                 >
                   ROUND {Math.min(view.round + 1, view.total)} / {view.total}
@@ -316,7 +331,7 @@ export function GameRoomV2({ id, target }: { id: string; target?: string }) {
                   />
                 ) : view.phase === "start-timer" ? (
                   <>
-                    <Text style={styles.headline}>
+                    <Text accessibilityRole="header" style={styles.headline}>
                       Ten choices. No overthinking.
                     </Text>
                     <Text style={[s.body, { marginTop: 12, marginBottom: 24 }]}>
@@ -334,7 +349,7 @@ export function GameRoomV2({ id, target }: { id: string; target?: string }) {
                     view.phase,
                   ) && view.question ? (
                   <>
-                    <Text style={styles.headline}>
+                    <Text accessibilityRole="header" style={styles.headline}>
                       {view.phase === "guess-answer"
                         ? `Guess their answer: ${view.question.q}`
                         : view.question.q}
@@ -388,7 +403,7 @@ export function GameRoomV2({ id, target }: { id: string; target?: string }) {
                   </>
                 ) : view.phase === "write-truths" ? (
                   <>
-                    <Text style={styles.headline}>
+                    <Text accessibilityRole="header" style={styles.headline}>
                       Two truths. One little lie.
                     </Text>
                     <Text style={[s.body, { marginTop: 12, marginBottom: 24 }]}>
@@ -471,7 +486,7 @@ export function GameRoomV2({ id, target }: { id: string; target?: string }) {
                   </>
                 ) : view.phase === "ask" || view.phase === "respond" ? (
                   <>
-                    <Text style={styles.headline}>
+                    <Text accessibilityRole="header" style={styles.headline}>
                       {view.phase === "ask"
                         ? "What are you curious about?"
                         : view.prompt}
@@ -575,17 +590,26 @@ export function GameRoomV2({ id, target }: { id: string; target?: string }) {
 }
 const styles = StyleSheet.create({
   headline: {
-    fontSize: 28,
-    lineHeight: 36,
-    fontWeight: "600",
-    color: C.ink,
-    letterSpacing: -0.7,
+    ...T.type.title,
   },
-  emoji: { fontSize: 48, marginVertical: 12 },
-  option: {
-    minHeight: 100,
-    padding: 22,
+  pair: {
+    marginBottom: 24,
+    padding: 16,
+    backgroundColor: C.white,
     borderRadius: 18,
+    borderWidth: 1,
+    borderColor: C.line,
+  },
+  invitation: {
+    backgroundColor: C.peach,
+    padding: 24,
+    borderRadius: T.radius.card,
+  },
+  emoji: { fontSize: 42, marginVertical: 8 },
+  option: {
+    minHeight: 84,
+    padding: 20,
+    borderRadius: T.radius.card,
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
@@ -593,7 +617,7 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
   },
   selected: { borderColor: C.primary },
-  optionText: { flex: 1, fontSize: 20, lineHeight: 28, color: C.ink },
+  optionText: { flex: 1, fontSize: 18, lineHeight: 27, color: C.ink },
   notice: {
     backgroundColor: C.peach,
     padding: 16,
@@ -602,9 +626,16 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   reveal: {
-    paddingVertical: 18,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    padding: 20,
+    marginTop: 12,
+    borderRadius: 18,
+    backgroundColor: C.white,
+    borderWidth: 1,
     borderColor: C.line,
   },
-  result: { padding: 24, backgroundColor: C.blush, borderRadius: 18 },
+  result: {
+    padding: 24,
+    backgroundColor: C.blush,
+    borderRadius: T.radius.card,
+  },
 });

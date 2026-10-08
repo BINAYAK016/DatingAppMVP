@@ -12,6 +12,7 @@ import {
   Icon,
   Page,
   Skeleton,
+  T,
   s,
 } from "../components/ui";
 export default function Safety() {
@@ -85,10 +86,17 @@ export default function Safety() {
   return (
     <>
       <Page>
-        <Header back title="Privacy & safety" action={<View />} />
+        <Header
+          back
+          title="Privacy & safety"
+          eyebrow="ON YOUR TERMS"
+          action={<View />}
+        />
         <View style={styles.intro}>
           <Icon name="shield-checkmark-outline" size={38} color={C.primary} />
-          <Text style={styles.headline}>Your comfort matters.</Text>
+          <Text accessibilityRole="header" style={styles.headline}>
+            Your comfort matters.
+          </Text>
           <Text style={[s.body, { marginTop: 12 }]}>
             You never owe anyone a conversation. Your reports are private.
           </Text>
@@ -138,7 +146,7 @@ export default function Safety() {
             {reports.length ? (
               reports.map((r) => (
                 <View key={r.id} style={styles.report}>
-                  <Text style={[s.small, { color: C.primary }]}>
+                  <Text style={[s.small, { color: C.brandTextOnTint }]}>
                     {r.state.toUpperCase()}
                   </Text>
                   <Text style={[s.body, { marginTop: 8, color: C.ink }]}>
@@ -209,6 +217,7 @@ export default function Safety() {
         />
         <Button
           title={busy ? "Submitting…" : "Submit a private report"}
+          loading={busy}
           disabled={busy || !reason.trim()}
           onPress={() =>
             void act(async () => {
@@ -259,13 +268,14 @@ export default function Safety() {
   );
 }
 const styles = StyleSheet.create({
-  intro: { marginBottom: 28 },
+  intro: {
+    marginBottom: 28,
+    padding: 24,
+    backgroundColor: C.peach,
+    borderRadius: T.radius.card,
+  },
   headline: {
-    fontSize: 28,
-    lineHeight: 35,
-    fontWeight: "600",
-    letterSpacing: -0.6,
-    color: C.ink,
+    ...T.type.title,
     marginTop: 20,
   },
   action: {
@@ -273,15 +283,20 @@ const styles = StyleSheet.create({
     gap: 16,
     alignItems: "center",
     minHeight: 84,
-    paddingVertical: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: C.line,
+    padding: 18,
+    marginBottom: 10,
+    backgroundColor: C.white,
+    borderRadius: T.radius.card,
+    borderWidth: 1,
+    borderColor: C.line,
   },
   report: {
-    paddingVertical: 20,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: C.line,
-    marginBottom: 8,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: C.line,
+    borderRadius: 18,
+    backgroundColor: C.white,
+    marginBottom: 12,
   },
   block: {
     paddingVertical: 16,
@@ -291,7 +306,7 @@ const styles = StyleSheet.create({
   meeting: {
     backgroundColor: C.lavender,
     padding: 24,
-    borderRadius: 18,
+    borderRadius: T.radius.card,
     marginTop: 32,
   },
 });

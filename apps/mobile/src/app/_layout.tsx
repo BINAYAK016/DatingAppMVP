@@ -10,7 +10,7 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { Provider, useStore } from "../lib/store";
-import { C, humanMessage, Button, Loading } from "../components/ui";
+import { C, T, s, humanMessage, Button, Loading } from "../components/ui";
 import { useReducedMotion } from "../lib/useReducedMotion";
 function Shell() {
   const {
@@ -89,7 +89,7 @@ function Shell() {
             gap: 20,
           }}
         >
-          <Text style={{ color: C.ink, fontSize: 26, fontWeight: "600" }}>
+          <Text accessibilityRole="header" style={s.title}>
             Let’s reconnect
           </Text>
           <Text
@@ -134,8 +134,9 @@ function Shell() {
             left: 20,
             right: 20,
             padding: 16,
-            borderRadius: 16,
+            borderRadius: T.radius.card,
             backgroundColor: C.primary,
+            ...T.shadow.raised,
             zIndex: 100,
           }}
         >

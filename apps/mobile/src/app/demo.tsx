@@ -115,7 +115,8 @@ function DemoSelector() {
           style={[
             s.small,
             {
-              fontSize: 12,
+              color: C.textOnTint,
+              fontSize: 13,
               lineHeight: 18,
               padding: 12,
               backgroundColor: C.lavender,
@@ -154,7 +155,9 @@ function DemoSelector() {
             <Text style={s.link}>Return as {st.data.me.name}</Text>
           </Pressable>
         )}
-        <Text style={[s.h2, { marginBottom: 14 }]}>Choose a profile</Text>
+        <Text accessibilityRole="header" style={[s.h2, { marginBottom: 14 }]}>
+          Choose a profile
+        </Text>
         <View style={[s.wrap, { marginBottom: 20 }]}>
           {DEMO_GROUPS.map((item) => (
             <Pressable
@@ -321,7 +324,7 @@ function DemoUsers({
               />
             )}
             <View style={{ flex: 1, gap: 5 }}>
-              <Text style={s.h2}>
+              <Text accessibilityRole="header" style={s.h2}>
                 {person.name}, {person.age}
               </Text>
               <Text style={s.small}>
@@ -345,6 +348,7 @@ function DemoUsers({
                 ? `Entering as ${person.name}…`
                 : `Enter as ${person.name}`
             }
+            loading={entering === person.id}
             disabled={busy || st.loading}
             onPress={() => onEnter(person)}
           />
@@ -403,8 +407,8 @@ const styles = StyleSheet.create({
   },
   selectedGroup: { backgroundColor: C.primary },
   person: {
-    borderRadius: 20,
-    padding: 16,
+    borderRadius: 24,
+    padding: 20,
     backgroundColor: C.white,
     borderWidth: 1,
     borderColor: C.line,

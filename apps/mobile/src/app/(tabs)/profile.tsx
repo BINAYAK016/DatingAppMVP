@@ -19,6 +19,7 @@ import {
   BottomSheet,
   Button,
   C,
+  T,
   Chip,
   Field,
   Header,
@@ -113,22 +114,33 @@ export default function Profile() {
         <View style={styles.summary}>
           <Avatar person={me} size={76} />
           <View style={{ flex: 1, minWidth: 0, gap: 5 }}>
-            <Text style={s.h2}>
+            <Text
+              accessibilityRole="header"
+              style={[
+                s.h2,
+                {
+                  fontFamily: T.font.editorial,
+                  fontSize: 26,
+                  lineHeight: 32,
+                  fontWeight: "400",
+                },
+              ]}
+            >
               {me.name}, {me.age}
             </Text>
             <View style={[s.row, { gap: 4 }]}>
               <Icon name="location-outline" size={14} color={C.muted} />
-              <Text style={s.small}>{me.city}</Text>
+              <Text style={[s.small, { color: C.textOnTint }]}>{me.city}</Text>
             </View>
             {me.demo && (
-              <Text style={[s.meta, { color: C.primary }]}>
+              <Text style={[s.meta, { color: C.brandTextOnTint }]}>
                 Fictional demo profile
               </Text>
             )}
           </View>
         </View>
-        <View style={[s.row, { marginBottom: 16 }]}>
-          <View style={{ flex: 1 }}>
+        <View style={[s.row, { marginBottom: 16, flexWrap: "wrap" }]}>
+          <View style={{ flex: 1, minWidth: 140 }}>
             <Button
               title="Edit profile"
               compact
@@ -136,7 +148,7 @@ export default function Profile() {
               onPress={() => router.push("/edit-profile")}
             />
           </View>
-          <View style={{ flex: 1 }}>
+          <View style={{ flex: 1, minWidth: 140 }}>
             <Button
               title="Preview profile"
               compact
@@ -233,7 +245,7 @@ export default function Profile() {
             <Icon name="sparkles-outline" color={C.primary} />
             <Text style={s.h2}>A little more with Plus</Text>
           </View>
-          <Text style={[s.body, { marginBottom: 20 }]}>
+          <Text style={[s.body, { marginBottom: 20, color: C.textOnTint }]}>
             Explore the possibilities. Your beta access is free.
           </Text>
           <Button
@@ -247,7 +259,9 @@ export default function Profile() {
               <Icon name="flask-outline" color={C.primary} size={18} />
               <Text style={s.label}>Demo tools</Text>
             </View>
-            <Text style={[s.small, { marginVertical: 10 }]}>
+            <Text
+              style={[s.small, { marginVertical: 10, color: C.textOnTint }]}
+            >
               Fictional, shared accounts. Use made-up messages and profile
               details.
             </Text>
@@ -352,6 +366,7 @@ export default function Profile() {
                 )}
               </View>
               <Switch
+                style={{ minWidth: 48, minHeight: 44 }}
                 {...(Platform.OS === "web"
                   ? { activeThumbColor: C.white }
                   : {})}
@@ -359,7 +374,7 @@ export default function Profile() {
                 accessibilityLabel={label}
                 value={pendingSettings[key] ?? me[key]}
                 disabled={pendingSettings[key] !== undefined}
-                trackColor={{ false: C.line, true: C.primary }}
+                trackColor={{ false: C.controlBorder, true: C.primary }}
                 onValueChange={(value) => void settings(key, value)}
               />
             </View>
@@ -375,12 +390,13 @@ export default function Profile() {
               </Text>
             </View>
             <Switch
+              style={{ minWidth: 48, minHeight: 44 }}
               {...(Platform.OS === "web" ? { activeThumbColor: C.white } : {})}
               thumbColor={C.white}
               accessibilityLabel="Pause discovery"
               value={pendingSettings.paused ?? me.paused}
               disabled={pendingSettings.paused !== undefined}
-              trackColor={{ false: C.line, true: C.primary }}
+              trackColor={{ false: C.controlBorder, true: C.primary }}
               onValueChange={(paused) => void settings("paused", paused)}
             />
           </View>
@@ -397,6 +413,7 @@ export default function Profile() {
                 </Text>
               </View>
               <Switch
+                style={{ minWidth: 48, minHeight: 44 }}
                 {...(Platform.OS === "web"
                   ? { activeThumbColor: C.white }
                   : {})}
@@ -404,7 +421,7 @@ export default function Profile() {
                 accessibilityLabel="Notifications"
                 value={pendingSettings.notifications ?? me.notifications}
                 disabled={pendingSettings.notifications !== undefined}
-                trackColor={{ false: C.line, true: C.primary }}
+                trackColor={{ false: C.controlBorder, true: C.primary }}
                 onValueChange={(notifications) =>
                   void settings("notifications", notifications)
                 }
@@ -622,8 +639,8 @@ export default function Profile() {
 const styles = StyleSheet.create({
   summary: {
     backgroundColor: C.blush,
-    borderRadius: 20,
-    padding: 16,
+    borderRadius: 24,
+    padding: 20,
     flexDirection: "row",
     gap: 16,
     alignItems: "center",
@@ -650,14 +667,15 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   momentLink: {
-    minHeight: 56,
+    minHeight: 60,
+    paddingVertical: 12,
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: C.line,
   },
-  plus: { backgroundColor: C.peach, padding: 16, borderRadius: 18 },
+  plus: { backgroundColor: C.peach, padding: 20, borderRadius: 24 },
   setting: {
     flexDirection: "row",
     gap: 16,

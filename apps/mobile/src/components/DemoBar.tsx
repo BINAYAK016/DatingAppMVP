@@ -35,9 +35,15 @@ export function DemoBar() {
           accessibilityRole="button"
           accessibilityLabel="Switch demo user"
           onPress={() => router.push("/demo")}
-          style={{ minHeight: 44, justifyContent: "center", paddingLeft: 12 }}
+          style={{
+            minHeight: 44,
+            minWidth: 60,
+            justifyContent: "center",
+            alignItems: "center",
+            paddingHorizontal: 12,
+          }}
         >
-          <Text style={s.link}>Switch</Text>
+          <Text style={[s.link, { color: C.brandTextOnTint }]}>Switch</Text>
         </Pressable>
       </View>
     </View>

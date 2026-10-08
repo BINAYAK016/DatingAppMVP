@@ -59,6 +59,7 @@ export default function Reset() {
           title={
             busy ? "Please wait…" : sent ? "Update password" : "Send reset code"
           }
+          loading={busy}
           disabled={
             busy || (sent && (code.length !== 6 || password.length < 10))
           }
@@ -98,6 +99,8 @@ export default function Reset() {
         <Field
           label="Email"
           keyboardType="email-address"
+          autoComplete="email"
+          placeholder="you@example.com"
           value={email}
           onChangeText={setEmail}
         />
@@ -116,6 +119,7 @@ export default function Reset() {
           />
           <Field
             label="New password · at least 10 characters"
+            autoComplete="new-password"
             secure
             value={password}
             onChangeText={setPassword}
@@ -165,7 +169,18 @@ export default function Reset() {
           {error}
         </Text>
       )}
-      <Text style={[s.small, { marginTop: 20 }]}>
+      <Text
+        style={[
+          s.small,
+          {
+            marginTop: 24,
+            padding: 16,
+            borderRadius: 16,
+            backgroundColor: C.peach,
+            color: C.textOnTint,
+          },
+        ]}
+      >
         Codes expire in 15 minutes and work once. Resetting your password signs
         out existing sessions.
       </Text>

@@ -20,6 +20,7 @@ import {
   Icon,
   s,
   Skeleton,
+  T,
 } from "./ui";
 
 type InviteDraft = { kind: string; clientId: string };
@@ -148,7 +149,7 @@ export function GamePickerV2({
     <BottomSheet
       visible={focused}
       onClose={() => router.back()}
-      title={selected ? "Want to play? 🎮" : "Play together"}
+      title={selected ? "Want to play?" : "Play together"}
     >
       {!person ? (
         <Empty
@@ -157,7 +158,7 @@ export function GamePickerV2({
         />
       ) : (
         <>
-          <View style={[s.row, { marginBottom: 20 }]}>
+          <View style={[s.row, styles.pair]}>
             <Avatar person={person} size={40} />
             <Text style={[s.label, { flex: 1 }]}>You + {person.name}</Text>
             <Icon name="heart-outline" color={C.primary} size={20} />
@@ -187,7 +188,10 @@ export function GamePickerV2({
           ) : selected ? (
             <>
               <Text style={styles.emoji}>{selected.emoji}</Text>
-              <Text style={[s.h2, { textAlign: "center", fontSize: 28 }]}>
+              <Text
+                accessibilityRole="header"
+                style={[T.type.title, { textAlign: "center" }]}
+              >
                 {selected.title}
               </Text>
               <Text style={[s.body, { textAlign: "center", marginTop: 12 }]}>
@@ -204,6 +208,7 @@ export function GamePickerV2({
               </Text>
               <Button
                 title={busy ? "Sending invitation…" : "Send Invite"}
+                loading={busy}
                 disabled={busy || !restored || !!catalog.current}
                 onPress={() => void send()}
               />
@@ -239,7 +244,9 @@ export function GamePickerV2({
                   />
                 </View>
               )}
-              <Text style={s.h2}>{category || "Quick Play"}</Text>
+              <Text accessibilityRole="header" style={s.h2}>
+                {category || "Quick Play"}
+              </Text>
               <Text style={[s.body, { marginTop: 6, marginBottom: 16 }]}>
                 Pick something fun. They can join when they’re back.
               </Text>
@@ -285,14 +292,19 @@ export function GamePickerV2({
                       !!catalog.current && { opacity: 0.55 },
                     ]}
                   >
-                    <Text style={styles.smallEmoji}>{game.emoji}</Text>
+                    <View style={styles.gameArt}>
+                      <Text style={styles.smallEmoji}>{game.emoji}</Text>
+                    </View>
                     <View style={{ flex: 1 }}>
                       <Text style={s.label}>{game.title}</Text>
                       <Text style={[s.small, { marginTop: 5 }]}>
                         {game.subtitle}
                       </Text>
                       <Text
-                        style={[s.small, { marginTop: 8, color: C.primary }]}
+                        style={[
+                          s.small,
+                          { marginTop: 8, color: C.brandTextOnTint },
+                        ]}
                       >
                         {game.durationMinutes} min · You + your match
                       </Text>
@@ -333,30 +345,44 @@ export function GamePickerV2({
   );
 }
 const styles = StyleSheet.create({
-  emoji: { fontSize: 52, textAlign: "center", marginVertical: 24 },
+  pair: {
+    marginBottom: 24,
+    padding: 14,
+    borderRadius: 18,
+    backgroundColor: C.peach,
+  },
+  emoji: { fontSize: 48, textAlign: "center", marginVertical: 24 },
+  gameArt: {
+    width: 48,
+    height: 56,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: C.blush,
+  },
   smallEmoji: { fontSize: 26 },
   game: {
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
-    backgroundColor: C.blush,
-    padding: 14,
-    borderRadius: 18,
-    minHeight: 86,
+    backgroundColor: C.white,
+    padding: 16,
+    borderRadius: T.radius.card,
+    minHeight: 104,
     borderWidth: 1,
     borderColor: C.line,
   },
   notice: {
     backgroundColor: C.lavender,
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: T.radius.card,
+    padding: 20,
     marginBottom: 16,
     gap: 6,
   },
   advisory: {
     marginTop: 28,
-    paddingTop: 20,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderColor: C.line,
+    padding: 20,
+    borderRadius: T.radius.card,
+    backgroundColor: C.peach,
   },
 });

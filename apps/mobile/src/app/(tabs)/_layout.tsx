@@ -1,5 +1,5 @@
 import React from "react";
-import { Platform, View, useWindowDimensions } from "react-native";
+import { Platform, Text, View, useWindowDimensions } from "react-native";
 import { Tabs, Redirect } from "expo-router";
 import { useStore } from "../../lib/store";
 import { C, Icon, Loading } from "../../components/ui";
@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 export default function Layout() {
   const { ready, token, data, demoMode, sessionKey } = useStore();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width, fontScale } = useWindowDimensions();
   const wideWeb = Platform.OS === "web" && width >= 1024;
   if (!ready) return <Loading />;
   if (!token) return <Loading />;
@@ -21,15 +21,29 @@ export default function Layout() {
         key={sessionKey}
         screenOptions={{
           headerShown: false,
-          tabBarActiveTintColor: C.primary,
-          tabBarInactiveTintColor: C.muted,
+          tabBarActiveTintColor: C.brandTextOnTint,
+          tabBarInactiveTintColor: C.textOnTint,
           tabBarStyle: {
             display: wideWeb ? "none" : "flex",
             backgroundColor: C.bg,
             borderTopColor: C.line,
+            // Browser text zoom does not change RNW fontScale. Let the real
+            // label height size the bar; native uses the system font scale.
             height:
-              58 +
-              (demoMode && data.me.demo ? 12 : Math.max(insets.bottom, 12)),
+              Platform.OS === "web"
+                ? "auto"
+                : 54 +
+                  16 *
+                    fontScale *
+                    Math.max(
+                      1,
+                      Math.ceil(
+                        (56 * fontScale) / Math.max(44, width / 4 - 18),
+                      ),
+                    ) +
+                  (demoMode && data.me.demo ? 12 : Math.max(insets.bottom, 12)),
+            minHeight: 82,
+            flexShrink: 0,
             paddingTop: 8,
             paddingBottom:
               demoMode && data.me.demo ? 12 : Math.max(insets.bottom, 12),
@@ -37,7 +51,25 @@ export default function Layout() {
           tabBarLabelPosition: "below-icon",
           tabBarItemStyle: { borderRadius: 14, marginHorizontal: 4 },
           tabBarActiveBackgroundColor: C.blush,
-          tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
+          tabBarAllowFontScaling: true,
+          // The default navigation Label forces one line. A wrapping Text
+          // keeps every destination readable when text is enlarged.
+          tabBarLabel: ({ children, color }) => (
+            <Text
+              style={{
+                color,
+                fontSize: 12,
+                lineHeight: 16,
+                fontWeight: "600",
+                textAlign: "center",
+                width: "100%",
+                minWidth: 0,
+                flexShrink: 0,
+              }}
+            >
+              {children}
+            </Text>
+          ),
         }}
       >
         <Tabs.Screen

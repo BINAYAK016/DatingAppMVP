@@ -12,6 +12,7 @@ import {
   Empty,
   Icon,
   s,
+  T,
 } from "../components/ui";
 export default function Games() {
   const { target = "", kind } = useLocalSearchParams<{
@@ -214,7 +215,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: C.line },
-  game: { padding: 24, borderRadius: 18 },
-  gameNumber: { fontSize: 11, color: C.muted, letterSpacing: 1.5 },
+  game: { padding: 24, borderRadius: T.radius.card },
+  gameNumber: { ...T.type.eyebrow, color: C.textOnTint },
   gameEmoji: { position: "absolute", right: 24, top: 22, fontSize: 30 },
 });

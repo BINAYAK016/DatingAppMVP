@@ -37,7 +37,7 @@ export default function Saved() {
   );
   return (
     <Page>
-      <Header back title="Saved moments" />
+      <Header back title="Saved moments" eyebrow="WORTH COMING BACK TO" />
       {loading ? (
         <View style={{ gap: 16 }}>
           <Skeleton height={260} />

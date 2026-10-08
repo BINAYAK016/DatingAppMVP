@@ -91,6 +91,7 @@ function Editor() {
         footer={
           <Button
             title={busy ? "Saving…" : "Save my profile"}
+            loading={busy}
             disabled={busy}
             onPress={() => void save()}
           />
@@ -149,7 +150,12 @@ function Editor() {
             <Text style={[s.small, { color: C.primary, marginBottom: 8 }]}>
               SECTION {step + 1} OF 5
             </Text>
-            <Text style={[s.h2, { marginBottom: 24 }]}>{SECTIONS[step]}</Text>
+            <Text
+              accessibilityRole="header"
+              style={[s.h2, { marginBottom: 24 }]}
+            >
+              {SECTIONS[step]}
+            </Text>
             <ProfileForm
               step={step}
               draft={draft}
@@ -198,8 +204,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 16,
     minHeight: 84,
-    paddingVertical: 20,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: C.line,
+    padding: 20,
+    marginBottom: 12,
+    backgroundColor: C.white,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: C.line,
   },
 });

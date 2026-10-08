@@ -13,6 +13,7 @@ import {
   Page,
   SelectionTile,
   StepProgress,
+  T,
   s,
 } from "../components/ui";
 export default function Plan() {
@@ -107,6 +108,7 @@ export default function Plan() {
                   ? "Send date invitation"
                   : "Continue"
             }
+            loading={busy}
             disabled={
               busy ||
               !title ||
@@ -136,12 +138,17 @@ export default function Plan() {
         </View>
       }
     >
-      <Header back title="Plan a Date" action={<View />} />
+      <Header
+        back
+        title="Plan a Date"
+        eyebrow="FROM A HELLO TO A PLAN"
+        action={<View />}
+      />
       <StepProgress current={step + 1} total={3} />
       {!!person && (
         <View style={styles.with}>
           <Avatar person={person} size={36} />
-          <Text style={s.body}>
+          <Text style={[s.body, { flex: 1 }]}>
             An invitation for{" "}
             <Text style={{ color: C.ink, fontWeight: "600" }}>
               {person.name}
@@ -273,15 +280,25 @@ export default function Plan() {
 }
 const styles = StyleSheet.create({
   heading: {
-    color: C.ink,
-    fontSize: 28,
-    lineHeight: 36,
-    fontWeight: "600",
-    letterSpacing: -0.6,
+    ...T.type.title,
     marginBottom: 8,
   },
-  with: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 20 },
-  summary: { backgroundColor: C.blush, borderRadius: 18, padding: 24 },
+  with: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginTop: 20,
+    padding: 16,
+    backgroundColor: C.white,
+    borderRadius: T.radius.card,
+    borderWidth: 1,
+    borderColor: C.line,
+  },
+  summary: {
+    backgroundColor: C.peach,
+    borderRadius: T.radius.card,
+    padding: 24,
+  },
   detail: {
     flexDirection: "row",
     gap: 12,
@@ -291,7 +308,10 @@ const styles = StyleSheet.create({
   safety: {
     flexDirection: "row",
     gap: 12,
-    marginTop: 32,
+    marginTop: 28,
+    padding: 16,
+    borderRadius: 18,
+    backgroundColor: C.lavender,
     alignItems: "flex-start",
   },
 });

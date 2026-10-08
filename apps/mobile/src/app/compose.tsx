@@ -33,6 +33,7 @@ import {
   IconButton,
   Page,
   s,
+  T,
 } from "../components/ui";
 import { useStore } from "../lib/store";
 import { useMediaVisible } from "../lib/useMediaVisible";
@@ -353,6 +354,7 @@ export default function Compose() {
                           ? "Add to profile"
                           : "Use this photo"
             }
+            loading={busy}
             disabled={
               !mutable ||
               (!body.trim() && !assets.length) ||
@@ -364,7 +366,7 @@ export default function Compose() {
       }
     >
       <Header back title={title} />
-      <View style={[s.row, { marginBottom: 16 }]}>
+      <View style={[s.row, styles.audience]}>
         {st.data && <Avatar person={st.data.me} size={36} />}
         <Icon
           name={
@@ -616,13 +618,24 @@ function LocalVideo({ uri }: { uri: string }) {
   );
 }
 const styles = StyleSheet.create({
-  chooser: { padding: 16, backgroundColor: C.blush, borderRadius: 18, gap: 10 },
+  audience: {
+    marginBottom: 24,
+    padding: 16,
+    backgroundColor: C.peach,
+    borderRadius: 18,
+  },
+  chooser: {
+    padding: 20,
+    backgroundColor: C.blush,
+    borderRadius: T.radius.card,
+    gap: 12,
+  },
   caption: {
-    minHeight: 140,
+    minHeight: 156,
     padding: 16,
     backgroundColor: C.white,
     borderWidth: 1,
-    borderColor: C.line,
+    borderColor: C.controlBorder,
     borderRadius: 18,
     textAlignVertical: "top",
     color: C.ink,
@@ -632,7 +645,7 @@ const styles = StyleSheet.create({
   preview: {
     position: "relative",
     backgroundColor: C.blush,
-    borderRadius: 18,
+    borderRadius: T.radius.card,
     overflow: "hidden",
   },
   photo: { width: "100%", height: 310 },

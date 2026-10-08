@@ -7,7 +7,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { Link, usePathname } from "expo-router";
-import { Avatar, C, Icon, s } from "./ui";
+import { Avatar, C, Icon, s, T } from "./ui";
 import { useStore } from "../lib/store";
 import "../web.css";
 
@@ -48,10 +48,14 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
             <Text style={styles.brand}>sangai</Text>
             {signedIn ? (
               <>
-                <Text style={[s.small, { marginTop: 8 }]}>
+                <Text style={[s.small, { marginTop: 8, color: C.textOnTint }]}>
                   Find your together.
                 </Text>
-                <View style={{ gap: 8, marginTop: 32 }}>
+                <View
+                  role="navigation"
+                  aria-label="Main navigation"
+                  style={{ gap: 8, marginTop: 32 }}
+                >
                   {destinations.map((item) => {
                     const selected =
                       item.path === "/"
@@ -61,6 +65,7 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
                       <Link key={item.label} href={item.href} asChild>
                         <Pressable
                           accessibilityLabel={`Navigate to ${item.label}`}
+                          aria-current={selected ? "page" : undefined}
                           style={StyleSheet.flatten([
                             styles.destination,
                             selected && {
@@ -71,10 +76,14 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
                           <Icon
                             name={item.icon}
                             size={21}
-                            color={selected ? C.primary : C.muted}
+                            color={selected ? C.brandTextOnTint : C.textOnTint}
                           />
                           <Text
-                            style={[s.label, selected && { color: C.primary }]}
+                            style={[
+                              s.label,
+                              { flexShrink: 1 },
+                              selected && { color: C.brandTextOnTint },
+                            ]}
                           >
                             {item.label}
                           </Text>
@@ -97,10 +106,21 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
               </>
             ) : (
               <>
-                <Text style={[s.h2, { marginTop: 32 }]}>
+                <Text
+                  style={[
+                    s.h2,
+                    {
+                      marginTop: 32,
+                      fontFamily: T.font.editorial,
+                      fontSize: 28,
+                      lineHeight: 34,
+                      fontWeight: "400",
+                    },
+                  ]}
+                >
                   Find your together.
                 </Text>
-                <Text style={[s.body, { marginTop: 12, color: C.muted }]}>
+                <Text style={[s.body, { marginTop: 12, color: C.textOnTint }]}>
                   Good conversations. Shared moments. Connections at your pace.
                 </Text>
               </>
@@ -112,7 +132,12 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
               ]}
             >
               <Icon name="lock-closed-outline" size={16} color={C.primary} />
-              <Text style={[s.small, { flex: 1, fontSize: 12 }]}>
+              <Text
+                style={[
+                  s.small,
+                  { flex: 1, fontSize: 12, color: C.textOnTint },
+                ]}
+              >
                 Posts and stories stay between current matches. Beta for adults
                 18+.
               </Text>
@@ -121,6 +146,7 @@ export function AppFrame({ children }: { children: React.ReactNode }) {
         )}
         <View
           testID="sangai-app-frame"
+          role="main"
           style={[
             styles.app,
             wide && styles.desktopApp,
@@ -143,12 +169,12 @@ const styles = StyleSheet.create({
   shell: {
     flex: 1,
     width: "100%",
-    maxWidth: 1180,
+    maxWidth: 1240,
     flexDirection: "row",
     justifyContent: "center",
     minWidth: 0,
   },
-  rail: { width: 220, padding: 20, paddingVertical: 36 },
+  rail: { width: 240, padding: 24, paddingVertical: 40 },
   brand: {
     color: C.primary,
     fontSize: 34,
@@ -161,7 +187,8 @@ const styles = StyleSheet.create({
     gap: 12,
     alignItems: "center",
     paddingHorizontal: 12,
-    borderRadius: 14,
+    paddingVertical: 12,
+    borderRadius: 16,
   },
   account: {
     flexDirection: "row",

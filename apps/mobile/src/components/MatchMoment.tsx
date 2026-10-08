@@ -29,7 +29,7 @@ export function MatchMoment({
   useEffect(() => {
     const motion = Animated.timing(progress, {
       toValue: 1,
-      duration: reduced ? 0 : 450,
+      duration: reduced ? 0 : 300,
       useNativeDriver: true,
     });
     motion.start();
@@ -38,6 +38,7 @@ export function MatchMoment({
   return (
     <Modal
       visible
+      accessibilityLabel="It’s a Match!"
       animationType={reduced ? "none" : "fade"}
       onRequestClose={onExplore}
     >
@@ -147,7 +148,10 @@ export function MatchMoment({
                   <Icon name="heart" color={C.white} size={24} />
                 </View>
               </View>
-              <Text style={[s.display, { textAlign: "center", marginTop: 12 }]}>
+              <Text
+                accessibilityRole="header"
+                style={[s.display, { textAlign: "center", marginTop: 12 }]}
+              >
                 It’s a Match!
               </Text>
               <Text

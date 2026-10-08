@@ -14,17 +14,17 @@ export default function SubscriptionPreview() {
       <Header back title="Your Plus preview" action={<View />} />
       <View style={styles.summary}>
         <Icon name="sparkles-outline" color={C.primary} size={36} />
-        <Text style={[s.small, { marginTop: 24, color: C.primary }]}>
+        <Text style={[s.meta, { marginTop: 24, color: C.brandTextOnTint }]}>
           SANGAI PLUS · {PRICE_REGIONS[region].label.toUpperCase()}
         </Text>
         <Text accessibilityLabel="Selected plan price" style={styles.price}>
           {priceLabel(region, period)}
         </Text>
-        <Text style={s.body}>
+        <Text style={[s.body, { color: C.textOnTint }]}>
           {period === "annual" ? "Full annual price" : "Monthly price"}
         </Text>
         {period === "annual" && (
-          <Text style={[s.small, { marginTop: 12 }]}>
+          <Text style={[s.small, { marginTop: 12, color: C.textOnTint }]}>
             20% less than twelve monthly payments, rounded to the nearest minor
             currency unit.
           </Text>
@@ -40,7 +40,9 @@ export default function SubscriptionPreview() {
         ))}
       </View>
       <View style={{ paddingVertical: 28 }}>
-        <Text style={s.h2}>Purchases are coming later</Text>
+        <Text accessibilityRole="header" style={s.h2}>
+          Purchases are coming later
+        </Text>
         <Text style={[s.body, { marginTop: 12 }]}>
           This is a price and benefits preview. No payment details are
           collected, no subscription starts, and no renewal is scheduled.
@@ -53,7 +55,7 @@ export default function SubscriptionPreview() {
   );
 }
 const styles = StyleSheet.create({
-  summary: { backgroundColor: C.blush, padding: 28, borderRadius: 18 },
+  summary: { backgroundColor: C.blush, padding: 24, borderRadius: 28 },
   price: {
     fontSize: 36,
     lineHeight: 44,

@@ -22,6 +22,7 @@ import {
   BottomSheet,
   Button,
   C,
+  T,
   Empty,
   Icon,
   IconButton,
@@ -38,6 +39,7 @@ export default function Discover() {
   const st = useStore();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
   const [match, setMatch] = useState<Person | null>(null);
   const [filters, setFilters] = useState(false);
   const inFlight = useRef(false);
@@ -57,7 +59,7 @@ export default function Discover() {
     560,
     Math.max(
       280,
-      height - insets.top - insets.bottom - 224 - demoControlsHeight,
+      height - insets.top - insets.bottom - 264 - demoControlsHeight,
     ),
   );
   const decide = async (action: "like" | "pass" | "super") => {
@@ -89,8 +91,14 @@ export default function Discover() {
         style={{ flex: 1 }}
         refreshControl={
           <RefreshControl
-            refreshing={false}
-            onRefresh={() => void st.refresh()}
+            refreshing={refreshing}
+            onRefresh={() => {
+              setRefreshing(true);
+              void st
+                .refresh()
+                .catch((e: Error) => st.toast(e.message))
+                .finally(() => setRefreshing(false));
+            }}
             tintColor={C.primary}
             colors={[C.primary]}
           />
@@ -106,7 +114,14 @@ export default function Discover() {
         }}
       >
         <View style={[s.row, { marginBottom: 16, minHeight: 44 }]}>
-          <Text style={[s.title, { flex: 1 }]}>Discover</Text>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text accessibilityRole="header" style={s.title}>
+              Discover
+            </Text>
+            <Text style={[s.meta, { marginTop: 2 }]}>
+              A little closer to your kind of person.
+            </Text>
+          </View>
           {!!st.data?.undoId && (
             <IconButton
               name="arrow-undo-outline"
@@ -332,7 +347,8 @@ function SwipeCard({
       >
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`View ${p.name}'s profile`}
+          testID="discovery-profile"
+          accessibilityHint="Opens the full profile."
           disabled={busy}
           onPress={() => {
             if (Platform.OS !== "web" || !dragged.current)
@@ -350,7 +366,7 @@ function SwipeCard({
             {p.demo && <Text style={styles.demo}>Fictional demo</Text>}
           </View>
           <View style={styles.details}>
-            <Text style={styles.name} numberOfLines={2}>
+            <Text style={styles.name}>
               {p.name}, {p.age}
             </Text>
             <View style={[s.row, { gap: 5, flexWrap: "wrap", marginTop: 4 }]}>
@@ -382,6 +398,9 @@ function SwipeCard({
             <Animated.View
               key={label}
               pointerEvents="none"
+              aria-hidden
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
               style={{
                 position: "absolute",
                 top: 90,
@@ -403,11 +422,12 @@ function SwipeCard({
       </Animated.View>
       <View
         style={{
-          height: 92,
+          minHeight: 96,
+          paddingVertical: 8,
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "center",
-          gap: 30,
+          gap: 20,
         }}
       >
         {(
@@ -422,9 +442,12 @@ function SwipeCard({
             disabled={busy || animating}
             accessibilityRole="button"
             accessibilityLabel={label}
+            accessibilityState={{ disabled: busy || animating, busy }}
             onPress={() => choose(action)}
             style={({ pressed }) => ({
-              minWidth: 72,
+              flex: 1,
+              minWidth: 64,
+              maxWidth: 110,
               minHeight: 80,
               alignItems: "center",
               justifyContent: "center",
@@ -460,17 +483,18 @@ function SwipeCard({
 }
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 20,
+    borderRadius: 28,
     overflow: "hidden",
     backgroundColor: C.white,
     borderWidth: 1,
     borderColor: C.line,
   },
-  details: { padding: 16 },
+  details: { padding: 16, backgroundColor: C.white },
   name: {
-    fontSize: 24,
-    lineHeight: 30,
-    fontWeight: "600",
+    fontFamily: T.font.editorial,
+    fontSize: 28,
+    lineHeight: 34,
+    fontWeight: "400",
     color: C.ink,
     letterSpacing: -0.5,
   },
@@ -479,7 +503,7 @@ const styles = StyleSheet.create({
     top: 12,
     left: 12,
     backgroundColor: C.blush,
-    color: C.primary,
+    color: C.brandTextOnTint,
     borderRadius: 10,
     paddingHorizontal: 10,
     paddingVertical: 5,
@@ -490,7 +514,7 @@ const styles = StyleSheet.create({
   intent: {
     overflow: "hidden",
     backgroundColor: C.blush,
-    color: C.primary,
+    color: C.brandTextOnTint,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
@@ -501,7 +525,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     backgroundColor: C.lavender,
     color: C.ink,
-    borderRadius: 9,
+    borderRadius: 12,
     paddingHorizontal: 9,
     paddingVertical: 5,
     fontSize: 11,

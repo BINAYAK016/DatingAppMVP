@@ -8,7 +8,7 @@ import {
   View,
 } from "react-native";
 import { router } from "expo-router";
-import { Button, C, Icon, Media, s } from "./ui";
+import { Button, C, Icon, Media, s, T } from "./ui";
 import { useStore } from "../lib/store";
 import { useReducedMotion } from "../lib/useReducedMotion";
 import { randomUUID } from "expo-crypto";
@@ -198,9 +198,7 @@ export function ConversationItem({
               : "A little more to know"}
           </Text>
         </View>
-        <Text style={[s.label, { fontSize: 17, lineHeight: 24 }]}>
-          {def?.title || "Previous game"}
-        </Text>
+        <Text style={T.type.section}>{def?.title || "Previous game"}</Text>
         {m.version === 2 && (
           <Text style={[s.small, { marginTop: 8 }]}>
             {def?.durationMinutes} min · 2 players
@@ -224,6 +222,7 @@ export function ConversationItem({
               <Button
                 compact
                 title={gameBusy ? "Opening…" : "Accept & play"}
+                loading={gameBusy}
                 disabled={gameBusy}
                 onPress={(event?: any) => {
                   event?.stopPropagation?.();
@@ -302,9 +301,9 @@ export function ConversationItem({
 const styles = StyleSheet.create({
   bubble: {
     maxWidth: "86%",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 20,
     marginBottom: 10,
   },
   sent: {
@@ -315,10 +314,12 @@ const styles = StyleSheet.create({
   received: {
     alignSelf: "flex-start",
     backgroundColor: C.white,
+    borderWidth: 1,
+    borderColor: C.line,
     borderBottomLeftRadius: 6,
   },
   message: { fontSize: 16, lineHeight: 24, color: C.ink },
-  time: { fontSize: 10, lineHeight: 14, color: C.muted, marginTop: 6 },
+  time: { fontSize: 11, lineHeight: 16, color: C.textOnTint, marginTop: 6 },
   snap: {
     flexDirection: "row",
     alignItems: "center",
@@ -337,11 +338,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     backgroundColor: C.white,
   },
-  snapTitle: { fontSize: 15, fontWeight: "500", color: C.ink },
+  snapTitle: { fontSize: 16, lineHeight: 23, fontWeight: "600", color: C.ink },
   connection: {
-    borderRadius: 18,
-    padding: 16,
-    width: "92%",
+    borderRadius: T.radius.card,
+    padding: 20,
+    width: "94%",
     maxWidth: 420,
     alignSelf: "center",
     marginVertical: 8,

@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 import { C, IconButton, PrivateImage } from "./ui";
+import { useReducedMotion } from "../lib/useReducedMotion";
 type Props = {
   items: { id: string }[];
   onOpen: (id: string) => void;
@@ -25,6 +26,7 @@ export function PhotoCarousel({ items, onOpen }: Props) {
   ) : null;
 }
 function CarouselFrames({ items, onOpen }: Props) {
+  const reduced = useReducedMotion();
   const [width, setWidth] = useState(340),
     [index, setIndex] = useState(0);
   const scroll = useRef<ScrollView>(null);
@@ -36,7 +38,7 @@ function CarouselFrames({ items, onOpen }: Props) {
     selection.current = selected;
     target.current = selected;
     setIndex(selected);
-    scroll.current?.scrollTo({ x: selected * width, animated: true });
+    scroll.current?.scrollTo({ x: selected * width, animated: !reduced });
   };
   const settle = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     // Ignore queued momentum from the ScrollView replaced by a width change.

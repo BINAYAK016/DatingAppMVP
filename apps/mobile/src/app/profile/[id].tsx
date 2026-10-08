@@ -108,7 +108,6 @@ export default function Profile() {
         ) : (
           <>
             <ProfileHero person={p} />
-            <ProfileStory person={p} />
             {isMatch ? (
               <Button
                 title="Open your conversation"
@@ -128,6 +127,8 @@ export default function Profile() {
                 />
               )
             )}
+            <View style={{ height: 16 }} />
+            <ProfileStory person={p} />
           </>
         )}
       </Page>

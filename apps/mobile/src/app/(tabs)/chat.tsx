@@ -11,6 +11,7 @@ import {
   Icon,
   s,
   Skeleton,
+  T,
 } from "../../components/ui";
 import { MatchStrip } from "../../components/MatchStrip";
 import { useStore } from "../../lib/store";
@@ -39,10 +40,12 @@ export default function ChatList() {
         }}
         ListHeaderComponent={
           <>
-            <Header title="Chat" />
+            <Header title="Chat" eyebrow="A LITTLE CLOSER" />
             {data ? <MatchStrip inbox /> : <Skeleton height={88} />}
             <View style={styles.section}>
-              <Text style={s.label}>Conversations</Text>
+              <Text accessibilityRole="header" style={T.type.section}>
+                Conversations
+              </Text>
               <View style={[s.row, { gap: 5 }]}>
                 <Icon name="lock-closed-outline" size={12} color={C.muted} />
                 <Text style={s.meta}>Just your matches</Text>
@@ -60,7 +63,7 @@ export default function ChatList() {
               pressed && { backgroundColor: C.blush },
             ]}
           >
-            <Avatar person={person} size={48} />
+            <Avatar person={person} size={54} />
             <View style={styles.preview}>
               <Text
                 style={[styles.name, !!person.unread && { fontWeight: "700" }]}
@@ -120,31 +123,33 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 12,
+    paddingVertical: 16,
+    flexWrap: "wrap",
+    gap: 8,
   },
   conversation: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
-    minHeight: 78,
-    padding: 12,
-    marginBottom: 8,
-    borderRadius: 18,
+    minHeight: 92,
+    padding: 16,
+    marginBottom: 10,
+    borderRadius: T.radius.card,
     backgroundColor: C.white,
     borderWidth: 1,
     borderColor: C.line,
   },
   preview: { flex: 1, minWidth: 0, gap: 4 },
-  name: { fontSize: 16, fontWeight: "600", color: C.ink },
-  lastMessage: { fontSize: 13, lineHeight: 19, color: C.muted },
+  name: { fontSize: 17, lineHeight: 24, fontWeight: "600", color: C.ink },
+  lastMessage: { fontSize: 14, lineHeight: 21, color: C.textOnTint },
   unread: {
-    minWidth: 21,
-    height: 21,
+    minWidth: 24,
+    height: 24,
     borderRadius: 11,
     backgroundColor: C.primary,
     paddingHorizontal: 5,
     alignItems: "center",
     justifyContent: "center",
   },
-  unreadText: { fontSize: 11, color: C.white, fontWeight: "600" },
+  unreadText: { fontSize: 12, color: C.white, fontWeight: "600" },
 });

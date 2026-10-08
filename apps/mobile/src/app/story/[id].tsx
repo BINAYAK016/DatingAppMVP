@@ -28,6 +28,7 @@ import {
   Empty,
   IconButton,
   Skeleton,
+  T,
   s,
 } from "../../components/ui";
 
@@ -362,7 +363,13 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   name: { fontSize: 16, color: C.ink, fontWeight: "600", marginBottom: 2 },
-  content: { flex: 1, overflow: "hidden", backgroundColor: C.blush },
+  content: {
+    flex: 1,
+    overflow: "hidden",
+    backgroundColor: C.blush,
+    borderRadius: T.radius.card,
+    marginHorizontal: 8,
+  },
   gestures: { ...StyleSheet.absoluteFill, bottom: 60, flexDirection: "row" },
   caption: {
     position: "absolute",
@@ -377,10 +384,11 @@ const styles = StyleSheet.create({
   textMoment: { flex: 1 },
   textContent: { flexGrow: 1, justifyContent: "center", padding: 28 },
   quote: {
-    fontSize: 28,
-    lineHeight: 38,
+    fontFamily: T.font.editorial,
+    fontSize: 32,
+    lineHeight: 42,
     color: C.ink,
-    fontWeight: "500",
+    fontWeight: "400",
     letterSpacing: -0.5,
   },
   footer: { paddingHorizontal: 16, paddingVertical: 10 },
