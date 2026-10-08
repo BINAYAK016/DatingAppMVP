@@ -43,6 +43,13 @@ export default function Discover() {
   const [match, setMatch] = useState<Person | null>(null);
   const [filters, setFilters] = useState(false);
   const inFlight = useRef(false);
+  const scrollSize = useRef({ viewport: 0, content: 0 });
+  // Read the latest layout inside gesture callbacks, including before both
+  // measurements arrive. Unknown layout must never trap vertical scrolling.
+  const canScrollVertically = () => {
+    const { viewport, content } = scrollSize.current;
+    return viewport <= 0 || content <= 0 || content > viewport + 1;
+  };
   const retry = useRef<{
     target: string;
     action: string;
@@ -88,7 +95,14 @@ export default function Discover() {
   return (
     <SafeAreaView edges={["top"]} style={{ flex: 1, backgroundColor: C.bg }}>
       <ScrollView
+        testID="discovery-scroll"
         style={{ flex: 1 }}
+        onLayout={(event) => {
+          scrollSize.current.viewport = event.nativeEvent.layout.height;
+        }}
+        onContentSizeChange={(_, contentHeight) => {
+          scrollSize.current.content = contentHeight;
+        }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -152,6 +166,7 @@ export default function Discover() {
             person={p}
             busy={busy}
             height={cardHeight}
+            canScrollVertically={canScrollVertically}
             onDecide={decide}
           />
         ) : (
@@ -250,16 +265,19 @@ function SwipeCard({
   person: p,
   busy,
   height,
+  canScrollVertically,
   onDecide,
 }: {
   person: Person;
   busy: boolean;
   height: number;
+  canScrollVertically: () => boolean;
   onDecide: (action: "like" | "pass" | "super") => Promise<void>;
 }) {
   const [position] = useState(() => new Animated.ValueXY());
   const [animating, setAnimating] = useState(false);
   const dragged = useRef(false);
+  const verticalGesture = useRef(false);
   const reduced = useReducedMotion();
   const snapBack = () => {
     if (reduced) {
@@ -291,20 +309,47 @@ function SwipeCard({
   // Gesture refs are accessed only by touch callbacks.
   // eslint-disable-next-line react-hooks/refs
   const responder = PanResponder.create({
-    onStartShouldSetPanResponderCapture: () => !busy && !animating,
+    onStartShouldSetPanResponderCapture: () => {
+      dragged.current = false;
+      return !busy && !animating && !canScrollVertically();
+    },
     onPanResponderGrant: () => {
       dragged.current = false;
+      verticalGesture.current = !canScrollVertically();
     },
+    // When the page overflows, leave vertical movement to its ScrollView.
+    // Claim horizontal drags in capture phase before the nested Pressable.
+    onMoveShouldSetPanResponderCapture: (_, g) =>
+      !busy &&
+      !animating &&
+      canScrollVertically() &&
+      Math.abs(g.dx) > 16 &&
+      Math.abs(g.dx) > Math.abs(g.dy),
     onMoveShouldSetPanResponder: (_, g) =>
-      !busy && !animating && (Math.abs(g.dx) > 16 || g.dy < -22),
+      !busy &&
+      !animating &&
+      (canScrollVertically()
+        ? Math.abs(g.dx) > 16 && Math.abs(g.dx) > Math.abs(g.dy)
+        : Math.abs(g.dx) > 16 || g.dy < -22),
     onPanResponderTerminationRequest: () => false,
     onPanResponderMove: (_, g) => {
       if (Math.abs(g.dx) > 8 || Math.abs(g.dy) > 8) dragged.current = true;
-      if (!busy) position.setValue({ x: g.dx, y: Math.min(g.dy, 40) });
+      if (canScrollVertically()) verticalGesture.current = false;
+      if (!busy)
+        position.setValue({
+          x: g.dx,
+          y: verticalGesture.current ? Math.min(g.dy, 40) : 0,
+        });
     },
     onPanResponderRelease: (_, g) => {
       if (busy) return snapBack();
-      if (g.dy < -90 && Math.abs(g.dy) > Math.abs(g.dx)) choose("super");
+      if (
+        verticalGesture.current &&
+        !canScrollVertically() &&
+        g.dy < -90 &&
+        Math.abs(g.dy) > Math.abs(g.dx)
+      )
+        choose("super");
       else if (g.dx > 80) choose("like");
       else if (g.dx < -80) choose("pass");
       else if (Math.abs(g.dx) < 8 && Math.abs(g.dy) < 8) {
