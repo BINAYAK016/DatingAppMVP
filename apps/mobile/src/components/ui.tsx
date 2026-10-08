@@ -1,5 +1,5 @@
 import { apiHeaders, apiCredentials, checkSession } from "../lib/auth";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import {
   Animated,
   Image,
@@ -10,7 +10,6 @@ import {
   TextInput,
   View,
   RefreshControl,
-  ColorValue,
   ImageStyle,
   StyleProp,
   ViewStyle,
@@ -18,8 +17,9 @@ import {
   KeyboardAvoidingView,
   Platform,
   DimensionValue,
+  useWindowDimensions,
 } from "react-native";
-import Ionicons from "@expo/vector-icons/Ionicons";
+import { Icon, type IconName } from "./Icon";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   SafeAreaView,
@@ -32,18 +32,9 @@ import { useMediaVisible } from "../lib/useMediaVisible";
 import { Person } from "../lib/types";
 import { DemoAvatarArt } from "./DemoAvatarArt";
 import { useReducedMotion } from "../lib/useReducedMotion";
-export const C = {
-  bg: "#FFFBF8",
-  ink: "#2C2529",
-  muted: "#7A6D73",
-  line: "#EEE4E3",
-  primary: "#AA536B",
-  blush: "#F7E6E9",
-  peach: "#F8E9DE",
-  lavender: "#EFEBF5",
-  white: "#FFFFFF",
-  red: "#A7374B",
-};
+import { C, T } from "../theme";
+export { C, T } from "../theme";
+export { Icon } from "./Icon";
 export function humanMessage(message: string) {
   if (
     /fetch failed|failed to fetch|network request failed|ConnectException|ECONNREFUSED|Cannot reach the beta server/i.test(
@@ -57,22 +48,12 @@ export function humanMessage(message: string) {
     return "Some details need another look. Check them and try again.";
   return message;
 }
-export function Icon({
-  name,
-  size = 22,
-  color = C.ink,
-}: {
-  name: React.ComponentProps<typeof Ionicons>["name"];
-  size?: number;
-  color?: ColorValue;
-}) {
-  return <Ionicons name={name} size={size} color={color} />;
-}
 export function Button({
   title,
   onPress,
   secondary = false,
   disabled = false,
+  loading = false,
   icon,
   compact = false,
 }: {
@@ -80,15 +61,21 @@ export function Button({
   onPress: () => void;
   secondary?: boolean;
   disabled?: boolean;
-  icon?: React.ComponentProps<typeof Ionicons>["name"];
+  loading?: boolean;
+  icon?: IconName;
   compact?: boolean;
 }) {
+  const [hovered, setHovered] = useState(false);
+  const inactive = disabled || loading;
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={title}
-      disabled={disabled}
+      accessibilityState={{ disabled: inactive, busy: loading }}
+      disabled={inactive}
       onPress={onPress}
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
       style={({ pressed }) => [
         s.button,
         secondary && s.secondary,
@@ -97,11 +84,20 @@ export function Button({
           paddingVertical: 10,
           paddingHorizontal: 14,
         },
-        { opacity: disabled ? 0.45 : pressed ? 0.8 : 1 },
+        !inactive &&
+          (pressed || hovered) && {
+            backgroundColor: secondary ? C.blush : C.primaryPressed,
+            borderColor: secondary ? C.controlBorder : C.primaryPressed,
+          },
+        inactive && { opacity: 0.5 },
       ]}
     >
-      {icon && (
-        <Icon name={icon} color={secondary ? C.ink : C.white} size={18} />
+      {(loading || icon) && (
+        <Icon
+          name={loading ? "hourglass-outline" : icon!}
+          color={secondary ? C.brandTextOnTint : C.white}
+          size={18}
+        />
       )}
       <Text
         style={[
@@ -126,20 +122,44 @@ export function Chip({
   onPress?: () => void;
   disabled?: boolean;
 }) {
+  const [hovered, setHovered] = useState(false);
+  const content = (
+    <Text style={[s.chipText, selected && { color: C.white }]}>{label}</Text>
+  );
+  if (!onPress)
+    return (
+      <View style={[s.chip, selected && { backgroundColor: C.primary }]}>
+        {content}
+      </View>
+    );
   return (
     <Pressable
-      accessibilityRole={onPress ? "button" : undefined}
-      accessibilityState={onPress ? { selected, disabled } : undefined}
+      accessibilityRole="button"
+      accessibilityState={
+        Platform.OS === "web" ? { disabled } : { selected, disabled }
+      }
+      {...(Platform.OS === "web" ? { "aria-pressed": selected } : {})}
       disabled={disabled}
       onPress={onPress}
-      style={[
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
+      style={({ pressed }) => [
         s.chip,
-        onPress && { minHeight: 44, justifyContent: "center" },
+        {
+          minHeight: 44,
+          justifyContent: "center",
+          borderWidth: 1,
+          borderColor: C.controlBorder,
+        },
         selected && { backgroundColor: C.primary, borderColor: C.primary },
+        !disabled &&
+          (pressed || hovered) && {
+            backgroundColor: selected ? C.primaryPressed : C.blush,
+          },
         disabled && { opacity: 0.5 },
       ]}
     >
-      <Text style={[s.chipText, selected && { color: C.white }]}>{label}</Text>
+      {content}
     </Pressable>
   );
 }
@@ -152,6 +172,11 @@ export function Field({
   secure = false,
   keyboardType = "default",
   editable = true,
+  hint,
+  error,
+  autoComplete,
+  returnKeyType,
+  onSubmitEditing,
 }: {
   label?: string;
   value: string;
@@ -161,18 +186,33 @@ export function Field({
   secure?: boolean;
   keyboardType?: React.ComponentProps<typeof TextInput>["keyboardType"];
   editable?: boolean;
+  hint?: string;
+  error?: string;
+  autoComplete?: React.ComponentProps<typeof TextInput>["autoComplete"];
+  returnKeyType?: React.ComponentProps<typeof TextInput>["returnKeyType"];
+  onSubmitEditing?: React.ComponentProps<typeof TextInput>["onSubmitEditing"];
 }) {
   const [focused, setFocused] = useState(false);
+  const id = useId();
+  const description = error || hint;
   return (
-    <View style={{ gap: 8, marginBottom: 20 }}>
+    <View style={{ gap: 8, marginBottom: 20, minWidth: 0 }}>
       {label && <Text style={s.label}>{label}</Text>}
       <TextInput
         accessibilityLabel={label || placeholder}
+        accessibilityHint={description}
+        accessibilityState={{ disabled: !editable }}
+        {...(Platform.OS === "web"
+          ? {
+              "aria-describedby": description ? `${id}-description` : undefined,
+              "aria-invalid": !!error,
+            }
+          : {})}
         value={value}
         editable={editable}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor={C.muted}
+        placeholderTextColor={C.textOnTint}
         multiline={multiline}
         secureTextEntry={secure}
         onFocus={() => setFocused(true)}
@@ -181,12 +221,29 @@ export function Field({
           secure || keyboardType === "email-address" ? "none" : "sentences"
         }
         keyboardType={keyboardType}
+        autoComplete={autoComplete}
+        returnKeyType={returnKeyType}
+        onSubmitEditing={onSubmitEditing}
         style={[
           s.input,
-          focused && { borderColor: C.primary },
-          multiline && { minHeight: 100, textAlignVertical: "top" },
+          focused && { borderColor: C.primary, backgroundColor: C.bg },
+          !editable && {
+            backgroundColor: C.surfaceSubtle,
+            color: C.textOnTint,
+          },
+          !!error && { borderColor: C.red },
+          multiline && { minHeight: 112, textAlignVertical: "top" },
         ]}
       />
+      {!!description && (
+        <Text
+          nativeID={`${id}-description`}
+          accessibilityRole={error ? "alert" : undefined}
+          style={[s.small, !!error && { color: C.red }]}
+        >
+          {description}
+        </Text>
+      )}
     </View>
   );
 }
@@ -501,7 +558,7 @@ export function Page({
         <ScrollView
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
-          showsVerticalScrollIndicator={false}
+          showsVerticalScrollIndicator={Platform.OS === "web"}
           contentContainerStyle={[
             s.page,
             { padding, paddingBottom: footer ? 24 : 32 + insets.bottom },
@@ -528,7 +585,15 @@ export function Page({
               borderTopColor: C.line,
             }}
           >
-            {footer}
+            <View
+              style={{
+                width: "100%",
+                maxWidth: T.layout.content - 2 * padding,
+                alignSelf: "center",
+              }}
+            >
+              {footer}
+            </View>
           </View>
         )}
       </KeyboardAvoidingView>
@@ -561,9 +626,11 @@ export function Header({
           <Icon name="arrow-back" />
         </Pressable>
       )}
-      <View style={{ flex: 1 }}>
+      <View style={{ flex: 1, minWidth: 0 }}>
         {!!eyebrow && <Text style={s.eyebrow}>{eyebrow}</Text>}
-        <Text style={s.title}>{title}</Text>
+        <Text accessibilityRole="header" style={s.title}>
+          {title}
+        </Text>
       </View>
       {action ||
         (!back && (
@@ -587,7 +654,7 @@ export function Empty({
   title,
   body,
 }: {
-  icon?: React.ComponentProps<typeof Ionicons>["name"];
+  icon?: IconName;
   title: string;
   body: string;
 }) {
@@ -612,7 +679,10 @@ export function Empty({
       >
         <Icon name={icon} size={30} color={C.primary} />
       </View>
-      <Text style={[s.h2, { marginTop: 14, textAlign: "center" }]}>
+      <Text
+        accessibilityRole="header"
+        style={[s.h2, { marginTop: 8, textAlign: "center" }]}
+      >
         {title}
       </Text>
       <Text style={[s.body, { textAlign: "center", marginTop: 8 }]}>
@@ -657,7 +727,9 @@ export function Banner({
       <View style={s.orbit} />
       <View style={{ flex: 1, zIndex: 1 }}>
         <Text style={s.bannerLabel}>MADE FOR REAL CONNECTIONS</Text>
-        <Text style={s.bannerTitle}>{title}</Text>
+        <Text accessibilityRole="header" style={s.bannerTitle}>
+          {title}
+        </Text>
         <Text style={s.bannerBody}>{body}</Text>
       </View>
       <Text style={{ fontSize: 48, color: C.primary, zIndex: 1 }}>{emoji}</Text>
@@ -669,8 +741,14 @@ export function Section({ title, aside }: { title: string; aside?: string }) {
     <View
       style={[s.row, { justifyContent: "space-between", marginVertical: 17 }]}
     >
-      <Text style={s.h2}>{title}</Text>
-      {aside && <Text style={s.small}>{aside}</Text>}
+      <Text accessibilityRole="header" style={[s.h2, { flexShrink: 1 }]}>
+        {title}
+      </Text>
+      {aside && (
+        <Text style={[s.small, { flexShrink: 1, textAlign: "right" }]}>
+          {aside}
+        </Text>
+      )}
     </View>
   );
 }
@@ -682,29 +760,37 @@ export function IconButton({
   disabled = false,
   size = 22,
 }: {
-  name: React.ComponentProps<typeof Ionicons>["name"];
+  name: IconName;
   label: string;
   onPress: () => void;
   variant?: "plain" | "soft" | "primary";
   disabled?: boolean;
   size?: number;
 }) {
+  const [hovered, setHovered] = useState(false);
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={{ disabled }}
       disabled={disabled}
       onPress={onPress}
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
       style={({ pressed }) => [
         s.iconButton,
         {
           backgroundColor:
             variant === "primary"
-              ? C.primary
-              : variant === "soft"
-                ? C.blush
-                : "transparent",
-          opacity: disabled ? 0.4 : pressed ? 0.65 : 1,
+              ? !disabled && (pressed || hovered)
+                ? C.primaryPressed
+                : C.primary
+              : !disabled && (pressed || hovered)
+                ? C.peach
+                : variant === "soft"
+                  ? C.blush
+                  : "transparent",
+          opacity: disabled ? 0.4 : 1,
         },
       ]}
     >
@@ -774,12 +860,23 @@ export function BottomSheet({
 }) {
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
+  const titleId = useId();
+  const heading = useRef<Text>(null);
+  const { width, fontScale } = useWindowDimensions();
+  const centered = Platform.OS === "web" && width >= 768;
   return (
     <Modal
       visible={visible}
       transparent
-      animationType={reduced ? "none" : "slide"}
+      accessibilityLabel={title || "Options"}
+      {...(Platform.OS === "web" && title
+        ? { "aria-labelledby": titleId }
+        : {})}
+      animationType={reduced ? "none" : centered ? "fade" : "slide"}
       onRequestClose={onClose}
+      onShow={() => {
+        if (Platform.OS === "web") heading.current?.focus();
+      }}
       statusBarTranslucent
     >
       <KeyboardAvoidingView
@@ -790,65 +887,91 @@ export function BottomSheet({
               ? "height"
               : undefined
         }
-        style={{ flex: 1, justifyContent: "flex-end" }}
+        style={{
+          flex: 1,
+          justifyContent: centered ? "center" : "flex-end",
+          padding: centered ? 24 : 0,
+        }}
       >
         <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Dismiss sheet"
+          accessible={false}
+          importantForAccessibility="no"
+          tabIndex={-1}
           onPress={onClose}
-          style={[StyleSheet.absoluteFill, { backgroundColor: "#2C25294D" }]}
+          style={[StyleSheet.absoluteFill, { backgroundColor: C.scrim }]}
         />
         <View
           accessibilityViewIsModal
-          style={{
-            width: "100%",
-            maxWidth: 600,
-            alignSelf: "center",
-            maxHeight: "85%",
-            height: footer ? "85%" : undefined,
-            flexShrink: 1,
-            backgroundColor: C.bg,
-            borderTopLeftRadius: 24,
-            borderTopRightRadius: 24,
-            paddingTop: 8,
-            paddingBottom: Math.max(insets.bottom, 16),
-          }}
-        >
-          <View
-            style={{
-              width: 36,
-              height: 4,
-              borderRadius: 2,
-              backgroundColor: C.line,
+          style={[
+            T.shadow.raised,
+            {
+              width: "100%",
+              maxWidth: T.layout.sheet,
               alignSelf: "center",
-              marginBottom: 8,
-            }}
-          />
+              maxHeight: fontScale > 1.3 ? "94%" : "90%",
+              height: footer ? "85%" : undefined,
+              flexShrink: 1,
+              minHeight: 0,
+              backgroundColor: C.bg,
+              borderRadius: centered ? T.radius.sheet : 0,
+              borderTopLeftRadius: T.radius.sheet,
+              borderTopRightRadius: T.radius.sheet,
+              paddingTop: centered ? 20 : 8,
+              paddingBottom: centered ? 20 : Math.max(insets.bottom, 16),
+            },
+          ]}
+        >
+          {!centered && (
+            <View
+              style={{
+                width: 36,
+                height: 4,
+                borderRadius: 2,
+                backgroundColor: C.controlBorder,
+                alignSelf: "center",
+                marginBottom: 8,
+              }}
+            />
+          )}
           <View
             style={{
               flexDirection: "row",
               alignItems: "center",
+              gap: 12,
               paddingHorizontal: 20,
-              marginBottom: 8,
+              marginBottom: 12,
             }}
           >
-            <Text style={[s.h2, { flex: 1 }]}>{title}</Text>
-            <IconButton name="close" label="Close sheet" onPress={onClose} />
+            <Text
+              ref={heading}
+              nativeID={titleId}
+              {...(Platform.OS === "web" ? { tabIndex: -1 } : {})}
+              accessibilityRole="header"
+              style={[s.h2, { flex: 1, minWidth: 0 }]}
+            >
+              {title}
+            </Text>
+            <IconButton
+              name="close"
+              label="Close sheet"
+              variant="soft"
+              onPress={onClose}
+            />
           </View>
           <ScrollView
             style={{ flexShrink: 1, minHeight: 0 }}
             keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
+            showsVerticalScrollIndicator={Platform.OS === "web"}
             contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 12 }}
           >
             {children}
           </ScrollView>
-          {footer && (
+          {!!footer && (
             <View
               style={{
                 flexShrink: 0,
                 paddingHorizontal: 20,
-                paddingTop: 12,
+                paddingTop: 16,
                 borderTopWidth: 1,
                 borderTopColor: C.line,
               }}
@@ -870,7 +993,7 @@ export function SelectionTile({
 }: {
   title: string;
   subtitle?: string;
-  icon?: React.ComponentProps<typeof Ionicons>["name"];
+  icon?: IconName;
   selected?: boolean;
   onPress: () => void;
 }) {
@@ -878,7 +1001,8 @@ export function SelectionTile({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={title}
-      accessibilityState={{ selected }}
+      accessibilityState={Platform.OS === "web" ? undefined : { selected }}
+      {...(Platform.OS === "web" ? { "aria-pressed": selected } : {})}
       onPress={onPress}
       style={({ pressed }) => ({
         flexDirection: "row",
@@ -890,7 +1014,7 @@ export function SelectionTile({
         borderRadius: 16,
         backgroundColor: selected ? C.blush : C.white,
         borderWidth: 1,
-        borderColor: selected ? C.primary : C.line,
+        borderColor: selected ? C.primary : C.controlBorder,
         opacity: pressed ? 0.75 : 1,
       })}
     >
@@ -903,7 +1027,7 @@ export function SelectionTile({
       </View>
       <Icon
         name={selected ? "checkmark-circle" : "ellipse-outline"}
-        color={selected ? C.primary : C.line}
+        color={selected ? C.primary : C.controlBorder}
       />
     </Pressable>
   );
@@ -917,6 +1041,8 @@ export function StepProgress({
 }) {
   return (
     <View
+      accessibilityRole="progressbar"
+      accessibilityValue={{ min: 0, max: total, now: current }}
       accessibilityLabel={`Step ${current} of ${total}`}
       style={{ flexDirection: "row", gap: 6, marginBottom: 24 }}
     >
@@ -953,9 +1079,9 @@ export function Notice({
 }
 export const s = StyleSheet.create({
   page: {
-    padding: 20,
+    padding: T.space.page,
     paddingBottom: 32,
-    maxWidth: 680,
+    maxWidth: T.layout.content,
     width: "100%",
     alignSelf: "center",
   },
@@ -964,88 +1090,84 @@ export const s = StyleSheet.create({
     alignItems: "center",
     gap: 12,
     minHeight: 48,
-    marginBottom: 16,
+    marginBottom: 20,
   },
-  eyebrow: {
-    fontSize: 11,
-    fontWeight: "600",
-    letterSpacing: 1.2,
-    color: C.muted,
-    marginBottom: 7,
-  },
-  title: {
-    fontWeight: "600",
-    fontSize: 26,
-    lineHeight: 32,
-    color: C.ink,
-    letterSpacing: -0.8,
-  },
-  display: {
-    fontSize: 36,
-    lineHeight: 42,
-    fontWeight: "600",
-    color: C.ink,
-    letterSpacing: -1.2,
-  },
-  h2: {
-    fontSize: 20,
-    lineHeight: 26,
-    fontWeight: "600",
-    color: C.ink,
-    letterSpacing: -0.4,
-  },
-  body: { fontSize: 16, lineHeight: 24, color: C.ink },
-  small: { fontSize: 13, color: C.muted, lineHeight: 20 },
-  caption: { fontSize: 13, color: C.muted, lineHeight: 20 },
-  meta: { fontSize: 11, color: C.muted, lineHeight: 16 },
-  label: { fontSize: 14, lineHeight: 21, fontWeight: "600", color: C.ink },
+  eyebrow: { ...T.type.eyebrow, marginBottom: 8 },
+  title: T.type.title,
+  display: T.type.display,
+  h2: T.type.section,
+  body: T.type.body,
+  small: T.type.small,
+  caption: T.type.small,
+  meta: T.type.meta,
+  label: T.type.label,
   row: { flexDirection: "row", alignItems: "center", gap: 10 },
   wrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   card: {
+    ...T.shadow.card,
     backgroundColor: C.white,
-    borderRadius: 20,
+    borderRadius: T.radius.card,
     borderWidth: 1,
     borderColor: C.line,
-    padding: 16,
+    padding: 20,
     marginBottom: 16,
   },
   button: {
     backgroundColor: C.primary,
-    borderRadius: 14,
-    minHeight: 48,
+    borderRadius: T.radius.button,
+    borderWidth: 1,
+    borderColor: C.primary,
+    minHeight: 52,
     paddingHorizontal: 20,
-    paddingVertical: 12,
+    paddingVertical: 13,
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
     gap: 8,
   },
-  buttonText: { fontSize: 16, fontWeight: "600", color: C.white },
-  secondary: {
-    backgroundColor: C.white,
-    borderWidth: 1,
-    borderColor: C.line,
+  buttonText: {
+    fontFamily: T.font.body,
+    fontSize: 15,
+    lineHeight: 22,
+    fontWeight: "600",
+    color: C.white,
+    flexShrink: 1,
+    textAlign: "center",
   },
+  secondary: { backgroundColor: C.white, borderColor: C.controlBorder },
   chip: {
     backgroundColor: C.lavender,
-    paddingHorizontal: 13,
-    paddingVertical: 7,
-    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: T.radius.pill,
+    alignSelf: "flex-start",
+    maxWidth: "100%",
   },
-  chipText: { fontSize: 13, color: C.ink, fontWeight: "500" },
+  chipText: {
+    fontFamily: T.font.body,
+    fontSize: 13,
+    lineHeight: 19,
+    color: C.ink,
+    fontWeight: "500",
+    flexShrink: 1,
+  },
   input: {
     backgroundColor: C.white,
     borderWidth: 1,
-    borderColor: C.line,
-    borderRadius: 12,
+    borderColor: C.controlBorder,
+    borderRadius: T.radius.input,
     minHeight: 56,
     padding: 16,
     color: C.ink,
+    fontFamily: T.font.body,
     fontSize: 16,
+    lineHeight: 24,
+    minWidth: 0,
   },
   iconButton: {
     height: 44,
     width: 44,
+    flexShrink: 0,
     backgroundColor: "transparent",
     borderRadius: 22,
     alignItems: "center",
@@ -1056,34 +1178,24 @@ export const s = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: "#DB947B",
+    backgroundColor: C.primary,
     right: 8,
     top: 7,
+    borderWidth: 1,
+    borderColor: C.bg,
   },
   banner: {
     minHeight: 190,
-    borderRadius: 24,
-    padding: 25,
+    borderRadius: T.radius.media,
+    padding: 24,
     flexDirection: "row",
     alignItems: "center",
     overflow: "hidden",
     gap: 12,
   },
-  bannerLabel: {
-    fontSize: 8,
-    color: C.primary,
-    letterSpacing: 1.9,
-    fontWeight: "600",
-  },
-  bannerTitle: {
-    fontWeight: "700",
-    fontSize: 30,
-    lineHeight: 35,
-    color: C.ink,
-    marginTop: 13,
-    marginBottom: 12,
-  },
-  bannerBody: { fontSize: 12, lineHeight: 19, color: C.muted, maxWidth: 240 },
+  bannerLabel: T.type.eyebrow,
+  bannerTitle: { ...T.type.title, marginTop: 12, marginBottom: 12 },
+  bannerBody: { ...T.type.small, maxWidth: 300 },
   orbit: {
     position: "absolute",
     width: 180,
@@ -1097,31 +1209,27 @@ export const s = StyleSheet.create({
   media: {
     width: "100%",
     height: 300,
-    borderRadius: 18,
+    borderRadius: 20,
     backgroundColor: C.blush,
     marginVertical: 12,
   },
-  divider: { height: 1, backgroundColor: C.line, marginVertical: 15 },
-  link: { fontSize: 14, color: C.primary, fontWeight: "600" },
+  divider: { height: 1, backgroundColor: C.line, marginVertical: 16 },
+  link: { ...T.type.label, color: C.brandTextOnTint },
   danger: { color: C.red },
-  heroInitial: {
-    fontWeight: "700",
-    fontSize: 140,
-    color: "#FFFFFF99",
-  },
+  heroInitial: { fontWeight: "700", fontSize: 140, color: "#FFFFFF99" },
   tag: {
-    fontSize: 9,
-    letterSpacing: 1,
-    color: C.primary,
+    ...T.type.eyebrow,
+    fontSize: 10,
+    letterSpacing: 0.8,
     backgroundColor: C.blush,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 7,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
     overflow: "hidden",
   },
   note: {
-    padding: 14,
-    borderRadius: 14,
+    padding: 16,
+    borderRadius: 18,
     backgroundColor: C.lavender,
     marginVertical: 12,
   },

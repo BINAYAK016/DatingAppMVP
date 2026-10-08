@@ -1,5 +1,9 @@
 :root {
   color-scheme: light;
+  --sangai-canvas: #f8e9de;
+  --sangai-ink: #2c2529;
+  --sangai-focus: #944259;
+  --sangai-selection: #f7e6e9;
 }
 html,
 body,
@@ -8,22 +12,57 @@ body,
 }
 body {
   margin: 0;
-  background: #f8e9de;
+  background: var(--sangai-canvas);
+  color: var(--sangai-ink);
+  -webkit-font-smoothing: antialiased;
+}
+::selection {
+  color: var(--sangai-ink);
+  background: var(--sangai-selection);
 }
 button:focus-visible,
 a:focus-visible,
 [role="button"]:focus-visible,
 [role="tab"]:focus-visible,
 [role="checkbox"]:focus-visible,
+[role="radio"]:focus-visible,
+[role="switch"]:focus-visible,
+[tabindex]:focus-visible,
 input:focus-visible,
-textarea:focus-visible {
-  outline: 3px solid #aa536b !important;
+textarea:focus-visible,
+select:focus-visible {
+  outline: 3px solid var(--sangai-focus) !important;
   outline-offset: 3px;
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  button,
+  [role="button"],
+  [role="tab"],
+  input,
+  textarea {
+    transition:
+      background-color 120ms ease-out,
+      border-color 120ms ease-out,
+      color 120ms ease-out;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+@media (forced-colors: active) {
+  :focus-visible {
+    outline-color: Highlight !important;
+  }
+  [role="button"],
+  input,
+  textarea {
+    box-shadow: none !important;
   }
 }

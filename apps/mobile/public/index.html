@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="%LANG_ISO_CODE%">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta
+      name="description"
+      content="Find your together with Sangai. Meet people, share moments with your matches and turn a good conversation into a connection."
+    />
+    <meta name="theme-color" content="#FFFBF8" />
+    <meta name="color-scheme" content="light" />
+    <title>Sangai · Find your together</title>
+    <!-- Expo injects fingerprinted scripts, styles and the configured favicon. -->
+    <style id="expo-reset">
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        margin: 0;
+        overflow: hidden;
+        background: #fffbf8;
+      }
+      #root {
+        display: flex;
+        height: 100%;
+        flex: 1;
+      }
+      .sangai-boot {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        padding: 24px;
+        color: #2c2529;
+        text-align: center;
+      }
+      .sangai-boot-brand {
+        margin: 0;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 40px;
+        font-weight: 500;
+        line-height: 1.2;
+        letter-spacing: -1.4px;
+      }
+      .sangai-boot-caption {
+        margin: 0;
+        font:
+          15px/1.5 system-ui,
+          sans-serif;
+        color: #7a6d73;
+      }
+      .sangai-boot-track {
+        width: 96px;
+        height: 4px;
+        margin-top: 8px;
+        border-radius: 4px;
+        background: #f7e6e9;
+        overflow: hidden;
+      }
+      .sangai-boot-track::after {
+        content: "";
+        display: block;
+        width: 36px;
+        height: 100%;
+        border-radius: inherit;
+        background: #aa536b;
+      }
+    </style>
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to use Sangai.</noscript>
+    <div id="root">
+      <!-- React replaces this lightweight first-paint status on mount. No auth
+           state, personal content, scripts or network requests live here. -->
+      <div class="sangai-boot" role="status" aria-label="Opening Sangai">
+        <p class="sangai-boot-brand">sangai</p>
+        <p class="sangai-boot-caption">Find your together.</p>
+        <div class="sangai-boot-track" aria-hidden="true"></div>
+      </div>
+    </div>
+  </body>
+</html>

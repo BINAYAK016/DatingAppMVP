@@ -1,0 +1,12 @@
+{
+  "sourcePackage": "@expo/vector-icons@15.1.1",
+  "sourcePath": "apps\\mobile\\node_modules\\@expo\\vector-icons\\build\\vendor\\react-native-vector-icons\\Fonts\\Ionicons.ttf",
+  "sourceSha256": "fa2ab7d2557819b2bfe5009e46844efa7170cf177be7735d43aa2ac1295f1d54",
+  "woff2Sha256": "d49ee25b61dba9cf22da82333af496b3d40c09a7efa28572ad1c29fcbe832de9",
+  "sourceBytes": 389724,
+  "woff2Bytes": 162552,
+  "glyphs": 1361,
+  "cmapEntries": 1358,
+  "verified": "Every glyph name, mapped code point, horizontal metric, outline coordinate, contour flag and composite reference retained. No subsetting.",
+  "tooling": "fontTools 4.53.1; Brotli 1.2.0 (tooling only)"
+}
