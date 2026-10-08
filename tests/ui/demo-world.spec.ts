@@ -267,10 +267,9 @@ test("demo-first entry pages six fictional profiles per group without loading th
     .getByRole("button", { name: "Enter as Fictional Man 1", exact: true })
     .click();
   await expect(
-    page.getByRole("button", {
-      name: "View Fictional Woman 2's profile",
-      exact: true,
-    }),
+    page
+      .getByTestId("discovery-profile")
+      .filter({ hasText: "Fictional Woman 2" }),
   ).toBeVisible();
   // These core actions must fit above navigation on the first small-phone
   // screen. Checking their scroll clipping avoids Playwright auto-scroll

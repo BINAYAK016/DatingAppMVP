@@ -1,3 +1,4 @@
+import { TEST_API_ORIGIN } from "./test-environment";
 import { expect, test, type Page } from "@playwright/test";
 import sharp from "../../apps/api/node_modules/sharp";
 import { resolve } from "node:path";
@@ -50,7 +51,7 @@ test("JPEG, PNG and WebP browser inputs compress and publish as three ordered pr
 }) => {
   const token = (
     await (
-      await request.post("http://localhost:4100/v1/auth/demo", {
+      await request.post(TEST_API_ORIGIN + "/v1/auth/demo", {
         data: { id: actor },
       })
     ).json()
@@ -109,7 +110,7 @@ test("JPEG, PNG and WebP browser inputs compress and publish as three ordered pr
     }
   } finally {
     if (postId)
-      await request.delete("http://localhost:4100/v1/posts/" + postId, {
+      await request.delete(TEST_API_ORIGIN + "/v1/posts/" + postId, {
         headers: { Authorization: "Bearer " + token },
         data: {},
       });
@@ -124,7 +125,7 @@ test("MP4 stories and snaps play when decodable, with clear recovery for an unsu
   test.setTimeout(90000);
   const token = (
     await (
-      await request.post("http://localhost:4100/v1/auth/demo", {
+      await request.post(TEST_API_ORIGIN + "/v1/auth/demo", {
         data: { id: actor },
       })
     ).json()
@@ -144,13 +145,11 @@ test("MP4 stories and snaps play when decodable, with clear recovery for an unsu
       // and record that its playback path requires macOS/Safari verification.
       expect(browserName).toBe("webkit");
       expect(process.platform).toBe("win32");
-      test
-        .info()
-        .annotations.push({
-          type: "limitation",
-          description:
-            "Windows WebKit cannot decode the H.264 fixture; unsupported picker recovery verified. Video playback requires macOS/Safari.",
-        });
+      test.info().annotations.push({
+        type: "limitation",
+        description:
+          "Windows WebKit cannot decode the H.264 fixture; unsupported picker recovery verified. Video playback requires macOS/Safari.",
+      });
       return;
     }
     const saved = page.waitForResponse(
@@ -273,7 +272,7 @@ test("MP4 stories and snaps play when decodable, with clear recovery for an unsu
   } finally {
     await receiver.close();
     if (storyId)
-      await request.delete("http://localhost:4100/v1/stories/" + storyId, {
+      await request.delete(TEST_API_ORIGIN + "/v1/stories/" + storyId, {
         headers: { Authorization: "Bearer " + token },
         data: {},
       });

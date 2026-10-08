@@ -192,7 +192,7 @@ test("mobile layouts keep core actions reachable and grouped settings retain the
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
   await expect(
-    page.getByRole("button", { name: "View Nisha's profile", exact: true }),
+    page.getByTestId("discovery-profile").filter({ hasText: "Nisha" }),
   ).toBeVisible();
   for (const width of [360, 390, 768]) {
     await page.setViewportSize({ width, height: 844 });

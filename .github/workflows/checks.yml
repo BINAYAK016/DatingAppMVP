@@ -51,4 +51,4 @@ jobs:
             if curl -fsS http://localhost:4100/ready && curl -fsS http://localhost:8081/ > /dev/null; then break; fi
             sleep 1
           done
-          npm run test:ui -- tests/ui/demo-entry.spec.ts tests/ui/recovery.spec.ts tests/ui/games-v2.spec.ts tests/ui/activity-pagination.spec.ts tests/ui/demo-account-choice.spec.ts tests/ui/ui-calm-warm.spec.ts
+          npm run test:ui -- tests/ui/demo-entry.spec.ts tests/ui/recovery.spec.ts tests/ui/games-v2.spec.ts tests/ui/activity-pagination.spec.ts tests/ui/demo-account-choice.spec.ts tests/ui/ui-calm-warm.spec.ts tests/ui/ui-reform-accessibility.spec.ts

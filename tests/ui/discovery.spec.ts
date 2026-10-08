@@ -1,3 +1,4 @@
+import { TEST_API_ORIGIN } from "./test-environment";
 import { test, expect } from "@playwright/test";
 
 test("a card drag records a Pass, Undo restores it, and a tap opens its profile", async ({
@@ -5,22 +6,24 @@ test("a card drag records a Pass, Undo restores it, and a tap opens its profile"
   request,
 }) => {
   const accounts = await (
-    await request.get("http://localhost:4100/v1/demo/users?group=men&limit=6")
+    await request.get(TEST_API_ORIGIN + "/v1/demo/users?group=men&limit=6")
   ).json();
-  let accountName = "";
+  let accountName = "",
+    candidateName = "";
   for (const account of accounts.items) {
     const session = await (
-      await request.post("http://localhost:4100/v1/auth/demo", {
+      await request.post(TEST_API_ORIGIN + "/v1/auth/demo", {
         data: { id: account.id },
       })
     ).json();
     const state = await (
-      await request.get("http://localhost:4100/v1/state", {
+      await request.get(TEST_API_ORIGIN + "/v1/state", {
         headers: { Authorization: `Bearer ${session.token}` },
       })
     ).json();
     if (state.discover?.length) {
       accountName = account.name;
+      candidateName = state.discover[0].name;
       break;
     }
   }
@@ -35,12 +38,13 @@ test("a card drag records a Pass, Undo restores it, and a tap opens its profile"
       exact: true,
     })
     .click();
-  const card = page
-    .getByRole("button", { name: /^View .+'s profile$/ })
-    .first();
+  const card = page.getByTestId("discovery-profile");
   await expect(card).toBeVisible();
-  const label = await card.getAttribute("aria-label");
-  const initial = page.getByRole("button", { name: label!, exact: true });
+
+  const initial = page
+    .getByTestId("discovery-profile")
+    .filter({ hasText: candidateName, visible: true });
+  await expect(initial).toBeVisible();
   const box = (await card.boundingBox())!;
   await page.mouse.move(box.x + box.width * 0.85, box.y + box.height * 0.35);
   await page.mouse.down();

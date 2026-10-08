@@ -1,3 +1,4 @@
+import { TEST_API_ORIGIN } from "./test-environment";
 import {
   expect,
   test,
@@ -7,7 +8,7 @@ import {
 import { gameDefinitionsV2 } from "../../apps/api/src/game-definitions";
 import type { GameSessionV2 } from "../../apps/mobile/src/lib/gameV2";
 
-const api = "http://localhost:4100/v1";
+const api = TEST_API_ORIGIN + "/v1";
 const aarav = "10000000-0000-4000-8000-000000000001";
 const pema = "10000000-0000-4000-8000-000000000019";
 const tavi = "10000000-0000-4000-8000-000000000027";
@@ -150,7 +151,7 @@ async function invite(host: Page, guest: Page, kind: string) {
   await expect(invitation).toBeVisible({ timeout: 12000 });
   // Tap the card title, avoiding its separate inline Accept & play button.
   await invitation.getByText(definition.title, { exact: true }).click();
-  const accepted = await action(guest, session.id, "Let’s Play ❤️", "accept");
+  const accepted = await action(guest, session.id, "Let’s play", "accept");
   expect(accepted.state).toBe("active");
   expect(accepted.accepted_at).not.toBeNull();
   return { id: session.id, definition };
@@ -206,11 +207,17 @@ test("real demo perspectives create a mutual match, chat and complete four expli
       await page.goto("/welcome");
       await enter(page, "Aarav");
       await expect(
-        page.getByRole("button", { name: "View Pema's profile", exact: true }),
+        page
+          .getByTestId("discovery-profile")
+          .filter({ visible: true })
+          .filter({ hasText: "Pema" }),
       ).toBeVisible();
       expect((await swipe(page, pema, "pass")).matched).toBe(false);
       await expect(
-        page.getByRole("button", { name: "View Tavi's profile", exact: true }),
+        page
+          .getByTestId("discovery-profile")
+          .filter({ visible: true })
+          .filter({ hasText: "Tavi" }),
       ).toBeVisible();
       expect((await swipe(page, tavi, "like")).matched).toBe(false);
       await expect(
@@ -233,7 +240,10 @@ test("real demo perspectives create a mutual match, chat and complete four expli
         .click();
       await enter(page, "Tavi");
       await expect(
-        page.getByRole("button", { name: "View Aarav's profile", exact: true }),
+        page
+          .getByTestId("discovery-profile")
+          .filter({ visible: true })
+          .filter({ hasText: "Aarav" }),
       ).toBeVisible();
       expect((await swipe(page, aarav, "like")).matched).toBe(true);
       await expect(
@@ -263,7 +273,7 @@ test("real demo perspectives create a mutual match, chat and complete four expli
         .click();
       expect((await delivered).ok()).toBe(true);
       await expect(page.getByText(hello, { exact: true })).toBeInViewport();
-      await host.goto("http://localhost:8081/welcome");
+      await host.goto(new URL(page.url()).origin + "/welcome");
       await enter(host, "Aarav");
       await host.getByRole("tab", { name: "Chat", exact: false }).click();
       await host

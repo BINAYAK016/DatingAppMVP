@@ -1,0 +1,55 @@
+# Isolated local UI verification only. Never reads the application .env.
+name: sangai-reform-qa
+services:
+  db:
+    image: postgres:17.7-alpine
+    environment:
+      POSTGRES_USER: sangai
+      POSTGRES_PASSWORD: local-reform-fixture
+      POSTGRES_DB: sangai
+    ports: ["127.0.0.1:25432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sangai -d sangai"]
+      interval: 3s
+      retries: 20
+  mailpit:
+    image: axllent/mailpit:v1.27.4
+    ports: ["127.0.0.1:8425:8025"]
+  api:
+    build: ../apps/api
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgres://sangai:local-reform-fixture@db:5432/sangai
+      ENABLE_DEMO: "true"
+      DEMO_MODE: "true"
+      ENABLE_GAMES_V2: "true"
+      ENABLE_PUSH: "false"
+      PORT: "4100"
+      UPLOAD_DIR: /data/media
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+      SMTP_SECURE: "false"
+      SMTP_USER: ""
+      SMTP_PASSWORD: ""
+      GOOGLE_CLIENT_ID: ""
+      MAIL_FROM: Sangai QA <qa@example.test>
+      OTP_HASH_SECRET: synthetic-local-reform-qa-secret-20261008-only
+      ADMIN_KEY: synthetic-local-reform-qa-admin
+      WEB_COOKIE_SECURE: "false"
+      CORS_ORIGINS: http://127.0.0.1:8083,http://localhost:8083
+      RATE_AUTH_PER_MINUTE: "1000"
+      RATE_API_PER_MINUTE: "10000"
+    ports: ["127.0.0.1:4510:4100"]
+    depends_on:
+      db:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://localhost:4100/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+      interval: 5s
+      retries: 30

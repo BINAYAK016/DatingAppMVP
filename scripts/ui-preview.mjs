@@ -6,7 +6,13 @@ const root = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../apps/mobile/dist",
 );
-const api = new URL("http://127.0.0.1:4100");
+const api = new URL(process.env.SANGAI_PREVIEW_API || "http://127.0.0.1:4100");
+// Test previews may use a separate local fixture API; never proxy an external host.
+if (
+  api.protocol !== "http:" ||
+  !["127.0.0.1", "localhost", "[::1]"].includes(api.hostname)
+)
+  throw new Error("SANGAI_PREVIEW_API must be a loopback HTTP address.");
 const previewPort = Number(process.env.SANGAI_PREVIEW_PORT || 8081);
 if (!Number.isInteger(previewPort) || previewPort < 1024 || previewPort > 65535)
   throw new Error("Choose a preview port between 1024 and 65535.");
@@ -17,6 +23,7 @@ const mime = {
   ".jpg": "image/jpeg",
   ".png": "image/png",
   ".ttf": "font/ttf",
+  ".woff2": "font/woff2",
   ".ico": "image/x-icon",
   ".css": "text/css",
   ".webp": "image/webp",
@@ -83,7 +90,7 @@ http
     }
     if (
       (!fs.existsSync(file) || !fs.statSync(file).isFile()) &&
-      /\.(js|css|png|jpg|ttf|ico|json)$/.test(pathname)
+      /\.(js|css|png|jpe?g|webp|svg|ttf|woff2|ico|json)$/.test(pathname)
     ) {
       res.writeHead(404);
       return res.end("Asset not found.");

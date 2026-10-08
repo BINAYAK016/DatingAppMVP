@@ -796,7 +796,7 @@ test("an id-only game notification derives its partner and carries that game int
     page.getByText(`You + ${partner.name}`, { exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Let’s Play ❤️", exact: true }),
+    page.getByRole("button", { name: "Let’s play", exact: true }),
   ).toBeEnabled();
   await page.getByRole("button", { name: "Game safety", exact: true }).click();
   const safety = new URL(page.url());

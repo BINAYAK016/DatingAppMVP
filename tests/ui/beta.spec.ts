@@ -1,3 +1,4 @@
+import { TEST_API_ORIGIN } from "./test-environment";
 import { test, expect, type Page } from "@playwright/test";
 
 async function becomeReady(client: Page, target: string) {
@@ -47,7 +48,7 @@ test("two matches explicitly become ready, invite, accept and reveal a live game
     await expect(
       page.getByText("DEMO MODE · Rohan", { exact: true }).last(),
     ).toBeVisible();
-    await guest.goto("http://localhost:8081/");
+    await guest.goto(new URL(page.url()).origin + "/");
     await guest.getByRole("button", { name: "Women", exact: true }).click();
     await guest
       .getByRole("button", { name: "Enter as Nisha", exact: true })
@@ -176,7 +177,7 @@ test.beforeEach(async ({ page }) => {
   ).toBeVisible();
 });
 
-test("four core areas, Discover landing and Chat-owned stories", async ({
+test("four core areas, Discover landing and match-only stories", async ({
   page,
 }) => {
   await expect(page.getByRole("tab")).toHaveCount(4);
@@ -184,9 +185,18 @@ test("four core areas, Discover landing and Chat-owned stories", async ({
     page.getByRole("tab", { name: "Discover", exact: false }),
   ).toHaveAttribute("aria-selected", "true");
   await page.getByRole("tab", { name: "Sangai", exact: false }).click();
-  await expect(page.getByLabel("Add your story")).toHaveCount(0);
+  await expect(
+    page.getByRole("tab", { name: "Sangai", exact: false }),
+  ).toHaveAttribute("aria-selected", "true");
+  // The base app already shares MatchStrip between Sangai and Chat. Assert
+  // the rendered entry instead of passing an absence check before it mounts.
+  await expect(
+    page.getByRole("button", { name: "Add your story", exact: true }),
+  ).toBeVisible();
   await page.getByRole("tab", { name: "Chat", exact: false }).click();
-  await expect(page.getByLabel("Add your story")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Add your story", exact: true }),
+  ).toBeVisible();
   await page
     .getByRole("button", { name: "Chat with Anaya", exact: true })
     .click();
@@ -243,7 +253,7 @@ test("Sangai post composer offers gallery media and persists a private post", as
     await expect(page.getByText(marker, { exact: true })).toBeVisible();
   } finally {
     if (authorization)
-      await request.delete(`http://localhost:4100/v1/posts/${postId}`, {
+      await request.delete(`${TEST_API_ORIGIN}/v1/posts/${postId}`, {
         headers: { Authorization: authorization },
         data: {},
       });

@@ -1,3 +1,4 @@
+import { TEST_API_ORIGIN, TEST_MAIL_ORIGIN } from "./test-environment";
 import { test, expect } from "@playwright/test";
 import sharp from "../../apps/api/node_modules/sharp";
 test("email signup verifies through local mail and saves all five onboarding steps", async ({
@@ -51,16 +52,14 @@ test("email signup verifies through local mail and saves all five onboarding ste
     await expect
       .poll(async () => {
         const list = await (
-          await request.get("http://localhost:8025/api/v1/messages")
+          await request.get(TEST_MAIL_ORIGIN + "/api/v1/messages")
         ).json();
         const message = list.messages.find((m: any) =>
           m.To.some((to: any) => to.Address === email),
         );
         if (!message) return false;
         const detail = await (
-          await request.get(
-            `http://localhost:8025/api/v1/message/${message.ID}`,
-          )
+          await request.get(`${TEST_MAIL_ORIGIN}/api/v1/message/${message.ID}`)
         ).json();
         code = detail.Text.match(/\b\d{6}\b/)?.[0] || "";
         return !!code;
@@ -235,7 +234,7 @@ test("email signup verifies through local mail and saves all five onboarding ste
   } finally {
     if (token) {
       const cleanup = () =>
-        fetch("http://localhost:4100/v1/account", {
+        fetch(TEST_API_ORIGIN + "/v1/account", {
           method: "DELETE",
           headers: {
             "Content-Type": "application/json",
@@ -246,7 +245,7 @@ test("email signup verifies through local mail and saves all five onboarding ste
         });
       const deleted = await cleanup();
       if (deleted.status === 401) {
-        const session = await fetch("http://localhost:4100/v1/auth/login", {
+        const session = await fetch(TEST_API_ORIGIN + "/v1/auth/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, password: "a-ui-fixture-password" }),

@@ -1,3 +1,4 @@
+import { TEST_API_ORIGIN } from "./test-environment";
 import {
   expect,
   test,
@@ -24,7 +25,7 @@ test("photo selection, removal, crop, ordering and retry publish one private car
   page,
   request,
 }) => {
-  const login = await request.post("http://localhost:4100/v1/auth/demo", {
+  const login = await request.post(TEST_API_ORIGIN + "/v1/auth/demo", {
     data: { id: actor },
   });
   const token = (await login.json()).token;
@@ -121,13 +122,16 @@ test("photo selection, removal, crop, ordering and retry publish one private car
     await expect(page.getByText(caption, { exact: true })).toBeVisible();
     expect(uploadIds).toHaveLength(2);
     expect(payloads[1]).toEqual(payloads[0]);
-    const detail = await request.get(
-      `http://localhost:4100/v1/posts/${postId}`,
-      { headers: { Authorization: `Bearer ${token}` } },
-    );
+    const detail = await request.get(`${TEST_API_ORIGIN}/v1/posts/${postId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
     expect((await detail.json()).media.map((item: any) => item.id)).toEqual(
       uploadIds,
     );
+    const firstPhotoLeft = (await page
+      .getByRole("button", { name: "View full photo 1", exact: true })
+      .first()
+      .boundingBox())!.x;
     await page
       .getByRole("button", { name: "Next photo", exact: true })
       .first()
@@ -139,7 +143,9 @@ test("photo selection, removal, crop, ordering and retry publish one private car
       .getByRole("button", { name: "View full photo 2", exact: true })
       .first();
     await expect
-      .poll(async () => Math.abs((await secondPhoto.boundingBox())!.x - 20))
+      .poll(async () =>
+        Math.abs((await secondPhoto.boundingBox())!.x - firstPhotoLeft),
+      )
       .toBeLessThanOrEqual(2);
     await expect(
       secondPhoto.getByLabel("Shared photo", { exact: true }),
@@ -147,7 +153,7 @@ test("photo selection, removal, crop, ordering and retry publish one private car
     await page.screenshot({ path: "artifacts/post-carousel-412.png" });
   } finally {
     if (postId)
-      await request.delete(`http://localhost:4100/v1/posts/${postId}`, {
+      await request.delete(`${TEST_API_ORIGIN}/v1/posts/${postId}`, {
         headers: { Authorization: `Bearer ${token}` },
         data: {},
       });
@@ -158,7 +164,7 @@ test("small-phone composer protects a draft and keeps a plain-text post simple",
   request,
 }) => {
   await page.setViewportSize({ width: 360, height: 780 });
-  const login = await request.post("http://localhost:4100/v1/auth/demo", {
+  const login = await request.post(TEST_API_ORIGIN + "/v1/auth/demo", {
     data: { id: actor },
   });
   const token = (await login.json()).token;
@@ -194,7 +200,7 @@ test("small-phone composer protects a draft and keeps a plain-text post simple",
     await page.screenshot({ path: "artifacts/text-post-360.png" });
   } finally {
     if (postId)
-      await request.delete(`http://localhost:4100/v1/posts/${postId}`, {
+      await request.delete(`${TEST_API_ORIGIN}/v1/posts/${postId}`, {
         headers: { Authorization: `Bearer ${token}` },
         data: {},
       });
@@ -206,12 +212,12 @@ test("likes respond before the network, roll back on failure, and comments stay 
   request,
 }) => {
   await page.setViewportSize({ width: 360, height: 780 });
-  const login = await request.post("http://localhost:4100/v1/auth/demo", {
+  const login = await request.post(TEST_API_ORIGIN + "/v1/auth/demo", {
     data: { id: actor },
   });
   const token = (await login.json()).token;
   const state = await (
-    await request.get("http://localhost:4100/v1/state", {
+    await request.get(TEST_API_ORIGIN + "/v1/state", {
       headers: { Authorization: `Bearer ${token}` },
     })
   ).json();
@@ -282,12 +288,12 @@ test("likes respond before the network, roll back on failure, and comments stay 
 });
 
 async function fixtureFeed(page: Page, request: APIRequestContext) {
-  const login = await request.post("http://localhost:4100/v1/auth/demo", {
+  const login = await request.post(TEST_API_ORIGIN + "/v1/auth/demo", {
     data: { id: actor },
   });
   const token = (await login.json()).token;
   const state = await (
-    await request.get("http://localhost:4100/v1/state", {
+    await request.get(TEST_API_ORIGIN + "/v1/state", {
       headers: { Authorization: `Bearer ${token}` },
     })
   ).json();

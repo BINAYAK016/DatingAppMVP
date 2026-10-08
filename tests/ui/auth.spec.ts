@@ -1,3 +1,4 @@
+import { TEST_API_ORIGIN, TEST_MAIL_ORIGIN } from "./test-environment";
 import { expect, test, type Page } from "@playwright/test";
 import type { State } from "../../apps/mobile/src/lib/types";
 
@@ -238,12 +239,9 @@ test("password reset reads a local email code, rejects a wrong code and signs in
   const email = `ui-reset-${Date.now()}@example.test`;
   const password = "synthetic-reset-password";
   const newPassword = "changed-synthetic-reset-password";
-  const registered = await request.post(
-    "http://localhost:4100/v1/auth/register",
-    {
-      data: { email, password, acceptedPolicies: true },
-    },
-  );
+  const registered = await request.post(TEST_API_ORIGIN + "/v1/auth/register", {
+    data: { email, password, acceptedPolicies: true },
+  });
   expect(registered.ok()).toBe(true);
   let token = (await registered.json()).token;
   try {
@@ -256,16 +254,14 @@ test("password reset reads a local email code, rejects a wrong code and signs in
     await expect
       .poll(async () => {
         const list = await (
-          await request.get("http://localhost:8025/api/v1/messages")
+          await request.get(TEST_MAIL_ORIGIN + "/api/v1/messages")
         ).json();
         const message = list.messages.find((m: any) =>
           m.To.some((to: any) => to.Address === email),
         );
         if (!message) return false;
         const detail = await (
-          await request.get(
-            `http://localhost:8025/api/v1/message/${message.ID}`,
-          )
+          await request.get(`${TEST_MAIL_ORIGIN}/api/v1/message/${message.ID}`)
         ).json();
         code = detail.Text.match(/\b\d{6}\b/)?.[0] || "";
         return !!code;
@@ -309,14 +305,14 @@ test("password reset reads a local email code, rejects a wrong code and signs in
       page.getByText("Verify your email", { exact: true }),
     ).toBeVisible();
   } finally {
-    const session = await fetch("http://localhost:4100/v1/auth/login", {
+    const session = await fetch(TEST_API_ORIGIN + "/v1/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, password: newPassword }),
       signal: AbortSignal.timeout(5000),
     });
     if (session.ok) token = (await session.json()).token;
-    await fetch("http://localhost:4100/v1/account", {
+    await fetch(TEST_API_ORIGIN + "/v1/account", {
       method: "DELETE",
       headers: {
         "Content-Type": "application/json",
